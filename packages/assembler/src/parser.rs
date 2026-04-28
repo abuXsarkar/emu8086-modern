@@ -53,6 +53,12 @@ pub enum Directive {
 pub enum DataItem {
     Number(u32, Span),
     String(Vec<u8>, Span),
+    /// `count DUP(items…)` — emits the inner data sequence `count` times.
+    Dup {
+        count: u32,
+        items: Vec<DataItem>,
+        span: Span,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -335,12 +341,34 @@ impl Parser<'_> {
             let cur = self.peek().clone();
             match cur.tok {
                 Token::Number(n) => {
+                    // Look ahead for `DUP ( ... )` — MASM array shorthand.
                     self.bump();
-                    out.push(DataItem::Number(n, cur.span));
+                    if let Token::Ident(maybe_dup) = &self.peek().tok.clone() {
+                        if maybe_dup.eq_ignore_ascii_case("dup") {
+                            self.bump(); // consume DUP
+                            self.expect(&Token::LParen)?;
+                            let inner = self.parse_data_items()?;
+                            let r = self.expect(&Token::RParen)?;
+                            out.push(DataItem::Dup {
+                                count: n,
+                                items: inner,
+                                span: Span::new(cur.span.start, r.span.end),
+                            });
+                        } else {
+                            out.push(DataItem::Number(n, cur.span));
+                        }
+                    } else {
+                        out.push(DataItem::Number(n, cur.span));
+                    }
                 }
                 Token::String(bytes) => {
                     self.bump();
                     out.push(DataItem::String(bytes, cur.span));
+                }
+                Token::Ident(name) if name.eq_ignore_ascii_case("?") => {
+                    // MASM's `?` is "uninitialized" — we treat it as zero.
+                    self.bump();
+                    out.push(DataItem::Number(0, cur.span));
                 }
                 _ => {
                     return Err(ParseError {

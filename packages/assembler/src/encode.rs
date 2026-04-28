@@ -403,6 +403,10 @@ fn data_size(items: &[DataItem], width: u16) -> u16 {
         let n = match it {
             DataItem::Number(_, _) => width,
             DataItem::String(b, _) => (b.len() as u16) * width,
+            DataItem::Dup { count, items, .. } => {
+                let inner = data_size(items, width);
+                inner.wrapping_mul(*count as u16)
+            }
         };
         s = s.wrapping_add(n);
     }
@@ -427,6 +431,11 @@ fn emit_data(items: &[DataItem], width: u16, out: &mut Vec<u8>) {
                     for b in bytes {
                         out.extend_from_slice(&u16::from(*b).to_le_bytes());
                     }
+                }
+            }
+            DataItem::Dup { count, items, .. } => {
+                for _ in 0..*count {
+                    emit_data(items, width, out);
                 }
             }
         }
@@ -1574,6 +1583,24 @@ mod tests {
         // mov al, [bx-1]  →  8A 47 FF  (mod=01 rm=BX disp8=-1)
         let bytes = asm("mov al, [bx-1]\n");
         assert_eq!(bytes, vec![0x8A, 0x47, 0xFF]);
+    }
+
+    #[test]
+    fn dup_repeats_zero_byte() {
+        let bytes = asm("db 5 dup(0)\n");
+        assert_eq!(bytes, vec![0, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn dup_repeats_pattern() {
+        let bytes = asm("db 3 dup(0xAA, 0xBB)\n");
+        assert_eq!(bytes, vec![0xAA, 0xBB, 0xAA, 0xBB, 0xAA, 0xBB]);
+    }
+
+    #[test]
+    fn dup_in_dw_doubles_width() {
+        let bytes = asm("dw 2 dup(0x1234)\n");
+        assert_eq!(bytes, vec![0x34, 0x12, 0x34, 0x12]);
     }
 
     #[test]
