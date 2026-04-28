@@ -4,6 +4,11 @@
 
 #![forbid(unsafe_code)]
 #![warn(clippy::all, clippy::pedantic)]
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::items_after_statements
+)]
 
 use std::fs;
 use std::io::Write as _;
@@ -48,8 +53,14 @@ enum Cmd {
         #[arg(long, default_value_t = 1_000_000)]
         max_steps: usize,
     },
-    /// Trace a program and emit JSON (M5 — not yet implemented).
-    Trace { input: PathBuf },
+    /// Trace a `.asm` source file and emit a JSON array of step records.
+    /// One record per executed instruction; useful for autograding,
+    /// regression testing, and (later) time-travel debugging.
+    Trace {
+        input: PathBuf,
+        #[arg(long, default_value_t = 1_000_000)]
+        max_steps: usize,
+    },
     /// Grade a submission against a YAML spec (M5 — not yet implemented).
     Grade { spec: PathBuf, submission: PathBuf },
     /// Walk a directory and report compatibility issues (M2 — not yet implemented).
@@ -106,6 +117,70 @@ fn cmd_assemble(input: &Path, output: Option<&Path>) -> anyhow::Result<u8> {
         img.origin,
         img.labels.len()
     );
+    Ok(0)
+}
+
+fn cmd_trace(input: &Path, max_steps: usize) -> anyhow::Result<u8> {
+    let source = fs::read_to_string(input)?;
+    let img = match assemble(&source, Dialect::default()) {
+        Ok(img) => img,
+        Err(e) => {
+            print_assemble_error(input, &source, &e);
+            return Ok(2);
+        }
+    };
+    let mut cpu = Cpu::new();
+    cpu.load_com(&img.bytes);
+
+    #[derive(serde::Serialize)]
+    struct TraceEntry<'a> {
+        n: usize,
+        ip_before: u16,
+        cs: u16,
+        rec: &'a emu8086_core::StepRecord,
+        ax: u16,
+        bx: u16,
+        cx: u16,
+        dx: u16,
+        si: u16,
+        di: u16,
+        bp: u16,
+        sp: u16,
+        flags: u16,
+    }
+
+    let mut out = std::io::stdout().lock();
+    writeln!(out, "[")?;
+    let mut first = true;
+    for n in 0..max_steps {
+        let ip_before = cpu.regs.ip;
+        let cs = cpu.regs.cs;
+        let rec = cpu.step();
+        let entry = TraceEntry {
+            n,
+            ip_before,
+            cs,
+            rec: &rec,
+            ax: cpu.regs.ax,
+            bx: cpu.regs.bx,
+            cx: cpu.regs.cx,
+            dx: cpu.regs.dx,
+            si: cpu.regs.si,
+            di: cpu.regs.di,
+            bp: cpu.regs.bp,
+            sp: cpu.regs.sp,
+            flags: cpu.regs.flags.0,
+        };
+        if !first {
+            writeln!(out, ",")?;
+        }
+        serde_json::to_writer(&mut out, &entry)?;
+        first = false;
+        if rec.stopped.is_some() {
+            break;
+        }
+    }
+    writeln!(out, "\n]")?;
     Ok(0)
 }
 
@@ -174,7 +249,8 @@ fn main() -> ExitCode {
         Cmd::Run { image, max_steps } => cmd_run(&image, max_steps),
         Cmd::Assemble { input, output } => cmd_assemble(&input, output.as_deref()),
         Cmd::RunAsm { input, max_steps } => cmd_run_asm(&input, max_steps),
-        Cmd::Trace { .. } | Cmd::Grade { .. } | Cmd::CompatReport { .. } => {
+        Cmd::Trace { input, max_steps } => cmd_trace(&input, max_steps),
+        Cmd::Grade { .. } | Cmd::CompatReport { .. } => {
             eprintln!("emu8086: subcommand not yet implemented; see ROADMAP.md");
             Ok(2)
         }

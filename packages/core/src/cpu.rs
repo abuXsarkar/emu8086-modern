@@ -91,7 +91,7 @@ impl SegReg {
 }
 
 /// Reason a `step()` returned without making progress past a normal advance.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum StopReason {
     /// HLT executed.
     Halted,
@@ -103,7 +103,7 @@ pub enum StopReason {
 }
 
 /// What one `step` did. Rich enough for the IDE's diff highlighting.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StepRecord {
     pub bytes_consumed: u8,
     pub mnemonic: &'static str,
