@@ -140,7 +140,24 @@ A spec is a portable artifact; instructors share specs across institutes the sam
 
 ## LMS integration
 
-- **GitHub Classroom**: a published Action runs the autograder on each push and writes a check; scores appear in the classroom dashboard.
+- **GitHub Classroom**: drop the `abuXsarkar/emu8086-modern/.github/actions/grade` composite action into the assignment template — every push runs the autograder, the JUnit XML report uploads as an artifact, and a workflow can republish it as a test-result check (e.g. via `EnricoMi/publish-unit-test-result-action`). Example workflow:
+
+  ```yaml
+  jobs:
+    grade:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - uses: abuXsarkar/emu8086-modern/.github/actions/grade@main
+          with:
+            spec: spec.yml
+            submission: submission.asm
+        - uses: EnricoMi/publish-unit-test-result-action@v2
+          if: always()
+          with:
+            files: emu8086-grade.xml
+  ```
+
 - **Moodle / Canvas / Blackboard**: LTI 1.3 launch from an assignment item. The launch carries the student's identity; the IDE returns a numeric score on submission.
 - **Plain CSV**: the autograder writes `results.csv` for instructors who prefer to import grades by hand.
 

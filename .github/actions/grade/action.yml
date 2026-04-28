@@ -1,0 +1,78 @@
+name: emu8086 grade
+description: Grade an 8086 assembly submission against a YAML spec.
+author: Abu Sufian Sarkar <abu@cyberdude.com>
+
+# Composite action that:
+#   1. installs Rust (stable),
+#   2. builds the emu8086 CLI from source,
+#   3. invokes `emu8086 grade <spec> <submission> --junit <path>`,
+#   4. uploads the JUnit XML so dorothy.dorothy.io / GitHub Classroom
+#      / EnricoMi/publish-unit-test-result-action can ingest it.
+#
+# Drop this in your assignment template:
+#
+#   jobs:
+#     grade:
+#       runs-on: ubuntu-latest
+#       steps:
+#         - uses: actions/checkout@v4
+#         - uses: abuXsarkar/emu8086-modern/.github/actions/grade@main
+#           with:
+#             spec: spec.yml
+#             submission: submission.asm
+
+inputs:
+  spec:
+    description: Path to the YAML test spec.
+    required: true
+  submission:
+    description: Path to the student's .asm submission.
+    required: true
+  junit:
+    description: Path the JUnit XML report should be written to.
+    required: false
+    default: emu8086-grade.xml
+  ref:
+    description: emu8086-modern git ref to checkout for the CLI source.
+    required: false
+    default: main
+
+outputs:
+  junit:
+    description: Path of the produced JUnit XML report.
+    value: ${{ inputs.junit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache cargo build
+      uses: Swatinem/rust-cache@v2
+
+    - name: Checkout emu8086-modern (CLI source)
+      uses: actions/checkout@v4
+      with:
+        repository: abuXsarkar/emu8086-modern
+        ref: ${{ inputs.ref }}
+        path: ${{ runner.temp }}/emu8086-modern
+
+    - name: Build emu8086 CLI
+      shell: bash
+      run: |
+        cargo install --path "${{ runner.temp }}/emu8086-modern/packages/cli" --locked
+
+    - name: Run grade
+      shell: bash
+      run: |
+        emu8086 grade "${{ inputs.spec }}" "${{ inputs.submission }}" \
+          --junit "${{ inputs.junit }}"
+
+    - name: Upload JUnit report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: emu8086-grade-junit
+        path: ${{ inputs.junit }}
+        if-no-files-found: warn
