@@ -12,7 +12,10 @@
     clippy::cast_possible_truncation,
     clippy::cast_lossless,
     clippy::cast_possible_wrap,
-    clippy::cast_sign_loss
+    clippy::cast_sign_loss,
+    clippy::many_single_char_names,
+    clippy::doc_overindented_list_items,
+    clippy::similar_names
 )]
 
 use serde::{Deserialize, Serialize};
@@ -20,6 +23,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
+pub mod alu;
 pub mod cpu;
 pub mod mem;
 

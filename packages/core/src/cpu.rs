@@ -7,6 +7,7 @@
 //! a self-contained read that pulls bytes through `fetch_*`, so we can
 //! later snapshot every fetched byte for the trace log.
 
+use crate::alu;
 use crate::mem::{seg_off, Memory};
 use crate::{Flags, Registers};
 
@@ -327,6 +328,102 @@ impl Cpu {
         }
     }
 
+    /// Apply one of the eight ALU operations selected by `kind` (0..7) to
+    /// `(a, b)` at 8-bit width. Returns `(result, flags, writes_back)`.
+    /// `writes_back` is `false` for `CMP`, which computes flags and
+    /// discards the result.
+    fn alu_apply8(&self, kind: u8, a: u8, b: u8) -> (u8, Flags, bool) {
+        let cf = self.regs.flags.get(Flags::CF);
+        match kind & 7 {
+            0 => {
+                let (r, f) = alu::add8(a, b, false);
+                (r, f, true)
+            }
+            1 => {
+                let (r, f) = alu::or8(a, b);
+                (r, f, true)
+            }
+            2 => {
+                let (r, f) = alu::add8(a, b, cf);
+                (r, f, true)
+            }
+            3 => {
+                let (r, f) = alu::sub8(a, b, cf);
+                (r, f, true)
+            }
+            4 => {
+                let (r, f) = alu::and8(a, b);
+                (r, f, true)
+            }
+            5 => {
+                let (r, f) = alu::sub8(a, b, false);
+                (r, f, true)
+            }
+            6 => {
+                let (r, f) = alu::xor8(a, b);
+                (r, f, true)
+            }
+            _ => {
+                // CMP — same as SUB without store.
+                let (r, f) = alu::sub8(a, b, false);
+                (r, f, false)
+            }
+        }
+    }
+
+    fn alu_apply16(&self, kind: u8, a: u8, av: u16, bv: u16) -> (u16, Flags, bool) {
+        let _ = a;
+        let cf = self.regs.flags.get(Flags::CF);
+        match kind & 7 {
+            0 => {
+                let (r, f) = alu::add16(av, bv, false);
+                (r, f, true)
+            }
+            1 => {
+                let (r, f) = alu::or16(av, bv);
+                (r, f, true)
+            }
+            2 => {
+                let (r, f) = alu::add16(av, bv, cf);
+                (r, f, true)
+            }
+            3 => {
+                let (r, f) = alu::sub16(av, bv, cf);
+                (r, f, true)
+            }
+            4 => {
+                let (r, f) = alu::and16(av, bv);
+                (r, f, true)
+            }
+            5 => {
+                let (r, f) = alu::sub16(av, bv, false);
+                (r, f, true)
+            }
+            6 => {
+                let (r, f) = alu::xor16(av, bv);
+                (r, f, true)
+            }
+            _ => {
+                let (r, f) = alu::sub16(av, bv, false);
+                (r, f, false)
+            }
+        }
+    }
+
+    /// Mnemonic name for the eight ALU kinds, used to populate `StepRecord`.
+    const fn alu_mnemonic(kind: u8) -> &'static str {
+        match kind & 7 {
+            0 => "add",
+            1 => "or",
+            2 => "adc",
+            3 => "sbb",
+            4 => "and",
+            5 => "sub",
+            6 => "xor",
+            _ => "cmp",
+        }
+    }
+
     /// Execute exactly one instruction starting at `cs:ip`.
     ///
     /// Returns a `StepRecord` describing what happened. If the CPU is
@@ -545,6 +642,301 @@ impl Cpu {
                 rec.mnemonic = "xchg";
             }
 
+            // Regular ALU group 00..3D — eight operations × six forms each.
+            // op = (kind << 3) | form
+            //   kind: 0 ADD | 1 OR | 2 ADC | 3 SBB | 4 AND | 5 SUB | 6 XOR | 7 CMP
+            //   form: 0 r/m,r 8 | 1 r/m,r 16 | 2 r,r/m 8 | 3 r,r/m 16
+            //         4 AL,imm8 | 5 AX,imm16
+            // Forms 6/7 inside these ranges are seg push/pop or BCD ops and
+            // fall through to the unimplemented arm for now.
+            0x00..=0x3D if (op & 0b111) < 6 => {
+                let kind = op >> 3;
+                let form = op & 0b111;
+                rec.mnemonic = Self::alu_mnemonic(kind);
+                match form {
+                    0 => {
+                        let modrm = self.fetch_u8();
+                        let reg = (modrm >> 3) & 0b111;
+                        let a = self.read_rm8(modrm, override_seg);
+                        let b = self.read_reg8(Reg8::from_code(reg));
+                        let (r, f, w) = self.alu_apply8(kind, a, b);
+                        self.regs.flags = f;
+                        if w {
+                            self.write_rm8(modrm, override_seg, r);
+                        }
+                    }
+                    1 => {
+                        let modrm = self.fetch_u8();
+                        let reg = (modrm >> 3) & 0b111;
+                        let a = self.read_rm16(modrm, override_seg);
+                        let b = self.read_reg16(Reg16::from_code(reg));
+                        let (r, f, w) = self.alu_apply16(kind, 0, a, b);
+                        self.regs.flags = f;
+                        if w {
+                            self.write_rm16(modrm, override_seg, r);
+                        }
+                    }
+                    2 => {
+                        let modrm = self.fetch_u8();
+                        let reg = (modrm >> 3) & 0b111;
+                        let a = self.read_reg8(Reg8::from_code(reg));
+                        let b = self.read_rm8(modrm, override_seg);
+                        let (r, f, w) = self.alu_apply8(kind, a, b);
+                        self.regs.flags = f;
+                        if w {
+                            self.write_reg8(Reg8::from_code(reg), r);
+                        }
+                    }
+                    3 => {
+                        let modrm = self.fetch_u8();
+                        let reg = (modrm >> 3) & 0b111;
+                        let a = self.read_reg16(Reg16::from_code(reg));
+                        let b = self.read_rm16(modrm, override_seg);
+                        let (r, f, w) = self.alu_apply16(kind, 0, a, b);
+                        self.regs.flags = f;
+                        if w {
+                            self.write_reg16(Reg16::from_code(reg), r);
+                        }
+                    }
+                    4 => {
+                        let imm = self.fetch_u8();
+                        let a = self.regs.al();
+                        let (r, f, w) = self.alu_apply8(kind, a, imm);
+                        self.regs.flags = f;
+                        if w {
+                            self.regs.set_al(r);
+                        }
+                    }
+                    _ /* 5 */ => {
+                        let imm = self.fetch_u16();
+                        let a = self.regs.ax;
+                        let (r, f, w) = self.alu_apply16(kind, 0, a, imm);
+                        self.regs.flags = f;
+                        if w {
+                            self.regs.ax = r;
+                        }
+                    }
+                }
+            }
+
+            // ALU r/m, imm — 80 (r/m8, imm8), 81 (r/m16, imm16),
+            // 82 (alias of 80), 83 (r/m16, sign-extended imm8).
+            // Operation selected by reg field of mod-r/m.
+            0x80 | 0x82 => {
+                let modrm = self.fetch_u8();
+                let kind = (modrm >> 3) & 0b111;
+                let a = self.read_rm8(modrm, override_seg);
+                let b = self.fetch_u8();
+                rec.mnemonic = Self::alu_mnemonic(kind);
+                let (r, f, w) = self.alu_apply8(kind, a, b);
+                self.regs.flags = f;
+                if w {
+                    self.write_rm8(modrm, override_seg, r);
+                }
+            }
+            0x81 => {
+                let modrm = self.fetch_u8();
+                let kind = (modrm >> 3) & 0b111;
+                let a = self.read_rm16(modrm, override_seg);
+                let b = self.fetch_u16();
+                rec.mnemonic = Self::alu_mnemonic(kind);
+                let (r, f, w) = self.alu_apply16(kind, 0, a, b);
+                self.regs.flags = f;
+                if w {
+                    self.write_rm16(modrm, override_seg, r);
+                }
+            }
+            0x83 => {
+                let modrm = self.fetch_u8();
+                let kind = (modrm >> 3) & 0b111;
+                let a = self.read_rm16(modrm, override_seg);
+                // Sign-extend imm8 to 16 bits.
+                let b = self.fetch_u8() as i8 as i16 as u16;
+                rec.mnemonic = Self::alu_mnemonic(kind);
+                let (r, f, w) = self.alu_apply16(kind, 0, a, b);
+                self.regs.flags = f;
+                if w {
+                    self.write_rm16(modrm, override_seg, r);
+                }
+            }
+
+            // TEST r/m, r — 84 (8-bit), 85 (16-bit). AND-without-store.
+            0x84 => {
+                let modrm = self.fetch_u8();
+                let reg = (modrm >> 3) & 0b111;
+                let a = self.read_rm8(modrm, override_seg);
+                let b = self.read_reg8(Reg8::from_code(reg));
+                let (_, f) = alu::and8(a, b);
+                self.regs.flags = f;
+                rec.mnemonic = "test";
+            }
+            0x85 => {
+                let modrm = self.fetch_u8();
+                let reg = (modrm >> 3) & 0b111;
+                let a = self.read_rm16(modrm, override_seg);
+                let b = self.read_reg16(Reg16::from_code(reg));
+                let (_, f) = alu::and16(a, b);
+                self.regs.flags = f;
+                rec.mnemonic = "test";
+            }
+
+            // TEST AL/AX, imm — A8/A9.
+            0xA8 => {
+                let imm = self.fetch_u8();
+                let (_, f) = alu::and8(self.regs.al(), imm);
+                self.regs.flags = f;
+                rec.mnemonic = "test";
+            }
+            0xA9 => {
+                let imm = self.fetch_u16();
+                let (_, f) = alu::and16(self.regs.ax, imm);
+                self.regs.flags = f;
+                rec.mnemonic = "test";
+            }
+
+            // INC reg16 — 40..47.
+            0x40..=0x47 => {
+                let r = Reg16::from_code(op - 0x40);
+                let cf = self.regs.flags.get(Flags::CF);
+                let (v, f) = alu::inc16(self.read_reg16(r), cf);
+                self.regs.flags = f;
+                self.write_reg16(r, v);
+                rec.mnemonic = "inc";
+            }
+
+            // DEC reg16 — 48..4F.
+            0x48..=0x4F => {
+                let r = Reg16::from_code(op - 0x48);
+                let cf = self.regs.flags.get(Flags::CF);
+                let (v, f) = alu::dec16(self.read_reg16(r), cf);
+                self.regs.flags = f;
+                self.write_reg16(r, v);
+                rec.mnemonic = "dec";
+            }
+
+            // FE / FF — unary group on r/m. Reg field selects:
+            // 0 INC, 1 DEC. Other variants of FF (CALL/JMP/PUSH) arrive
+            // with control flow in the next slice.
+            0xFE => {
+                let modrm = self.fetch_u8();
+                let sub = (modrm >> 3) & 0b111;
+                let cf = self.regs.flags.get(Flags::CF);
+                let a = self.read_rm8(modrm, override_seg);
+                let (v, f, name) = match sub {
+                    0 => {
+                        let (v, f) = alu::inc8(a, cf);
+                        (v, f, "inc")
+                    }
+                    1 => {
+                        let (v, f) = alu::dec8(a, cf);
+                        (v, f, "dec")
+                    }
+                    _ => {
+                        rec.stopped = Some(StopReason::Unimplemented {
+                            opcode: op,
+                            ip: ip_before,
+                        });
+                        (0u8, self.regs.flags, "")
+                    }
+                };
+                if rec.stopped.is_none() {
+                    self.regs.flags = f;
+                    self.write_rm8(modrm, override_seg, v);
+                    rec.mnemonic = name;
+                }
+            }
+            0xFF => {
+                let modrm = self.fetch_u8();
+                let sub = (modrm >> 3) & 0b111;
+                let cf = self.regs.flags.get(Flags::CF);
+                let a = self.read_rm16(modrm, override_seg);
+                let (v, f, name) = match sub {
+                    0 => {
+                        let (v, f) = alu::inc16(a, cf);
+                        (v, f, "inc")
+                    }
+                    1 => {
+                        let (v, f) = alu::dec16(a, cf);
+                        (v, f, "dec")
+                    }
+                    _ => {
+                        rec.stopped = Some(StopReason::Unimplemented {
+                            opcode: op,
+                            ip: ip_before,
+                        });
+                        (0u16, self.regs.flags, "")
+                    }
+                };
+                if rec.stopped.is_none() {
+                    self.regs.flags = f;
+                    self.write_rm16(modrm, override_seg, v);
+                    rec.mnemonic = name;
+                }
+            }
+
+            // F6 / F7 — unary group: 0 TEST imm, 2 NOT, 3 NEG.
+            // 4..7 (MUL/IMUL/DIV/IDIV) arrive in a later slice.
+            0xF6 => {
+                let modrm = self.fetch_u8();
+                let sub = (modrm >> 3) & 0b111;
+                let a = self.read_rm8(modrm, override_seg);
+                match sub {
+                    0 | 1 => {
+                        let imm = self.fetch_u8();
+                        let (_, f) = alu::and8(a, imm);
+                        self.regs.flags = f;
+                        rec.mnemonic = "test";
+                    }
+                    2 => {
+                        let v = alu::not8(a);
+                        self.write_rm8(modrm, override_seg, v);
+                        rec.mnemonic = "not";
+                    }
+                    3 => {
+                        let (v, f) = alu::neg8(a);
+                        self.regs.flags = f;
+                        self.write_rm8(modrm, override_seg, v);
+                        rec.mnemonic = "neg";
+                    }
+                    _ => {
+                        rec.stopped = Some(StopReason::Unimplemented {
+                            opcode: op,
+                            ip: ip_before,
+                        });
+                    }
+                }
+            }
+            0xF7 => {
+                let modrm = self.fetch_u8();
+                let sub = (modrm >> 3) & 0b111;
+                let a = self.read_rm16(modrm, override_seg);
+                match sub {
+                    0 | 1 => {
+                        let imm = self.fetch_u16();
+                        let (_, f) = alu::and16(a, imm);
+                        self.regs.flags = f;
+                        rec.mnemonic = "test";
+                    }
+                    2 => {
+                        let v = alu::not16(a);
+                        self.write_rm16(modrm, override_seg, v);
+                        rec.mnemonic = "not";
+                    }
+                    3 => {
+                        let (v, f) = alu::neg16(a);
+                        self.regs.flags = f;
+                        self.write_rm16(modrm, override_seg, v);
+                        rec.mnemonic = "neg";
+                    }
+                    _ => {
+                        rec.stopped = Some(StopReason::Unimplemented {
+                            opcode: op,
+                            ip: ip_before,
+                        });
+                    }
+                }
+            }
+
             other => {
                 rec.stopped = Some(StopReason::Unimplemented {
                     opcode: other,
@@ -753,5 +1145,134 @@ mod tests {
         let c = run(&[0xB8, 0x34, 0x12, 0x8E, 0xC0, 0x8C, 0xC3, 0xF4]);
         assert_eq!(c.regs.es, 0x1234);
         assert_eq!(c.regs.bx, 0x1234);
+    }
+
+    // ---- arithmetic opcodes (M1.3) ----
+
+    #[test]
+    fn add_al_imm8() {
+        // 04 22 = add al, 0x22
+        let c = run(&[0xB0, 0x10, 0x04, 0x22, 0xF4]);
+        assert_eq!(c.regs.al(), 0x32);
+        // 0x32 = 0b00110010 → 3 ones → odd → PF=0; ZF=SF=CF=OF=0.
+        assert!(!c.regs.flags.get(Flags::ZF));
+        assert!(!c.regs.flags.get(Flags::CF));
+    }
+
+    #[test]
+    fn add_ax_imm16_carries() {
+        // mov ax, 0xFFFF ; add ax, 1 ; hlt → AX=0, ZF=1, CF=1
+        let c = run(&[0xB8, 0xFF, 0xFF, 0x05, 0x01, 0x00, 0xF4]);
+        assert_eq!(c.regs.ax, 0);
+        assert!(c.regs.flags.get(Flags::ZF));
+        assert!(c.regs.flags.get(Flags::CF));
+    }
+
+    #[test]
+    fn sub_reg_reg_borrows() {
+        // mov al, 5 ; sub al, 6 (28 /reg=Bl(3)/rm=AL(0)?) — easier: 2C imm form.
+        // 2C 06 = sub al, 6
+        let c = run(&[0xB0, 0x05, 0x2C, 0x06, 0xF4]);
+        assert_eq!(c.regs.al(), 0xFF);
+        assert!(c.regs.flags.get(Flags::CF));
+        assert!(c.regs.flags.get(Flags::SF));
+    }
+
+    #[test]
+    fn cmp_does_not_write_back() {
+        // mov ax, 5 ; cmp ax, 5 ; hlt → AX still 5, ZF set, CF clear.
+        let c = run(&[0xB8, 0x05, 0x00, 0x3D, 0x05, 0x00, 0xF4]);
+        assert_eq!(c.regs.ax, 5);
+        assert!(c.regs.flags.get(Flags::ZF));
+        assert!(!c.regs.flags.get(Flags::CF));
+    }
+
+    #[test]
+    fn and_clears_cf_of_and_sets_zf_when_zero() {
+        // mov al, 0xF0 ; and al, 0x0F ; hlt
+        // and al, imm8 → 24 0F
+        let c = run(&[0xB0, 0xF0, 0x24, 0x0F, 0xF4]);
+        assert_eq!(c.regs.al(), 0);
+        assert!(c.regs.flags.get(Flags::ZF));
+        assert!(!c.regs.flags.get(Flags::CF));
+        assert!(!c.regs.flags.get(Flags::OF));
+    }
+
+    #[test]
+    fn or_xor_set_correct_result() {
+        // mov al, 0xAA ; or al, 0x55 → 0xFF ; xor al, 0x0F → 0xF0
+        // OR al,imm8 = 0C ; XOR al,imm8 = 34
+        let c = run(&[0xB0, 0xAA, 0x0C, 0x55, 0x34, 0x0F, 0xF4]);
+        assert_eq!(c.regs.al(), 0xF0);
+    }
+
+    #[test]
+    fn inc_reg_preserves_cf() {
+        // stc ; mov ax, 0x7FFF ; inc ax ; hlt → AX=0x8000, OF=1, SF=1, CF preserved.
+        let c = run(&[0xF9, 0xB8, 0xFF, 0x7F, 0x40, 0xF4]);
+        assert_eq!(c.regs.ax, 0x8000);
+        assert!(c.regs.flags.get(Flags::OF));
+        assert!(c.regs.flags.get(Flags::SF));
+        assert!(c.regs.flags.get(Flags::CF), "INC must not clobber CF");
+    }
+
+    #[test]
+    fn dec_reg_preserves_cf() {
+        // stc ; mov ax, 1 ; dec ax ; hlt → AX=0, ZF=1, CF still 1.
+        let c = run(&[0xF9, 0xB8, 0x01, 0x00, 0x48, 0xF4]);
+        assert_eq!(c.regs.ax, 0);
+        assert!(c.regs.flags.get(Flags::ZF));
+        assert!(c.regs.flags.get(Flags::CF));
+    }
+
+    #[test]
+    fn neg_nonzero_sets_cf() {
+        // mov al, 5 ; neg al ; hlt → AL=0xFB, CF=1
+        // F6 /3 mod=11 rm=AL(0) → F6 D8
+        let c = run(&[0xB0, 0x05, 0xF6, 0xD8, 0xF4]);
+        assert_eq!(c.regs.al(), 0xFB);
+        assert!(c.regs.flags.get(Flags::CF));
+    }
+
+    #[test]
+    fn not_does_not_touch_flags() {
+        // stc ; mov al, 0xAA ; not al ; hlt → AL=0x55, CF still 1.
+        // F6 /2 mod=11 rm=AL(0) → F6 D0
+        let c = run(&[0xF9, 0xB0, 0xAA, 0xF6, 0xD0, 0xF4]);
+        assert_eq!(c.regs.al(), 0x55);
+        assert!(c.regs.flags.get(Flags::CF));
+    }
+
+    #[test]
+    fn alu_imm_form_with_sign_extension() {
+        // 83 /5 (SUB r/m16, imm8 sign-extended) — sub bx, -1 → bx + 1.
+        // mov bx, 0x1000 ; sub bx, 0xFF (−1) ; hlt → bx = 0x1001
+        // 83 EB FF: 83 /5 rm=BX(3) mod=11 → modrm 0xEB
+        let c = run(&[0xBB, 0x00, 0x10, 0x83, 0xEB, 0xFF, 0xF4]);
+        assert_eq!(c.regs.bx, 0x1001);
+    }
+
+    #[test]
+    fn test_does_not_modify_operand() {
+        // mov al, 0x80 ; test al, 0x80 ; hlt → SF=1, ZF=0, CF=0.
+        let c = run(&[0xB0, 0x80, 0xA8, 0x80, 0xF4]);
+        assert_eq!(c.regs.al(), 0x80);
+        assert!(c.regs.flags.get(Flags::SF));
+        assert!(!c.regs.flags.get(Flags::ZF));
+        assert!(!c.regs.flags.get(Flags::CF));
+    }
+
+    #[test]
+    fn add_with_carry_chain() {
+        // 32-bit add via two 16-bit adds:
+        //   mov ax, 0xFFFF ; mov bx, 0x0001
+        //   add ax, 0x0001  (CF=1, AX=0)
+        //   adc bx, 0x0000  (BX=2 because of CF)
+        // 05 imm16 ADD ; 81 /2 imm16 ADC bx → 81 D3 imm
+        let c = run(&[
+            0xB8, 0xFF, 0xFF, 0xBB, 0x01, 0x00, 0x05, 0x01, 0x00, 0x81, 0xD3, 0x00, 0x00, 0xF4,
+        ]);
+        assert_eq!(c.regs.ax, 0);
+        assert_eq!(c.regs.bx, 0x0002);
     }
 }
