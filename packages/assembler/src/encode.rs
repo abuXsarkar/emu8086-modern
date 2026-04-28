@@ -484,6 +484,11 @@ fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
         "shl" | "sal" | "shr" | "sar" | "rol" | "ror" | "rcl" | "rcr" if two => {
             shift_size(&instr.operands[0], &instr.operands[1])?
         }
+        // F6/F7 unary group: mul, imul, div, idiv, neg, not. One operand
+        // (r8 or r16 or memory). Encoded as opcode (F6 or F7) + mod-r/m.
+        "mul" | "imul" | "div" | "idiv" | "neg" | "not" if one => unary_size(&instr.operands[0])?,
+        // TEST has two-operand and r/imm forms.
+        "test" if two => test_size(&instr.operands[0], &instr.operands[1])?,
         "jz" | "je" | "jnz" | "jne" | "jc" | "jb" | "jnae" | "jnc" | "jae" | "jnb" | "ja"
         | "jnbe" | "jbe" | "jna" | "jl" | "jnge" | "jge" | "jnl" | "jle" | "jng" | "jg"
         | "jnle" | "js" | "jns" | "jo" | "jno" | "jp" | "jpe" | "jnp" | "jpo" | "loop"
@@ -498,6 +503,72 @@ fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
                 message: format!("unsupported mnemonic `{m}` in this assembler slice"),
             });
         }
+    })
+}
+
+fn unary_subop(m: &str) -> Option<u8> {
+    Some(match m {
+        // 0/1 are TEST in the F6/F7 group; reserved for the two-operand path.
+        "not" => 2,
+        "neg" => 3,
+        "mul" => 4,
+        "imul" => 5,
+        "div" => 6,
+        "idiv" => 7,
+        _ => return None,
+    })
+}
+
+fn unary_size(op: &Operand) -> Result<u16, EncodeError> {
+    if let Some(name) = ident_name(op) {
+        if Reg8::from_name(&name).is_some() || Reg16::from_name(&name).is_some() {
+            return Ok(2);
+        }
+    }
+    if let Operand::Mem(m) = op {
+        let enc = classify_mem(m, None)?;
+        return Ok(2 + enc.extra_bytes());
+    }
+    Err(EncodeError {
+        span: op.span(),
+        message: "unary instruction needs a register or memory operand".into(),
+    })
+}
+
+fn test_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
+    let dst_name = ident_name(dst);
+    let src_name = ident_name(src);
+
+    // test reg, reg
+    if let (Some(d), Some(s)) = (dst_name.as_deref(), src_name.as_deref()) {
+        if (Reg16::from_name(d).is_some() && Reg16::from_name(s).is_some())
+            || (Reg8::from_name(d).is_some() && Reg8::from_name(s).is_some())
+        {
+            return Ok(2);
+        }
+    }
+    // test al/ax, imm
+    if let Some(d) = dst_name.as_deref() {
+        if d.eq_ignore_ascii_case("al") && matches!(src, Operand::Number { .. }) {
+            return Ok(2); // A8 ib
+        }
+        if d.eq_ignore_ascii_case("ax") && matches!(src, Operand::Number { .. }) {
+            return Ok(3); // A9 iw
+        }
+        if Reg8::from_name(d).is_some()
+            && matches!(src, Operand::Number { .. } | Operand::Ident { .. })
+        {
+            return Ok(3); // F6 /0 r/m, imm8
+        }
+        if Reg16::from_name(d).is_some()
+            && matches!(src, Operand::Number { .. } | Operand::Ident { .. })
+        {
+            return Ok(4); // F7 /0 r/m, imm16
+        }
+    }
+    Err(EncodeError {
+        span: combined_span(dst, src),
+        message: "unsupported test form".into(),
     })
 }
 
@@ -845,11 +916,112 @@ fn emit_instr(
                 instr.span,
             )
         }
+        m if unary_subop(m).is_some() => {
+            let sub = unary_subop(m).unwrap();
+            emit_unary(sub, &instr.operands[0], labels, out, instr.span)
+        }
+        "test" => emit_test(
+            &instr.operands[0],
+            &instr.operands[1],
+            labels,
+            out,
+            instr.span,
+        ),
         _ => Err(EncodeError {
             span: instr.mnemonic_span,
             message: format!("unsupported mnemonic `{m}`"),
         }),
     }
+}
+
+fn emit_unary(
+    sub: u8,
+    op: &Operand,
+    labels: &HashMap<String, u16>,
+    out: &mut Vec<u8>,
+    span: Span,
+) -> Result<(), EncodeError> {
+    if let Some(name) = ident_name(op) {
+        let lname = name.to_ascii_lowercase();
+        if let Some(r) = Reg8::from_name(&lname) {
+            out.push(0xF6);
+            out.push(0xC0 | (sub << 3) | r.code());
+            return Ok(());
+        }
+        if let Some(r) = Reg16::from_name(&lname) {
+            out.push(0xF7);
+            out.push(0xC0 | (sub << 3) | r.code());
+            return Ok(());
+        }
+    }
+    if let Operand::Mem(m) = op {
+        let enc = classify_mem(m, Some(labels))?;
+        // Default to word width for memory; M2.3c will add BYTE PTR.
+        out.push(0xF7);
+        out.push(enc.modrm_byte(sub));
+        emit_disp(out, enc);
+        return Ok(());
+    }
+    Err(EncodeError {
+        span,
+        message: "unary instruction expects a register or memory operand".into(),
+    })
+}
+
+fn emit_test(
+    dst: &Operand,
+    src: &Operand,
+    labels: &HashMap<String, u16>,
+    out: &mut Vec<u8>,
+    span: Span,
+) -> Result<(), EncodeError> {
+    // test reg, reg → 84 (8-bit) / 85 (16-bit)
+    if let (Some(d), Some(s)) = (ident_name(dst), ident_name(src)) {
+        let dl = d.to_ascii_lowercase();
+        let sl = s.to_ascii_lowercase();
+        if let (Some(rd), Some(rs)) = (Reg16::from_name(&dl), Reg16::from_name(&sl)) {
+            out.push(0x85);
+            out.push(0xC0 | (rs.code() << 3) | rd.code());
+            return Ok(());
+        }
+        if let (Some(rd), Some(rs)) = (Reg8::from_name(&dl), Reg8::from_name(&sl)) {
+            out.push(0x84);
+            out.push(0xC0 | (rs.code() << 3) | rd.code());
+            return Ok(());
+        }
+    }
+
+    if let Some(name) = ident_name(dst) {
+        let lname = name.to_ascii_lowercase();
+        if let Some(value) = resolve_imm(src, labels) {
+            if lname == "al" {
+                out.push(0xA8);
+                out.push(value as u8);
+                return Ok(());
+            }
+            if lname == "ax" {
+                out.push(0xA9);
+                out.extend_from_slice(&value.to_le_bytes());
+                return Ok(());
+            }
+            if let Some(r) = Reg8::from_name(&lname) {
+                out.push(0xF6);
+                out.push(0xC0 | r.code()); // /0 = test
+                out.push(value as u8);
+                return Ok(());
+            }
+            if let Some(r) = Reg16::from_name(&lname) {
+                out.push(0xF7);
+                out.push(0xC0 | r.code());
+                out.extend_from_slice(&value.to_le_bytes());
+                return Ok(());
+            }
+        }
+    }
+    Err(EncodeError {
+        span,
+        message: "unsupported test form".into(),
+    })
 }
 
 fn emit_shift(
@@ -1381,6 +1553,40 @@ mod tests {
         // mov al, [bx-1]  →  8A 47 FF  (mod=01 rm=BX disp8=-1)
         let bytes = asm("mov al, [bx-1]\n");
         assert_eq!(bytes, vec![0x8A, 0x47, 0xFF]);
+    }
+
+    #[test]
+    fn mul_bx_emits_f7_e3() {
+        // mul bx → F7 /4 mod=11 rm=BX(3) → F7 E3
+        let bytes = asm("mul bx\n");
+        assert_eq!(bytes, vec![0xF7, 0xE3]);
+    }
+
+    #[test]
+    fn neg_al_emits_f6_d8() {
+        let bytes = asm("neg al\n");
+        assert_eq!(bytes, vec![0xF6, 0xD8]);
+    }
+
+    #[test]
+    fn not_word_at_bx() {
+        // not [bx] → F7 /2 mod=00 rm=[BX](7) → F7 17
+        let bytes = asm("not [bx]\n");
+        assert_eq!(bytes, vec![0xF7, 0x17]);
+    }
+
+    #[test]
+    fn test_ax_imm_short_form() {
+        // test ax, 0x1234 → A9 34 12
+        let bytes = asm("test ax, 0x1234\n");
+        assert_eq!(bytes, vec![0xA9, 0x34, 0x12]);
+    }
+
+    #[test]
+    fn test_reg_reg() {
+        // test al, bl → 84 /r reg=BL(3) rm=AL(0) mod=11 → 84 D8
+        let bytes = asm("test al, bl\n");
+        assert_eq!(bytes, vec![0x84, 0xD8]);
     }
 
     #[test]
