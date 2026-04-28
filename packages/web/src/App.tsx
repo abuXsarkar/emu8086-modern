@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
+import type { editor as MonacoEditor } from "monaco-editor";
 import init, { compile_and_run } from "../../wasm-api/pkg/emu8086_wasm_api.js";
 import { ASM_LANG_ID, registerAsm8086 } from "./asm8086";
 
@@ -127,9 +128,43 @@ export function App() {
     };
   }, []);
 
-  const onEditorMount: OnMount = (_editor, monacoApi: Monaco) => {
+  const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<Monaco | null>(null);
+
+  const onEditorMount: OnMount = (editor, monacoApi: Monaco) => {
+    editorRef.current = editor;
+    monacoRef.current = monacoApi;
     registerAsm8086(monacoApi);
   };
+
+  // Project the assembler's diagnostic onto a Monaco marker so the
+  // offending line gets a red squiggle. We compute the column from the
+  // byte span (`error.column` is 1-based already from the wasm-api).
+  function applyDiagnostic(error: RunErrorJson | null) {
+    const editor = editorRef.current;
+    const m = monacoRef.current;
+    if (!editor || !m) return;
+    const model = editor.getModel();
+    if (!model) return;
+    if (!error) {
+      m.editor.setModelMarkers(model, "asm8086", []);
+      return;
+    }
+    const lineLength = model.getLineLength(error.line) + 1;
+    const startColumn = Math.max(1, Math.min(error.column, lineLength));
+    const spanWidth = Math.max(1, error.end - error.start);
+    const endColumn = Math.min(startColumn + spanWidth, lineLength);
+    m.editor.setModelMarkers(model, "asm8086", [
+      {
+        startLineNumber: error.line,
+        startColumn,
+        endLineNumber: error.line,
+        endColumn,
+        message: `${error.stage} error: ${error.message}`,
+        severity: m.MarkerSeverity.Error,
+      },
+    ]);
+  }
 
   const onRun = () => {
     if (coreState.kind !== "ready") return;
@@ -138,7 +173,16 @@ export function App() {
       const json = compile_and_run(source, 1_000_000);
       const parsed = JSON.parse(json) as RunResultJson;
       setResult(parsed);
+      applyDiagnostic(parsed.error);
     } catch (e) {
+      const err: RunErrorJson = {
+        stage: "host",
+        message: e instanceof Error ? e.message : String(e),
+        line: 0,
+        column: 0,
+        start: 0,
+        end: 0,
+      };
       setResult({
         ok: false,
         stdout: "",
@@ -146,14 +190,7 @@ export function App() {
         exit_code: null,
         steps: 0,
         halted: false,
-        error: {
-          stage: "host",
-          message: e instanceof Error ? e.message : String(e),
-          line: 0,
-          column: 0,
-          start: 0,
-          end: 0,
-        },
+        error: err,
         registers: {} as RunRegisters,
         bytes: 0,
         origin: 0,
