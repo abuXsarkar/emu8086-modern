@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest a new feature or improvement.
+labels: [enhancement, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! Please describe the problem first, then your proposed solution.
+        Educators and students: tell us what you are trying to teach or learn that the tool gets in the way of.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What pain are you experiencing? Who experiences it?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Who is this for?
+      multiple: true
+      options:
+        - Students
+        - Educators / TAs
+        - Institutes / IT
+        - Plugin authors
+        - Contributors
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?

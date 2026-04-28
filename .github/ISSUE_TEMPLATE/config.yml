@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/abuXsarkar/emu8086-modern/security/policy
+    about: Please report security issues privately. See SECURITY.md.
+  - name: Compatibility issue with legacy emu8086 program
+    url: https://github.com/abuXsarkar/emu8086-modern/issues/new?labels=compat%3Aemu8086&template=bug_report.yml
+    about: A program runs differently from legacy emu8086? Use the bug template and add the compat tag.

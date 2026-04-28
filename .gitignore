@@ -1,0 +1,48 @@
+# Rust
+/target
+**/target
+Cargo.lock.bak
+*.rlib
+*.rmeta
+
+# Node
+node_modules
+.pnpm-store
+dist
+.cache
+.vite
+.turbo
+
+# wasm
+pkg/
+*.wasm.map
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Build outputs
+build/
+out/
+coverage/
+*.log
+playwright-report/
+test-results/
+
+# Tauri
+src-tauri/target/
+src-tauri/Cargo.lock
+
+# MkDocs
+site/

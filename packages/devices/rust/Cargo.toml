@@ -1,0 +1,18 @@
+[package]
+name = "emu8086-devices"
+description = "Virtual peripherals (traffic light, 7-segment, LED matrix, …)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+serde = { workspace = true }
+emu8086-core = { path = "../../core" }

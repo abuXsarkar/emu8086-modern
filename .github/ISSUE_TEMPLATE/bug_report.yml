@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a bug in the emulator, assembler, IDE, or autograder.
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please be specific — a reproducer is worth a thousand words.
+        For security issues, do **not** file here. See [SECURITY.md](../SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: "e.g. v0.0.0 or commit abc1234"
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did you see the bug?
+      options:
+        - Web IDE (hosted)
+        - Web IDE (self-hosted)
+        - Native desktop app
+        - CLI / autograder
+        - Documentation
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: OS / browser
+      placeholder: "e.g. Windows 11 / Firefox 130, macOS 14 / Safari 17, Ubuntu 24.04"
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Smallest input program or click sequence that reproduces it.
+      placeholder: |
+        1. Paste the program below
+        2. Click Run
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: program
+    attributes:
+      label: Program (if applicable)
+      render: asm
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: legacy_compare
+    attributes:
+      label: Does this also reproduce in legacy emu8086?
+      options:
+        - "Yes — same bug"
+        - "No — works in legacy emu8086"
+        - "Did not test"
+        - "Not applicable (new feature)"
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
