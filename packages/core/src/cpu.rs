@@ -328,6 +328,48 @@ impl Cpu {
         }
     }
 
+    fn push_u16(&mut self, value: u16) {
+        self.regs.sp = self.regs.sp.wrapping_sub(2);
+        let lin = seg_off(self.regs.ss, self.regs.sp);
+        self.mem.write_u16(lin, value);
+    }
+
+    fn pop_u16(&mut self) -> u16 {
+        let lin = seg_off(self.regs.ss, self.regs.sp);
+        let v = self.mem.read_u16(lin);
+        self.regs.sp = self.regs.sp.wrapping_add(2);
+        v
+    }
+
+    /// Branch-condition lookup for the 16 Jcc encodings (70..7F).
+    /// `code` is the low 4 bits of the opcode.
+    fn jcc_taken(&self, code: u8) -> bool {
+        let f = self.regs.flags;
+        let cf = f.get(Flags::CF);
+        let zf = f.get(Flags::ZF);
+        let sf = f.get(Flags::SF);
+        let of = f.get(Flags::OF);
+        let pf = f.get(Flags::PF);
+        match code & 0xF {
+            0x0 => of,
+            0x1 => !of,
+            0x2 => cf,
+            0x3 => !cf,
+            0x4 => zf,
+            0x5 => !zf,
+            0x6 => cf || zf,
+            0x7 => !(cf || zf),
+            0x8 => sf,
+            0x9 => !sf,
+            0xA => pf,
+            0xB => !pf,
+            0xC => sf != of,
+            0xD => sf == of,
+            0xE => zf || (sf != of),
+            _ => !zf && (sf == of),
+        }
+    }
+
     /// Apply one of the eight ALU operations selected by `kind` (0..7) to
     /// `(a, b)` at 8-bit width. Returns `(result, flags, writes_back)`.
     /// `writes_back` is `false` for `CMP`, which computes flags and
@@ -850,27 +892,42 @@ impl Cpu {
                 let sub = (modrm >> 3) & 0b111;
                 let cf = self.regs.flags.get(Flags::CF);
                 let a = self.read_rm16(modrm, override_seg);
-                let (v, f, name) = match sub {
+                match sub {
                     0 => {
                         let (v, f) = alu::inc16(a, cf);
-                        (v, f, "inc")
+                        self.regs.flags = f;
+                        self.write_rm16(modrm, override_seg, v);
+                        rec.mnemonic = "inc";
                     }
                     1 => {
                         let (v, f) = alu::dec16(a, cf);
-                        (v, f, "dec")
+                        self.regs.flags = f;
+                        self.write_rm16(modrm, override_seg, v);
+                        rec.mnemonic = "dec";
+                    }
+                    2 => {
+                        // CALL r/m16 (near).
+                        let ret = self.regs.ip;
+                        self.push_u16(ret);
+                        self.regs.ip = a;
+                        rec.mnemonic = "call";
+                    }
+                    4 => {
+                        // JMP r/m16 (near).
+                        self.regs.ip = a;
+                        rec.mnemonic = "jmp";
+                    }
+                    6 => {
+                        // PUSH r/m16.
+                        self.push_u16(a);
+                        rec.mnemonic = "push";
                     }
                     _ => {
                         rec.stopped = Some(StopReason::Unimplemented {
                             opcode: op,
                             ip: ip_before,
                         });
-                        (0u16, self.regs.flags, "")
                     }
-                };
-                if rec.stopped.is_none() {
-                    self.regs.flags = f;
-                    self.write_rm16(modrm, override_seg, v);
-                    rec.mnemonic = name;
                 }
             }
 
@@ -935,6 +992,142 @@ impl Cpu {
                         });
                     }
                 }
+            }
+
+            // ---- stack ----
+            // PUSH r16 — 50..57.
+            0x50..=0x57 => {
+                let v = self.read_reg16(Reg16::from_code(op - 0x50));
+                self.push_u16(v);
+                rec.mnemonic = "push";
+            }
+            // POP r16 — 58..5F.
+            0x58..=0x5F => {
+                let v = self.pop_u16();
+                self.write_reg16(Reg16::from_code(op - 0x58), v);
+                rec.mnemonic = "pop";
+            }
+            // PUSHF / POPF — 9C / 9D. The 8086 has only the low byte of FLAGS
+            // populated by ALU ops, but the documented bits map onto the
+            // bit positions in our `Flags` already.
+            0x9C => {
+                self.push_u16(self.regs.flags.0);
+                rec.mnemonic = "pushf";
+            }
+            0x9D => {
+                self.regs.flags.0 = self.pop_u16();
+                rec.mnemonic = "popf";
+            }
+            // PUSH segreg — 06 (ES), 0E (CS), 16 (SS), 1E (DS).
+            0x06 => {
+                self.push_u16(self.regs.es);
+                rec.mnemonic = "push";
+            }
+            0x0E => {
+                self.push_u16(self.regs.cs);
+                rec.mnemonic = "push";
+            }
+            0x16 => {
+                self.push_u16(self.regs.ss);
+                rec.mnemonic = "push";
+            }
+            0x1E => {
+                self.push_u16(self.regs.ds);
+                rec.mnemonic = "push";
+            }
+            // POP segreg — 07 (ES), 17 (SS), 1F (DS). 0F was POP CS on 8086
+            // but is undefined and we leave it unimplemented.
+            0x07 => {
+                self.regs.es = self.pop_u16();
+                rec.mnemonic = "pop";
+            }
+            0x17 => {
+                self.regs.ss = self.pop_u16();
+                rec.mnemonic = "pop";
+            }
+            0x1F => {
+                self.regs.ds = self.pop_u16();
+                rec.mnemonic = "pop";
+            }
+            // POP r/m16 — 8F /0.
+            0x8F => {
+                let modrm = self.fetch_u8();
+                let v = self.pop_u16();
+                self.write_rm16(modrm, override_seg, v);
+                rec.mnemonic = "pop";
+            }
+
+            // ---- control flow ----
+            // JMP rel8 — EB
+            0xEB => {
+                let rel = self.fetch_u8() as i8 as i16 as u16;
+                self.regs.ip = self.regs.ip.wrapping_add(rel);
+                rec.mnemonic = "jmp";
+            }
+            // JMP rel16 — E9
+            0xE9 => {
+                let rel = self.fetch_u16();
+                self.regs.ip = self.regs.ip.wrapping_add(rel);
+                rec.mnemonic = "jmp";
+            }
+            // Conditional jumps — 70..7F (rel8).
+            0x70..=0x7F => {
+                let rel = self.fetch_u8() as i8 as i16 as u16;
+                if self.jcc_taken(op) {
+                    self.regs.ip = self.regs.ip.wrapping_add(rel);
+                }
+                rec.mnemonic = "jcc";
+            }
+            // LOOPNZ/LOOPNE rel8 — E0
+            // LOOPZ/LOOPE rel8  — E1
+            // LOOP rel8         — E2
+            // JCXZ rel8         — E3
+            0xE0..=0xE3 => {
+                let rel = self.fetch_u8() as i8 as i16 as u16;
+                let take = match op {
+                    0xE0 => {
+                        self.regs.cx = self.regs.cx.wrapping_sub(1);
+                        self.regs.cx != 0 && !self.regs.flags.get(Flags::ZF)
+                    }
+                    0xE1 => {
+                        self.regs.cx = self.regs.cx.wrapping_sub(1);
+                        self.regs.cx != 0 && self.regs.flags.get(Flags::ZF)
+                    }
+                    0xE2 => {
+                        self.regs.cx = self.regs.cx.wrapping_sub(1);
+                        self.regs.cx != 0
+                    }
+                    _ /* 0xE3 */ => self.regs.cx == 0,
+                };
+                if take {
+                    self.regs.ip = self.regs.ip.wrapping_add(rel);
+                }
+                rec.mnemonic = match op {
+                    0xE0 => "loopnz",
+                    0xE1 => "loopz",
+                    0xE2 => "loop",
+                    _ => "jcxz",
+                };
+            }
+            // CALL rel16 — E8 — push IP (after instr), then IP += rel16.
+            0xE8 => {
+                let rel = self.fetch_u16();
+                let ret = self.regs.ip;
+                self.push_u16(ret);
+                self.regs.ip = self.regs.ip.wrapping_add(rel);
+                rec.mnemonic = "call";
+            }
+            // RET — C3 (near).
+            0xC3 => {
+                self.regs.ip = self.pop_u16();
+                rec.mnemonic = "ret";
+            }
+            // RET imm16 — C2 (near, then SP += imm16).
+            0xC2 => {
+                let imm = self.fetch_u16();
+                self.regs.ip = self.pop_u16();
+                self.regs.sp = self.regs.sp.wrapping_add(imm);
+                rec.mnemonic = "ret";
             }
 
             other => {
@@ -1260,6 +1453,130 @@ mod tests {
         assert!(c.regs.flags.get(Flags::SF));
         assert!(!c.regs.flags.get(Flags::ZF));
         assert!(!c.regs.flags.get(Flags::CF));
+    }
+
+    // ---- stack + control flow (M1.4) ----
+
+    #[test]
+    fn push_then_pop_round_trip() {
+        // mov ax, 0x1234 ; push ax ; pop bx ; hlt
+        let c = run(&[0xB8, 0x34, 0x12, 0x50, 0x5B, 0xF4]);
+        assert_eq!(c.regs.bx, 0x1234);
+        // SP returns to 0xFFFE (initial).
+        assert_eq!(c.regs.sp, 0xFFFE);
+    }
+
+    #[test]
+    fn pushf_popf_preserves_flags() {
+        // stc ; pushf ; clc ; popf ; hlt → CF should be set again.
+        let c = run(&[0xF9, 0x9C, 0xF8, 0x9D, 0xF4]);
+        assert!(c.regs.flags.get(Flags::CF));
+    }
+
+    #[test]
+    fn jmp_short_skips_a_byte() {
+        // jmp short +2  ; mov al, 0x11 ; mov al, 0x22 ; hlt
+        // After jmp +2 we land on the second mov.
+        // EB 02      = jmp +2 (skips 2 bytes, i.e. the first mov al,0x11)
+        // B0 11      = mov al, 0x11    (skipped)
+        // B0 22      = mov al, 0x22    (executed)
+        // F4         = hlt
+        let c = run(&[0xEB, 0x02, 0xB0, 0x11, 0xB0, 0x22, 0xF4]);
+        assert_eq!(c.regs.al(), 0x22);
+    }
+
+    #[test]
+    fn jcc_zf_taken_and_not_taken() {
+        // mov ax, 0 ; or ax, ax ; jz +2 ; mov al, 0x55 ; hlt
+        // (skips the mov al,0x55 because ZF=1)
+        // 0B C0 = OR ax, ax (sets ZF)  — encoding 0B /reg=AX(0)/rm=AX(0,mod=11)
+        // 74 02 = je rel8=+2
+        // B0 55 = mov al, 0x55
+        // F4    = hlt
+        let c = run(&[0xB8, 0x00, 0x00, 0x0B, 0xC0, 0x74, 0x02, 0xB0, 0x55, 0xF4]);
+        assert_eq!(c.regs.al(), 0); // skipped
+                                    // Same shape but with non-zero AX so ZF=0 and the mov runs.
+        let c2 = run(&[0xB8, 0x07, 0x00, 0x0B, 0xC0, 0x74, 0x02, 0xB0, 0x55, 0xF4]);
+        assert_eq!(c2.regs.al(), 0x55);
+    }
+
+    #[test]
+    fn loop_counts_down() {
+        // mov cx, 5 ; xor ax, ax ; INC ax ; LOOP -3 ; HLT
+        // B9 05 00 ; 31 C0 ; 40 ; E2 FD ; F4
+        // 31 C0 = XOR ax, ax (clear). 40 = INC AX. E2 FD = LOOP rel8=-3.
+        let c = run(&[0xB9, 0x05, 0x00, 0x31, 0xC0, 0x40, 0xE2, 0xFD, 0xF4]);
+        assert_eq!(c.regs.ax, 5);
+        assert_eq!(c.regs.cx, 0);
+    }
+
+    #[test]
+    fn jcxz_skips_when_cx_zero() {
+        // xor cx, cx ; jcxz +2 ; mov al, 0x99 ; hlt
+        // 31 C9    XOR CX,CX
+        // E3 02    JCXZ +2
+        // B0 99    MOV AL, 0x99   (skipped)
+        // F4
+        let c = run(&[0x31, 0xC9, 0xE3, 0x02, 0xB0, 0x99, 0xF4]);
+        assert_eq!(c.regs.al(), 0);
+    }
+
+    #[test]
+    fn call_and_ret() {
+        // Layout:
+        // 0x100: BB 11 11   mov bx, 0x1111
+        // 0x103: E8 04 00   call +4 (target = 0x10A)
+        // 0x106: BB 22 22   mov bx, 0x2222    ← runs after RET
+        // 0x109: F4         hlt
+        // 0x10A: B8 33 33   mov ax, 0x3333    ← target
+        // 0x10D: C3         ret
+        let c = run(&[
+            0xBB, 0x11, 0x11, 0xE8, 0x04, 0x00, 0xBB, 0x22, 0x22, 0xF4, 0xB8, 0x33, 0x33, 0xC3,
+        ]);
+        assert_eq!(c.regs.ax, 0x3333);
+        assert_eq!(c.regs.bx, 0x2222);
+        // SP is back to initial — call+ret balanced.
+        assert_eq!(c.regs.sp, 0xFFFE);
+    }
+
+    #[test]
+    fn ret_with_imm_pops_args() {
+        // push 0xAAAA ; push 0xBBBB ; call f ; hlt
+        // f: ret 4   ; cleans the two pushed words
+        // We emulate "push imm" via mov bx, imm ; push bx (since 8086 has
+        // no push imm16 in the base ISA; that came with 80186).
+        // Layout:
+        //   0x100: BB AA AA         mov bx, 0xAAAA
+        //   0x103: 53                push bx
+        //   0x104: BB BB BB         mov bx, 0xBBBB
+        //   0x107: 53                push bx
+        //   0x108: E8 02 00         call +2 (target 0x10D)
+        //   0x10B: 90               nop  ← runs after ret 4
+        //   0x10C: F4               hlt
+        //   0x10D: C2 04 00         ret 4
+        let c = run(&[
+            0xBB, 0xAA, 0xAA, 0x53, 0xBB, 0xBB, 0xBB, 0x53, 0xE8, 0x02, 0x00, 0x90, 0xF4, 0xC2,
+            0x04, 0x00,
+        ]);
+        // SP back to initial: arguments cleaned by RET 4.
+        assert_eq!(c.regs.sp, 0xFFFE);
+        assert!(c.halted);
+    }
+
+    #[test]
+    fn jmp_near_indirect_via_ff() {
+        // mov ax, target ; jmp ax  ; (executed: mov bx, 0x42)
+        // Use a trick: store target offset via mov bx, 0x10A then jmp through bx.
+        //   0x100: BB 0A 01      mov bx, 0x010A
+        //   0x103: FF E3          jmp bx        (FF /4 mod=11 rm=BX(3) → modrm 0xE3)
+        //   0x105: B8 11 11      mov ax, 0x1111   ← skipped
+        //   0x108: 90 90          nop nop        ← skipped
+        //   0x10A: B8 42 00      mov ax, 0x0042   ← target
+        //   0x10D: F4             hlt
+        let c = run(&[
+            0xBB, 0x0A, 0x01, 0xFF, 0xE3, 0xB8, 0x11, 0x11, 0x90, 0x90, 0xB8, 0x42, 0x00, 0xF4,
+        ]);
+        assert_eq!(c.regs.ax, 0x0042);
     }
 
     #[test]
