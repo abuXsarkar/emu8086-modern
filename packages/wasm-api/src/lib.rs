@@ -35,6 +35,11 @@ pub struct RunResult {
     pub registers: Registers,
     pub bytes: usize,
     pub origin: u16,
+    /// Sorted `(linear_ip, byte_offset_of_mnemonic_in_source)` pairs.
+    /// The IDE converts the byte offset into a source line number on
+    /// its own (it already has the source text). Empty when the
+    /// program failed to assemble.
+    pub line_map: Vec<(u16, u32)>,
 }
 
 #[derive(Serialize, Default)]
@@ -153,6 +158,7 @@ fn run_inner(source: &str, max_steps: usize) -> RunResult {
         registers: Registers::from(&cpu.regs),
         bytes: img.bytes.len(),
         origin: img.origin,
+        line_map: img.line_map.clone(),
     }
 }
 
@@ -242,6 +248,7 @@ impl Emulator {
             registers: Registers::from(&self.cpu.regs),
             bytes: img.bytes.len(),
             origin: img.origin,
+            line_map: img.line_map,
             ..Default::default()
         };
         serde_json::to_string(&r).unwrap_or_default()
@@ -294,6 +301,7 @@ impl Emulator {
             halted: self.cpu.halted,
             error: None,
             registers: Registers::from(&self.cpu.regs),
+            line_map: Vec::new(),
             bytes: 0,
             origin: 0,
         };

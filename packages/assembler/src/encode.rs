@@ -296,12 +296,18 @@ impl fmt::Display for EncodeError {
 }
 
 /// Output of a successful assembly: the raw image plus the symbol table
-/// (name → offset within the image, **before** `org` adjustment).
+/// (name → offset within the image, **before** `org` adjustment) and a
+/// source map for the IDE.
 #[derive(Debug, Default)]
 pub struct AssembledImage {
     pub bytes: Vec<u8>,
     pub origin: u16,
     pub labels: HashMap<String, u16>,
+    /// One entry per emitted instruction: (linear-IP-of-first-byte,
+    /// 1-based source line of the mnemonic). Sorted by IP. The IDE
+    /// looks up the largest entry with `IP <= cursor` to find the line
+    /// the current instruction came from.
+    pub line_map: Vec<(u16, u32)>,
 }
 
 pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
@@ -369,8 +375,13 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
         *v = origin.wrapping_add(*v);
     }
 
-    // Pass 2: emit bytes.
+    // Pass 2: emit bytes and record the source map.
+    // The "line" we record is actually the byte offset of the
+    // mnemonic in the source text; the IDE converts that to a 1-based
+    // line number by counting newlines (it has the source, we don't
+    // need to re-derive it here).
     let mut bytes: Vec<u8> = Vec::new();
+    let mut line_map: Vec<(u16, u32)> = Vec::new();
     let mut cursor: u16 = 0;
     for (item, _size) in program.items.iter().zip(sizes.iter()) {
         match item {
@@ -384,6 +395,8 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
             }
             Item::Instr(instr) => {
                 let here = origin.wrapping_add(cursor);
+                let key = u32::try_from(instr.mnemonic_span.start).unwrap_or(0);
+                line_map.push((here, key));
                 emit_instr(instr, here, &labels, &mut bytes)?;
             }
         }
@@ -394,6 +407,7 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
         bytes,
         origin,
         labels,
+        line_map,
     })
 }
 

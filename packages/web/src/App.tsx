@@ -62,6 +62,34 @@ interface RunResultJson {
   registers: RunRegisters;
   bytes: number;
   origin: number;
+  line_map: Array<[number, number]>;
+}
+
+/// Convert a byte offset in the source string to a 1-based line number.
+function byteOffsetToLine(source: string, byteOffset: number): number {
+  let line = 1;
+  const limit = Math.min(byteOffset, source.length);
+  for (let i = 0; i < limit; i++) {
+    if (source.charCodeAt(i) === 10) line++;
+  }
+  return line;
+}
+
+/// Find the source line corresponding to the largest line_map entry whose
+/// IP <= the given linear ip. Returns 0 if no match.
+function lineForIp(
+  source: string,
+  lineMap: Array<[number, number]>,
+  linearIp: number,
+): number {
+  let bestByte = -1;
+  for (const [ip, byte] of lineMap) {
+    if (ip <= linearIp && ip > bestByte) {
+      bestByte = byte;
+    }
+  }
+  if (bestByte < 0) return 0;
+  return byteOffsetToLine(source, bestByte);
 }
 
 const FLAG_BITS: Array<[string, number]> = [
@@ -109,6 +137,8 @@ export function App() {
   const [stepLog, setStepLog] = useState<string>("");
   const [stepLoaded, setStepLoaded] = useState<boolean>(false);
   const emuRef = useRef<Emulator | null>(null);
+  const lineMapRef = useRef<Array<[number, number]>>([]);
+  const decorationsRef = useRef<string[]>([]);
 
   // Persist on every edit, throttled implicitly by React's batching.
   useEffect(() => {
@@ -158,6 +188,42 @@ export function App() {
     );
   };
 
+  // Decorate the source line corresponding to the next instruction
+  // about to execute. Cleared on Reset, refreshed on each Step. We
+  // use Monaco's line decoration with a colored gutter glyph so the
+  // current-IP line stands out without competing with diagnostic
+  // squiggles.
+  function highlightLine(line: number) {
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (line <= 0) {
+      decorationsRef.current = editor.deltaDecorations(
+        decorationsRef.current,
+        [],
+      );
+      return;
+    }
+    decorationsRef.current = editor.deltaDecorations(
+      decorationsRef.current,
+      [
+        {
+          range: {
+            startLineNumber: line,
+            startColumn: 1,
+            endLineNumber: line,
+            endColumn: 1,
+          },
+          options: {
+            isWholeLine: true,
+            className: "currentLineHighlight",
+            linesDecorationsClassName: "currentLineGlyph",
+          },
+        },
+      ],
+    );
+    editor.revealLineInCenterIfOutsideViewport(line);
+  }
+
   // Project the assembler's diagnostic onto a Monaco marker so the
   // offending line gets a red squiggle. We compute the column from the
   // byte span (`error.column` is 1-based already from the wasm-api).
@@ -195,6 +261,12 @@ export function App() {
       const parsed = JSON.parse(json) as RunResultJson;
       setResult(parsed);
       applyDiagnostic(parsed.error);
+      // Run-to-completion clears the per-step highlight: there's no
+      // single "current" instruction left.
+      lineMapRef.current = parsed.line_map ?? [];
+      highlightLine(0);
+      setStepLog("");
+      setStepLoaded(false);
     } catch (e) {
       const err: RunErrorJson = {
         stage: "host",
@@ -215,6 +287,7 @@ export function App() {
         registers: {} as RunRegisters,
         bytes: 0,
         origin: 0,
+        line_map: [],
       });
     } finally {
       setRunning(false);
@@ -252,6 +325,11 @@ export function App() {
     applyDiagnostic(null);
     setStepLog("");
     setStepLoaded(true);
+    lineMapRef.current = parsed.line_map ?? [];
+    // Highlight the line of the very first instruction (current IP).
+    const linearIp =
+      ((parsed.registers.cs ?? 0) << 4) + (parsed.registers.ip ?? 0);
+    highlightLine(lineForIp(source, lineMapRef.current, linearIp));
   };
 
   const onStep = () => {
@@ -275,6 +353,7 @@ export function App() {
         registers: parsed.registers,
         bytes: 0,
         origin: 0,
+        line_map: [],
       };
       return {
         ...baseline,
@@ -285,6 +364,9 @@ export function App() {
       };
     });
     setStepLog((prev) => prev + parsed.mnemonic + (parsed.stopped ? ` [${parsed.stopped}]` : "") + "\n");
+    // Move the current-IP highlight to the next instruction.
+    const linearIp = ((parsed.registers.cs ?? 0) << 4) + (parsed.registers.ip ?? 0);
+    highlightLine(parsed.halted ? 0 : lineForIp(source, lineMapRef.current, linearIp));
     if (parsed.halted) {
       setStepLoaded(false);
     }
