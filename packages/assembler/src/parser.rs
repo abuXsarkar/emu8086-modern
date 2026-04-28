@@ -28,9 +28,25 @@ pub struct Instr {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Directive {
-    Org { value: u32, span: Span },
-    Db { items: Vec<DataItem>, span: Span },
-    Dw { items: Vec<DataItem>, span: Span },
+    Org {
+        value: u32,
+        span: Span,
+    },
+    Db {
+        items: Vec<DataItem>,
+        span: Span,
+    },
+    Dw {
+        items: Vec<DataItem>,
+        span: Span,
+    },
+    /// `name EQU value` — defines a named constant. Resolved in pass 1
+    /// so it can be forward-referenced.
+    Equ {
+        name: String,
+        value: u32,
+        span: Span,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -149,23 +165,40 @@ impl Parser<'_> {
     }
 
     fn parse_line_into(&mut self, items: &mut Vec<Item>) -> Result<(), ParseError> {
-        // A line is: [label `:`]? [instr-or-directive]? newline.
-        // Multiple labels can stack ("foo: bar: nop") in real assemblers,
-        // but we keep it to one for now.
+        // A line is one of:
+        //   [label `:`]? [instr-or-directive]?  newline
+        //   name EQU value                       newline
+        //
+        // We special-case `name EQU value` here because EQU (unlike `:`)
+        // sits *between* a name and its value rather than after.
         if let Token::Ident(name) = &self.peek().tok.clone() {
-            // Look ahead two tokens for `:`.
+            // Look ahead one token: `:` for label, or another Ident `EQU`
+            // for a constant definition.
             let saved = self.pos;
             let lab = self.bump();
-            if matches!(self.peek().tok, Token::Colon) {
-                let _colon = self.bump();
-                items.push(Item::Label {
-                    name: name.clone(),
-                    span: lab.span,
-                });
-                // Fall through to parse the rest of the line below.
-                self.skip_blanklines_no_advance();
-            } else {
-                self.pos = saved;
+            match &self.peek().tok {
+                Token::Colon => {
+                    self.bump();
+                    items.push(Item::Label {
+                        name: name.clone(),
+                        span: lab.span,
+                    });
+                    self.skip_blanklines_no_advance();
+                }
+                Token::Ident(maybe_kw) if maybe_kw.eq_ignore_ascii_case("equ") => {
+                    self.bump(); // consume EQU
+                    let n = self.parse_number()?;
+                    let end = self.maybe_eat_newline();
+                    items.push(Item::Directive(Directive::Equ {
+                        name: name.clone(),
+                        value: n.0,
+                        span: Span::new(lab.span.start, end),
+                    }));
+                    return Ok(());
+                }
+                _ => {
+                    self.pos = saved;
+                }
             }
         }
 

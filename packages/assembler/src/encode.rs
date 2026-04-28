@@ -340,6 +340,24 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
             }
             Item::Directive(Directive::Db { items, .. }) => data_size(items, 1),
             Item::Directive(Directive::Dw { items, .. }) => data_size(items, 2),
+            Item::Directive(Directive::Equ { name, value, span }) => {
+                if labels.contains_key(name) {
+                    return Err(EncodeError {
+                        span: *span,
+                        message: format!("`{name}` already defined"),
+                    });
+                }
+                let v = u16::try_from(*value).map_err(|_| EncodeError {
+                    span: *span,
+                    message: format!("EQU value {value} doesn't fit in u16"),
+                })?;
+                // EQU values are absolute, not relative to origin — store
+                // pre-origin-offset so the post-pass adjustment doesn't
+                // shift them. Easiest: insert with `value - origin` so the
+                // adjustment lands on the user's literal value.
+                labels.insert(name.clone(), v.wrapping_sub(origin));
+                0
+            }
             Item::Instr(instr) => instr_size(instr)?,
         };
         sizes.push(size);
@@ -356,7 +374,8 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
     let mut cursor: u16 = 0;
     for (item, _size) in program.items.iter().zip(sizes.iter()) {
         match item {
-            Item::Label { .. } | Item::Directive(Directive::Org { .. }) => {}
+            Item::Label { .. } | Item::Directive(Directive::Org { .. } | Directive::Equ { .. }) => {
+            }
             Item::Directive(Directive::Db { items, .. }) => {
                 emit_data(items, 1, &mut bytes);
             }
@@ -555,15 +574,27 @@ fn arith_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
         }
     }
 
-    // reg, imm and reg8, imm
+    // reg, imm and reg8, imm. Treat a non-register Ident the same as a
+    // Number for sizing: it will resolve to a constant via the label /
+    // EQU table at emit time.
+    fn is_imm_like(op: &Operand) -> bool {
+        match op {
+            Operand::Number { .. } => true,
+            Operand::Ident { name, .. } => {
+                Reg8::from_name(&name.to_ascii_lowercase()).is_none()
+                    && Reg16::from_name(&name.to_ascii_lowercase()).is_none()
+            }
+            _ => false,
+        }
+    }
     if let Some(d) = dst_name.as_deref() {
-        if Reg16::from_name(d).is_some() && matches!(src, Operand::Number { .. }) {
+        if Reg16::from_name(d).is_some() && is_imm_like(src) {
             if d.eq_ignore_ascii_case("ax") {
                 return Ok(3); // 05 imm16 etc
             }
             return Ok(4); // 81 /op rm imm16
         }
-        if Reg8::from_name(d).is_some() && matches!(src, Operand::Number { .. }) {
+        if Reg8::from_name(d).is_some() && is_imm_like(src) {
             if d.eq_ignore_ascii_case("al") {
                 return Ok(2); // 04 imm8 etc
             }
@@ -950,29 +981,31 @@ fn emit_alu(
         out.push(0xC0 | (s.code() << 3) | rd.code());
         return Ok(());
     }
-    if let (Some(rd), Operand::Number { value, .. }) = (Reg16::from_name(&lname), src) {
-        if lname == "ax" {
-            // 05 imm16 (ADD AX,imm16) etc — accumulator short form.
-            out.push((kind << 3) | 0x05);
-            out.extend_from_slice(&(*value as u16).to_le_bytes());
-        } else {
-            // 81 /kind rm imm16.
-            out.push(0x81);
-            out.push(0xC0 | (kind << 3) | rd.code());
-            out.extend_from_slice(&(*value as u16).to_le_bytes());
+    if let Some(rd) = Reg16::from_name(&lname) {
+        if let Some(value) = resolve_imm(src, labels) {
+            if lname == "ax" {
+                out.push((kind << 3) | 0x05);
+                out.extend_from_slice(&value.to_le_bytes());
+            } else {
+                out.push(0x81);
+                out.push(0xC0 | (kind << 3) | rd.code());
+                out.extend_from_slice(&value.to_le_bytes());
+            }
+            return Ok(());
         }
-        return Ok(());
     }
-    if let (Some(rd), Operand::Number { value, .. }) = (Reg8::from_name(&lname), src) {
-        if lname == "al" {
-            out.push((kind << 3) | 0x04);
-            out.push(*value as u8);
-        } else {
-            out.push(0x80);
-            out.push(0xC0 | (kind << 3) | rd.code());
-            out.push(*value as u8);
+    if let Some(rd) = Reg8::from_name(&lname) {
+        if let Some(value) = resolve_imm(src, labels) {
+            if lname == "al" {
+                out.push((kind << 3) | 0x04);
+                out.push(value as u8);
+            } else {
+                out.push(0x80);
+                out.push(0xC0 | (kind << 3) | rd.code());
+                out.push(value as u8);
+            }
+            return Ok(());
         }
-        return Ok(());
     }
     Err(EncodeError {
         span,
@@ -1018,6 +1051,27 @@ fn emit_short_jump(
     out.push(opcode);
     out.push(rel32 as i8 as u8);
     Ok(())
+}
+
+/// Resolve an operand that should evaluate to an immediate. Numbers and
+/// identifiers (label / EQU references) both qualify; anything else
+/// returns `None` so callers can fall through to other forms.
+fn resolve_imm(op: &Operand, labels: &HashMap<String, u16>) -> Option<u16> {
+    match op {
+        Operand::Number { value, .. } => Some(*value as u16),
+        Operand::Ident { name, .. } => {
+            // A bare register identifier in immediate position is rejected
+            // upstream; here we just translate label / EQU values.
+            if Reg8::from_name(&name.to_ascii_lowercase()).is_some()
+                || Reg16::from_name(&name.to_ascii_lowercase()).is_some()
+            {
+                None
+            } else {
+                labels.get(name).copied()
+            }
+        }
+        _ => None,
+    }
 }
 
 fn resolve_label(op: &Operand, labels: &HashMap<String, u16>) -> Result<u16, EncodeError> {
@@ -1213,6 +1267,25 @@ mod tests {
         // mov al, [bx-1]  →  8A 47 FF  (mod=01 rm=BX disp8=-1)
         let bytes = asm("mov al, [bx-1]\n");
         assert_eq!(bytes, vec![0x8A, 0x47, 0xFF]);
+    }
+
+    #[test]
+    fn equ_resolves_in_immediate_position() {
+        // FOO EQU 0x1234 ; mov ax, FOO ; hlt
+        let bytes = asm("FOO equ 0x1234\nmov ax, FOO\nhlt\n");
+        // mov ax, imm16 = B8 lo hi ; then F4
+        assert_eq!(bytes, vec![0xB8, 0x34, 0x12, 0xF4]);
+    }
+
+    #[test]
+    fn equ_reused_in_arithmetic() {
+        // SHIFT EQU 4 ; mov al, 1 ; add al, SHIFT ; hlt
+        // 04 (add al, imm8) — should accept SHIFT as imm.
+        let bytes = asm("SHIFT equ 4\nmov al, 1\nadd al, SHIFT\nhlt\n");
+        // mov al, 1 = B0 01
+        // add al, 4 = 04 04
+        // hlt = F4
+        assert_eq!(bytes, vec![0xB0, 0x01, 0x04, 0x04, 0xF4]);
     }
 
     #[test]

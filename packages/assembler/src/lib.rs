@@ -33,7 +33,8 @@
     clippy::no_effect_underscore_binding,
     clippy::similar_names,
     clippy::collapsible_match,
-    clippy::collapsible_if
+    clippy::collapsible_if,
+    clippy::items_after_statements
 )]
 
 use thiserror::Error;
