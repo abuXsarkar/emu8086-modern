@@ -8,6 +8,7 @@ import init, {
 import { ASM_LANG_ID, registerAsm8086 } from "./asm8086";
 import { EXAMPLES } from "./examples";
 import { SevenSegment } from "./SevenSegment";
+import { TrafficLight } from "./TrafficLight";
 
 const STORAGE_KEY = "emu8086-modern.source";
 
@@ -139,6 +140,7 @@ export function App() {
   const [stepLoaded, setStepLoaded] = useState<boolean>(false);
   const [memHex, setMemHex] = useState<string>("");
   const [port199, setPort199] = useState<number>(0);
+  const [port4, setPort4] = useState<number>(0);
   const emuRef = useRef<Emulator | null>(null);
   const lineMapRef = useRef<Array<[number, number]>>([]);
   const decorationsRef = useRef<string[]>([]);
@@ -156,6 +158,7 @@ export function App() {
   function refreshDevices() {
     if (!emuRef.current) return;
     setPort199(emuRef.current.port_byte(199));
+    setPort4(emuRef.current.port_byte(4));
   }
 
   // Persist on every edit, throttled implicitly by React's batching.
@@ -734,7 +737,10 @@ export function App() {
 
             <div style={{ marginTop: "1rem" }}>
               <strong style={{ display: "block", marginBottom: 4 }}>devices</strong>
-              <SevenSegment value={port199} />
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
+                <SevenSegment value={port199} />
+                <TrafficLight value={port4} />
+              </div>
             </div>
 
             {memHex && (
