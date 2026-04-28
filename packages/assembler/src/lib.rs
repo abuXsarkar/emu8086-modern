@@ -9,16 +9,11 @@
 
 use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Dialect {
+    #[default]
     Emu8086,
     Nasm,
-}
-
-impl Default for Dialect {
-    fn default() -> Self {
-        Self::Emu8086
-    }
 }
 
 #[derive(Debug, Error)]

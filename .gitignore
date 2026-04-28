@@ -37,6 +37,7 @@ build/
 out/
 coverage/
 *.log
+*.tsbuildinfo
 playwright-report/
 test-results/
 

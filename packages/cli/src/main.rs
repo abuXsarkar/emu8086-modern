@@ -8,7 +8,11 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-#[command(name = "emu8086", version, about = "Headless 8086 runner and autograder")]
+#[command(
+    name = "emu8086",
+    version,
+    about = "Headless 8086 runner and autograder"
+)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
