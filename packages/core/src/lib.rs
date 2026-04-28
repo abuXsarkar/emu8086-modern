@@ -8,7 +8,12 @@
 
 #![forbid(unsafe_code)]
 #![warn(clippy::all, clippy::pedantic)]
-#![allow(clippy::cast_possible_truncation, clippy::cast_lossless)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss
+)]
 
 use serde::{Deserialize, Serialize};
 
