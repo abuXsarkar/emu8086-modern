@@ -7,7 +7,12 @@
 #![allow(
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
-    clippy::items_after_statements
+    clippy::items_after_statements,
+    clippy::doc_markdown,
+    clippy::too_many_lines,
+    clippy::cast_possible_truncation,
+    clippy::cast_lossless,
+    clippy::cast_precision_loss
 )]
 
 use std::fs;
@@ -18,6 +23,8 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 use emu8086_assembler::{assemble, AssembleError, Dialect};
 use emu8086_core::Cpu;
+
+mod grade;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -61,8 +68,20 @@ enum Cmd {
         #[arg(long, default_value_t = 1_000_000)]
         max_steps: usize,
     },
-    /// Grade a submission against a YAML spec (M5 — not yet implemented).
-    Grade { spec: PathBuf, submission: PathBuf },
+    /// Grade a submission against a YAML test spec. Each case seeds
+    /// initial memory + register state, runs the program, and asserts
+    /// post-run state. Exit 0 = all pass, 1 = any failure, 2 = the
+    /// submission failed to assemble or the spec couldn't be read.
+    Grade {
+        /// Path to the YAML spec.
+        spec: PathBuf,
+        /// Path to the student submission (.asm).
+        submission: PathBuf,
+        /// Optionally write a JUnit XML report alongside the
+        /// human-readable summary.
+        #[arg(long)]
+        junit: Option<PathBuf>,
+    },
     /// Walk a directory and report compatibility issues (M2 — not yet implemented).
     CompatReport { path: PathBuf },
 }
@@ -251,7 +270,12 @@ fn main() -> ExitCode {
         Cmd::Assemble { input, output } => cmd_assemble(&input, output.as_deref()),
         Cmd::RunAsm { input, max_steps } => cmd_run_asm(&input, max_steps),
         Cmd::Trace { input, max_steps } => cmd_trace(&input, max_steps),
-        Cmd::Grade { .. } | Cmd::CompatReport { .. } => {
+        Cmd::Grade {
+            spec,
+            submission,
+            junit,
+        } => grade::run_spec(&spec, &submission, junit.as_deref()),
+        Cmd::CompatReport { .. } => {
             eprintln!("emu8086: subcommand not yet implemented; see ROADMAP.md");
             Ok(2)
         }

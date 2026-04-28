@@ -19,6 +19,7 @@ anyhow = { workspace = true }
 clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = "0.9"
 emu8086-core = { path = "../core" }
 emu8086-assembler = { path = "../assembler" }
 

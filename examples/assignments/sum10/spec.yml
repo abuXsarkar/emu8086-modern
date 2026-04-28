@@ -1,0 +1,12 @@
+name: "Sum of integers 1..10"
+max_steps: 100000
+
+# Each case seeds nothing extra — the program is self-contained — and
+# checks that AX holds 55 (the canonical 8-bit sum of 1..10) at halt.
+cases:
+  - name: "AX holds 55 at halt"
+    expect:
+      registers:
+        AX: 55
+      flags:
+        ZF: 0
