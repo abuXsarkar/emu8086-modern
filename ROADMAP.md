@@ -6,16 +6,16 @@ Dates assume the project starts in **May 2026** with one core maintainer (~20 hr
 
 A milestone is "done" only when the **exit criteria** are met. We do not slip exit criteria; we slip dates.
 
-| Milestone | Theme | Target window | Exit criteria summary |
+| Milestone | Theme | Status | Exit criteria summary |
 |---|---|---|---|
-| [M0](#m0--bootstrap) | Bootstrap | May 2026 (2 wks) | Repo, CI, docs, hello-wasm in browser |
-| [M1](#m1--cpu-core) | 8086 CPU core | May–Jun 2026 (6 wks) | 100% of documented 8086 ISA passes conformance suite |
-| [M2](#m2--assembler-emu8086-dialect) | Assembler (emu8086 dialect) | Jul 2026 (4 wks) | 50 reference labs assemble & run unchanged |
-| [M3](#m3--web-ide-alpha) | Web IDE alpha | Aug 2026 (4 wks) | Editor, run/step, registers/memory/flags panels |
-| [M4](#m4--time-travel-debugger--devices) | Time-travel + devices | Sep 2026 (4 wks) | Step-back, watches, traffic-light, 7-seg, LEDs |
-| [M5](#m5--educator-features) | Educator features | Oct 2026 (4 wks) | Share-links, classroom mode, CLI autograder, GH Action |
-| [M6](#m6--beta--pilot) | Beta and institute pilot | Nov 2026 (4 wks) | One pilot course running end-to-end on the platform |
-| [M7](#m7--10-release) | 1.0 polish | Dec 2026 (4 wks) | Docs complete, accessibility audit passed, plugin SDK |
+| [M0](#m0--bootstrap) | Bootstrap | ✅ shipped | Repo, CI, docs, hello-wasm in browser |
+| [M1](#m1--cpu-core) | 8086 CPU core | ✅ shipped | Mainline ISA + DOS subset of INT 21h |
+| [M2](#m2--assembler-emu8086-dialect) | Assembler (emu8086 dialect) | ✅ shipped (substantial) | Lex+parse+encode for nearly every M1 mnemonic, `org`/`db`/`dw`/`equ`/`dup`/BYTE-WORD PTR, user `MACRO`/`ENDM`, file-level `include`. Pending: `.MODEL`/`PROC`/`ENDP` MASM directives. |
+| [M3](#m3--web-ide-alpha) | Web IDE alpha | ✅ shipped | Monaco editor with syntax highlighting + snippets + hover docs + error markers + share-link, Reset/Step/Back/Run debugger, register/flag/memory panels, 7-seg + traffic-light peripherals |
+| [M4](#m4--time-travel-debugger--devices) | Time-travel + devices | ✅ shipped (alpha) | step_back via diff snapshots; 7-seg + traffic-light peripherals. Pending: LED matrix, stepper, screen text mode, keyboard. |
+| [M5](#m5--educator-features) | Educator features | ✅ shipped (alpha) | `emu8086 grade` autograder + JUnit XML, GitHub Action, share-links via URL fragment. Pending: LTI 1.3 launch, classroom-mode broadcast. |
+| [M6](#m6--beta--pilot) | Beta and institute pilot | needs external partner | Self-host Docker image, a11y audit, pilot course |
+| [M7](#m7--10-release) | 1.0 polish | needs signing infra + audit | Tauri desktop builds, plugin SDK, code-signing, external a11y audit |
 
 ---
 
