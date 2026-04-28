@@ -2,6 +2,7 @@
 // the dialect this project's assembler accepts (see
 // docs/emu8086-compatibility.md).
 import * as monaco from "monaco-editor";
+import { OPCODE_DOCS } from "./asm8086_docs";
 
 const KEYWORDS = [
   // Mnemonics
@@ -202,6 +203,27 @@ export function registerAsm8086(monacoApi: typeof monaco): void {
       { open: '"', close: '"' },
       { open: "'", close: "'" },
     ],
+  });
+
+  monacoApi.languages.registerHoverProvider(ASM_LANG_ID, {
+    provideHover(model, position) {
+      const word = model.getWordAtPosition(position);
+      if (!word) return null;
+      const doc = OPCODE_DOCS[word.word.toLowerCase()];
+      if (!doc) return null;
+      return {
+        range: new monacoApi.Range(
+          position.lineNumber,
+          word.startColumn,
+          position.lineNumber,
+          word.endColumn,
+        ),
+        contents: [
+          { value: `**${word.word.toUpperCase()}**` },
+          { value: doc },
+        ],
+      };
+    },
   });
 
   monacoApi.languages.registerCompletionItemProvider(ASM_LANG_ID, {
