@@ -443,7 +443,7 @@ fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
         "nop" | "hlt" | "ret" | "iret" | "cbw" | "cwd" | "lahf" | "sahf" | "xlat" | "xlatb"
         | "clc" | "stc" | "cmc" | "cld" | "std" | "cli" | "sti" | "pushf" | "popf" | "movsb"
         | "movsw" | "cmpsb" | "cmpsw" | "lodsb" | "lodsw" | "stosb" | "stosw" | "scasb"
-        | "scasw"
+        | "scasw" | "rep" | "repe" | "repz" | "repne" | "repnz"
             if zero =>
         {
             1
@@ -720,6 +720,9 @@ fn emit_instr(
         "lodsw" => Some(0xAD),
         "scasb" => Some(0xAE),
         "scasw" => Some(0xAF),
+        // REP / REPE / REPZ → F3 ; REPNE / REPNZ → F2.
+        "rep" | "repe" | "repz" => Some(0xF3),
+        "repne" | "repnz" => Some(0xF2),
         _ => None,
     };
     if let Some(b) = one_byte {
@@ -1378,6 +1381,20 @@ mod tests {
         // mov al, [bx-1]  →  8A 47 FF  (mod=01 rm=BX disp8=-1)
         let bytes = asm("mov al, [bx-1]\n");
         assert_eq!(bytes, vec![0x8A, 0x47, 0xFF]);
+    }
+
+    #[test]
+    fn rep_movsb_emits_two_bytes() {
+        // rep movsb → F3 A4
+        let bytes = asm("rep movsb\n");
+        assert_eq!(bytes, vec![0xF3, 0xA4]);
+    }
+
+    #[test]
+    fn repne_scasb_emits_two_bytes() {
+        // repne scasb → F2 AE
+        let bytes = asm("repne scasb\n");
+        assert_eq!(bytes, vec![0xF2, 0xAE]);
     }
 
     #[test]

@@ -253,6 +253,26 @@ impl Parser<'_> {
             }
             _ => {
                 let mnem = self.bump();
+                let lname = head.to_ascii_lowercase();
+                let is_rep_prefix =
+                    matches!(lname.as_str(), "rep" | "repe" | "repz" | "repne" | "repnz");
+                if is_rep_prefix {
+                    // Push the prefix as its own zero-operand Instr; the
+                    // encoder emits a single F3 / F2 byte for it. Then
+                    // recurse on the remainder of the line so `rep movsb`
+                    // produces two items on one line.
+                    items.push(Item::Instr(Instr {
+                        mnemonic: head,
+                        mnemonic_span: mnem.span,
+                        operands: Vec::new(),
+                        span: mnem.span,
+                    }));
+                    if !matches!(self.peek().tok, Token::Newline | Token::Eof) {
+                        return self.parse_line_into(items);
+                    }
+                    self.maybe_eat_newline();
+                    return Ok(());
+                }
                 let mut operands = Vec::new();
                 if !matches!(self.peek().tok, Token::Newline | Token::Eof) {
                     operands.push(self.parse_operand()?);
