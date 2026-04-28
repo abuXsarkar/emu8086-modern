@@ -130,6 +130,10 @@ pub fn tokenize(src: &str) -> Result<Vec<Spanned>, LexError> {
         }
 
         // String literal: "..." with simple escape processing.
+        // Single-quoted runs are char/short-string literals: 'A' is the
+        // number 0x41, 'AB' is 0x4241 (the 8086 / MASM convention for
+        // packed-string immediates). Multi-byte single-quote runs longer
+        // than 4 bytes are rejected for now.
         if b == b'"' || b == b'\'' {
             let quote = b;
             i += 1;
@@ -166,10 +170,29 @@ pub fn tokenize(src: &str) -> Result<Vec<Spanned>, LexError> {
                 });
             }
             i += 1; // consume closing quote
-            out.push(Spanned {
-                tok: Token::String(s),
-                span: Span::new(start, i),
-            });
+
+            if quote == b'\'' {
+                // Char/short-string literal → packed Number.
+                if s.is_empty() || s.len() > 4 {
+                    return Err(LexError {
+                        pos: start,
+                        msg: format!("char literal must be 1-4 bytes (got {})", s.len()),
+                    });
+                }
+                let mut n: u32 = 0;
+                for &byte in &s {
+                    n = (n << 8) | u32::from(byte);
+                }
+                out.push(Spanned {
+                    tok: Token::Number(n),
+                    span: Span::new(start, i),
+                });
+            } else {
+                out.push(Spanned {
+                    tok: Token::String(s),
+                    span: Span::new(start, i),
+                });
+            }
             continue;
         }
 

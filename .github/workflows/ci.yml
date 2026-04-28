@@ -46,11 +46,9 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - name: Install wasm-pack
-        run: |
-          curl -fsSL https://github.com/rustwasm/wasm-pack/releases/download/v0.13.1/wasm-pack-v0.13.1-x86_64-unknown-linux-musl.tar.gz \
-            | tar -xz -C /tmp
-          sudo cp /tmp/wasm-pack-v0.13.1-x86_64-unknown-linux-musl/wasm-pack /usr/local/bin/wasm-pack
-          wasm-pack --version
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: latest
       - name: Build wasm-api pkg
         run: wasm-pack build packages/wasm-api --target web --out-dir pkg --release
       - uses: pnpm/action-setup@v4
