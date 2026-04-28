@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::lexer::Span;
-use crate::parser::{DataItem, Directive, Instr, Item, MemRef, MemTerm, Operand, Program};
+use crate::parser::{DataItem, Directive, Instr, Item, MemRef, MemSize, MemTerm, Operand, Program};
 
 /// Resolved 8086 memory operand: which mod-r/m bits it produces, plus
 /// any sign-extended displacement to emit after the mod-r/m byte.
@@ -667,8 +667,13 @@ fn mov_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
                 }
             }
             Operand::Number { .. } => {
-                // C6/C7 modrm imm — assume word for now.
-                return Ok(3 + enc.extra_bytes());
+                // C6 modrm imm8 (3) for byte; C7 modrm imm16 (4) for word.
+                let imm_extra = if matches!(m.size_hint, Some(MemSize::Byte)) {
+                    1
+                } else {
+                    2
+                };
+                return Ok(2 + enc.extra_bytes() + imm_extra);
             }
             _ => {}
         }
@@ -742,10 +747,14 @@ fn arith_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
                 return Ok(2 + enc.extra_bytes());
             }
         }
-        // mem, imm — use 81 /op (4 bytes total + disp) for u16, 80 /op for u8.
-        // We assume word width for now; later slices will honor `BYTE PTR`.
+        // mem, imm — 80 /op (3 + disp) for byte, 81 /op (4 + disp) for word.
         if let Operand::Number { .. } = src {
-            return Ok(4 + enc.extra_bytes());
+            let imm_extra = if matches!(m.size_hint, Some(MemSize::Byte)) {
+                1
+            } else {
+                2
+            };
+            return Ok(2 + enc.extra_bytes() + imm_extra);
         }
     }
 
@@ -1166,11 +1175,17 @@ fn emit_mov(
                 }
             }
             Operand::Number { value, .. } => {
-                // mov word ptr [mem], imm — we always emit C7 word form for now.
-                out.push(0xC7);
-                out.push(enc.modrm_byte(0));
-                emit_disp(out, enc);
-                out.extend_from_slice(&(*value as u16).to_le_bytes());
+                if matches!(m.size_hint, Some(MemSize::Byte)) {
+                    out.push(0xC6);
+                    out.push(enc.modrm_byte(0));
+                    emit_disp(out, enc);
+                    out.push(*value as u8);
+                } else {
+                    out.push(0xC7);
+                    out.push(enc.modrm_byte(0));
+                    emit_disp(out, enc);
+                    out.extend_from_slice(&(*value as u16).to_le_bytes());
+                }
                 return Ok(());
             }
             _ => {}
@@ -1211,11 +1226,17 @@ fn emit_alu(
             }
         }
         if let Operand::Number { value, .. } = src {
-            // 81 /op r/m16, imm16 — assume word width; BYTE PTR support arrives later.
-            out.push(0x81);
-            out.push(enc.modrm_byte(kind));
-            emit_disp(out, enc);
-            out.extend_from_slice(&(*value as u16).to_le_bytes());
+            if matches!(m.size_hint, Some(MemSize::Byte)) {
+                out.push(0x80);
+                out.push(enc.modrm_byte(kind));
+                emit_disp(out, enc);
+                out.push(*value as u8);
+            } else {
+                out.push(0x81);
+                out.push(enc.modrm_byte(kind));
+                emit_disp(out, enc);
+                out.extend_from_slice(&(*value as u16).to_le_bytes());
+            }
             return Ok(());
         }
         return Err(EncodeError {
@@ -1553,6 +1574,27 @@ mod tests {
         // mov al, [bx-1]  →  8A 47 FF  (mod=01 rm=BX disp8=-1)
         let bytes = asm("mov al, [bx-1]\n");
         assert_eq!(bytes, vec![0x8A, 0x47, 0xFF]);
+    }
+
+    #[test]
+    fn byte_ptr_picks_c6_form() {
+        // mov byte ptr [bx], 0x42 → C6 /0 mod=00 rm=BX(7) imm8 → C6 07 42
+        let bytes = asm("mov byte ptr [bx], 0x42\n");
+        assert_eq!(bytes, vec![0xC6, 0x07, 0x42]);
+    }
+
+    #[test]
+    fn word_ptr_picks_c7_form() {
+        // mov word ptr [bx], 0x42 → C7 07 42 00
+        let bytes = asm("mov word ptr [bx], 0x42\n");
+        assert_eq!(bytes, vec![0xC7, 0x07, 0x42, 0x00]);
+    }
+
+    #[test]
+    fn add_byte_ptr_mem_imm() {
+        // add byte ptr [bx], 1 → 80 /0 mod=00 rm=BX(7) imm8 → 80 07 01
+        let bytes = asm("add byte ptr [bx], 1\n");
+        assert_eq!(bytes, vec![0x80, 0x07, 0x01]);
     }
 
     #[test]

@@ -73,10 +73,19 @@ pub enum Operand {
     Mem(MemRef),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemSize {
+    Byte,
+    Word,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemRef {
     pub terms: Vec<MemTerm>,
     pub span: Span,
+    /// `BYTE PTR` / `WORD PTR` size override. `None` lets the encoder
+    /// choose based on the other operand (or default to word).
+    pub size_hint: Option<MemSize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -350,6 +359,42 @@ impl Parser<'_> {
     }
 
     fn parse_operand(&mut self) -> Result<Operand, ParseError> {
+        // Optional `BYTE PTR` / `WORD PTR` size hint preceding a memory operand.
+        if let Token::Ident(name) = &self.peek().tok.clone() {
+            let lname = name.to_ascii_lowercase();
+            if (lname == "byte" || lname == "word") && self.toks.len() > self.pos + 1 {
+                if let Token::Ident(ptr) = &self.toks[self.pos + 1].tok {
+                    if ptr.eq_ignore_ascii_case("ptr") {
+                        // Looks like a size hint. Consume both keywords and
+                        // require a `[` next.
+                        self.bump(); // size keyword
+                        self.bump(); // PTR
+                        if !matches!(self.peek().tok, Token::LBracket) {
+                            let s = self.peek().clone();
+                            return Err(ParseError {
+                                span: s.span,
+                                message: format!(
+                                    "expected `[` after `{lname} ptr`, found {}",
+                                    s.tok
+                                ),
+                            });
+                        }
+                        let inner = self.parse_operand()?;
+                        if let Operand::Mem(mut m) = inner {
+                            m.size_hint = Some(if lname == "byte" {
+                                MemSize::Byte
+                            } else {
+                                MemSize::Word
+                            });
+                            return Ok(Operand::Mem(m));
+                        }
+                        // parse_operand on `[` always returns a Mem.
+                        unreachable!("parse_operand on `[` should yield Operand::Mem");
+                    }
+                }
+            }
+        }
+
         let cur = self.peek().clone();
         match cur.tok {
             Token::Ident(name) => {
@@ -432,6 +477,7 @@ impl Parser<'_> {
                 }
                 let r = self.expect(&Token::RBracket)?;
                 Ok(Operand::Mem(MemRef {
+                    size_hint: None,
                     terms,
                     span: Span::new(l.span.start, r.span.end),
                 }))
