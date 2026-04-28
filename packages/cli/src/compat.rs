@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use emu8086_assembler::{assemble, Dialect};
 
+use crate::include;
+
 pub fn run(root: &Path) -> anyhow::Result<u8> {
     let mut files: Vec<PathBuf> = Vec::new();
     walk(root, &mut files)?;
@@ -28,7 +30,8 @@ pub fn run(root: &Path) -> anyhow::Result<u8> {
     println!("=== compat report ({} files) ===", files.len());
     for f in &files {
         let rel = f.strip_prefix(root).unwrap_or(f);
-        let source = fs::read_to_string(f).with_context(|| format!("reading {}", f.display()))?;
+        let raw = fs::read_to_string(f).with_context(|| format!("reading {}", f.display()))?;
+        let source = include::resolve(&raw, f).unwrap_or(raw);
         match assemble(&source, Dialect::default()) {
             Ok(img) => {
                 passed += 1;

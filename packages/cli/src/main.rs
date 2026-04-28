@@ -26,6 +26,7 @@ use emu8086_core::Cpu;
 
 mod compat;
 mod grade;
+mod include;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -116,7 +117,8 @@ fn cmd_run(image_path: &Path, max_steps: usize) -> anyhow::Result<u8> {
 }
 
 fn cmd_assemble(input: &Path, output: Option<&Path>) -> anyhow::Result<u8> {
-    let source = fs::read_to_string(input)?;
+    let raw = fs::read_to_string(input)?;
+    let source = include::resolve(&raw, input)?;
     let img = match assemble(&source, Dialect::default()) {
         Ok(img) => img,
         Err(e) => {
@@ -143,7 +145,8 @@ fn cmd_assemble(input: &Path, output: Option<&Path>) -> anyhow::Result<u8> {
 }
 
 fn cmd_trace(input: &Path, max_steps: usize) -> anyhow::Result<u8> {
-    let source = fs::read_to_string(input)?;
+    let raw = fs::read_to_string(input)?;
+    let source = include::resolve(&raw, input)?;
     let img = match assemble(&source, Dialect::default()) {
         Ok(img) => img,
         Err(e) => {
@@ -207,7 +210,8 @@ fn cmd_trace(input: &Path, max_steps: usize) -> anyhow::Result<u8> {
 }
 
 fn cmd_run_asm(input: &Path, max_steps: usize) -> anyhow::Result<u8> {
-    let source = fs::read_to_string(input)?;
+    let raw = fs::read_to_string(input)?;
+    let source = include::resolve(&raw, input)?;
     let img = match assemble(&source, Dialect::default()) {
         Ok(img) => img,
         Err(e) => {
