@@ -463,14 +463,18 @@ fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
     let two = instr.operands.len() == 2;
 
     Ok(match m.as_str() {
-        "nop" | "hlt" | "ret" | "iret" | "cbw" | "cwd" | "lahf" | "sahf" | "xlat" | "xlatb"
-        | "clc" | "stc" | "cmc" | "cld" | "std" | "cli" | "sti" | "pushf" | "popf" | "movsb"
-        | "movsw" | "cmpsb" | "cmpsw" | "lodsb" | "lodsw" | "stosb" | "stosw" | "scasb"
-        | "scasw" | "rep" | "repe" | "repz" | "repne" | "repnz"
+        "nop" | "hlt" | "ret" | "retf" | "iret" | "cbw" | "cwd" | "lahf" | "sahf" | "xlat"
+        | "xlatb" | "clc" | "stc" | "cmc" | "cld" | "std" | "cli" | "sti" | "pushf" | "popf"
+        | "movsb" | "movsw" | "cmpsb" | "cmpsw" | "lodsb" | "lodsw" | "stosb" | "stosw"
+        | "scasb" | "scasw" | "rep" | "repe" | "repz" | "repne" | "repnz" | "daa" | "das"
+        | "aaa" | "aas"
             if zero =>
         {
             1
         }
+        // AAM / AAD have an optional immediate base (default 10). Two
+        // bytes either way (D4/D5 + imm).
+        "aam" | "aad" if zero || one => 2,
         "int" if one => 2,
         "push" | "pop" if one => {
             if let Some(name) = ident_name(&instr.operands[0]) {
@@ -798,7 +802,12 @@ fn emit_instr(
         "nop" => Some(0x90u8),
         "hlt" => Some(0xF4),
         "ret" => Some(0xC3),
+        "retf" => Some(0xCB),
         "iret" => Some(0xCF),
+        "daa" => Some(0x27),
+        "das" => Some(0x2F),
+        "aaa" => Some(0x37),
+        "aas" => Some(0x3F),
         "cbw" => Some(0x98),
         "cwd" => Some(0x99),
         "lahf" => Some(0x9F),
@@ -834,6 +843,18 @@ fn emit_instr(
     }
 
     match m.as_str() {
+        // AAM / AAD with optional immediate base (defaults to 10).
+        "aam" | "aad" => {
+            let opcode: u8 = if m == "aam" { 0xD4 } else { 0xD5 };
+            let base = if instr.operands.is_empty() {
+                10
+            } else {
+                require_number_u8(&instr.operands[0])?
+            };
+            out.push(opcode);
+            out.push(base);
+            Ok(())
+        }
         "int" => {
             let n = require_number_u8(&instr.operands[0])?;
             out.push(0xCD);

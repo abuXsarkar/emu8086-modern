@@ -17,7 +17,7 @@
 
 use crate::Flags;
 
-const fn parity_byte(b: u8) -> bool {
+pub(crate) const fn parity_byte(b: u8) -> bool {
     let mut x = b;
     x ^= x >> 4;
     x ^= x >> 2;

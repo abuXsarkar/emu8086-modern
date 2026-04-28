@@ -8,6 +8,7 @@
 //! later snapshot every fetched byte for the trace log.
 
 use crate::alu;
+use crate::alu::parity_byte;
 use crate::mem::{seg_off, Memory};
 use crate::{Flags, Registers};
 
@@ -1229,43 +1230,73 @@ impl Cpu {
             0xFF => {
                 let modrm = self.fetch_u8();
                 let sub = (modrm >> 3) & 0b111;
-                let cf = self.regs.flags.get(Flags::CF);
-                let a = self.read_rm16(modrm, override_seg);
-                match sub {
-                    0 => {
-                        let (v, f) = alu::inc16(a, cf);
-                        self.regs.flags = f;
-                        self.write_rm16(modrm, override_seg, v);
-                        rec.mnemonic = "inc";
-                    }
-                    1 => {
-                        let (v, f) = alu::dec16(a, cf);
-                        self.regs.flags = f;
-                        self.write_rm16(modrm, override_seg, v);
-                        rec.mnemonic = "dec";
-                    }
-                    2 => {
-                        // CALL r/m16 (near).
-                        let ret = self.regs.ip;
-                        self.push_u16(ret);
-                        self.regs.ip = a;
-                        rec.mnemonic = "call";
-                    }
-                    4 => {
-                        // JMP r/m16 (near).
-                        self.regs.ip = a;
-                        rec.mnemonic = "jmp";
-                    }
-                    6 => {
-                        // PUSH r/m16.
-                        self.push_u16(a);
-                        rec.mnemonic = "push";
-                    }
-                    _ => {
+                // Far-pointer subops (3, 5) need the *address* of the
+                // 4-byte (offset, segment) pair, not the value at it.
+                // The other subops want the resolved 16-bit value, so
+                // we split the dispatch into two paths that each call
+                // decode_ea / read_rm16 exactly once.
+                if sub == 3 || sub == 5 {
+                    if let Some(ea) = self.decode_ea(modrm) {
+                        let lin = self.linear_for(ea, override_seg);
+                        let new_ip = self.mem.read_u16(lin);
+                        let new_cs = self.mem.read_u16(lin.wrapping_add(2));
+                        if sub == 3 {
+                            // CALL m16:16 — push CS, push IP, jump.
+                            let ret_ip = self.regs.ip;
+                            let ret_cs = self.regs.cs;
+                            self.push_u16(ret_cs);
+                            self.push_u16(ret_ip);
+                            rec.mnemonic = "call";
+                        } else {
+                            rec.mnemonic = "jmp";
+                        }
+                        self.regs.cs = new_cs;
+                        self.regs.ip = new_ip;
+                    } else {
                         rec.stopped = Some(StopReason::Unimplemented {
                             opcode: op,
                             ip: ip_before,
                         });
+                    }
+                } else {
+                    let cf = self.regs.flags.get(Flags::CF);
+                    let a = self.read_rm16(modrm, override_seg);
+                    match sub {
+                        0 => {
+                            let (v, f) = alu::inc16(a, cf);
+                            self.regs.flags = f;
+                            self.write_rm16(modrm, override_seg, v);
+                            rec.mnemonic = "inc";
+                        }
+                        1 => {
+                            let (v, f) = alu::dec16(a, cf);
+                            self.regs.flags = f;
+                            self.write_rm16(modrm, override_seg, v);
+                            rec.mnemonic = "dec";
+                        }
+                        2 => {
+                            // CALL r/m16 (near).
+                            let ret = self.regs.ip;
+                            self.push_u16(ret);
+                            self.regs.ip = a;
+                            rec.mnemonic = "call";
+                        }
+                        4 => {
+                            // JMP r/m16 (near).
+                            self.regs.ip = a;
+                            rec.mnemonic = "jmp";
+                        }
+                        6 => {
+                            // PUSH r/m16.
+                            self.push_u16(a);
+                            rec.mnemonic = "push";
+                        }
+                        _ => {
+                            rec.stopped = Some(StopReason::Unimplemented {
+                                opcode: op,
+                                ip: ip_before,
+                            });
+                        }
                     }
                 }
             }
@@ -1695,6 +1726,192 @@ impl Cpu {
                 self.regs.ip = self.pop_u16();
                 self.regs.sp = self.regs.sp.wrapping_add(imm);
                 rec.mnemonic = "ret";
+            }
+
+            // ---- far calls / jumps and BCD / LDS-LES ----
+            // RET far — CB. Pop IP, then CS.
+            0xCB => {
+                self.regs.ip = self.pop_u16();
+                self.regs.cs = self.pop_u16();
+                rec.mnemonic = "retf";
+            }
+            // RET imm16 far — CA.
+            0xCA => {
+                let imm = self.fetch_u16();
+                self.regs.ip = self.pop_u16();
+                self.regs.cs = self.pop_u16();
+                self.regs.sp = self.regs.sp.wrapping_add(imm);
+                rec.mnemonic = "retf";
+            }
+            // CALL far direct — 9A offsetw segment16: push CS, push IP, jump.
+            0x9A => {
+                let new_ip = self.fetch_u16();
+                let new_cs = self.fetch_u16();
+                let ret_ip = self.regs.ip;
+                let ret_cs = self.regs.cs;
+                self.push_u16(ret_cs);
+                self.push_u16(ret_ip);
+                self.regs.cs = new_cs;
+                self.regs.ip = new_ip;
+                rec.mnemonic = "call";
+            }
+            // JMP far direct — EA offsetw segment16.
+            0xEA => {
+                let new_ip = self.fetch_u16();
+                let new_cs = self.fetch_u16();
+                self.regs.cs = new_cs;
+                self.regs.ip = new_ip;
+                rec.mnemonic = "jmp";
+            }
+
+            // LDS r16, m32 — C5 /r: r16 ← [m], DS ← [m+2]
+            0xC5 => {
+                let modrm = self.fetch_u8();
+                let reg = (modrm >> 3) & 0b111;
+                if let Some(ea) = self.decode_ea(modrm) {
+                    let lin = self.linear_for(ea, override_seg);
+                    let off = self.mem.read_u16(lin);
+                    let seg = self.mem.read_u16(lin.wrapping_add(2));
+                    self.write_reg16(Reg16::from_code(reg), off);
+                    self.regs.ds = seg;
+                    rec.mnemonic = "lds";
+                } else {
+                    rec.stopped = Some(StopReason::Unimplemented {
+                        opcode: op,
+                        ip: ip_before,
+                    });
+                }
+            }
+            // LES r16, m32 — C4 /r: r16 ← [m], ES ← [m+2]
+            0xC4 => {
+                let modrm = self.fetch_u8();
+                let reg = (modrm >> 3) & 0b111;
+                if let Some(ea) = self.decode_ea(modrm) {
+                    let lin = self.linear_for(ea, override_seg);
+                    let off = self.mem.read_u16(lin);
+                    let seg = self.mem.read_u16(lin.wrapping_add(2));
+                    self.write_reg16(Reg16::from_code(reg), off);
+                    self.regs.es = seg;
+                    rec.mnemonic = "les";
+                } else {
+                    rec.stopped = Some(StopReason::Unimplemented {
+                        opcode: op,
+                        ip: ip_before,
+                    });
+                }
+            }
+
+            // ---- BCD adjust opcodes ----
+            // DAA — Decimal Adjust after Addition.
+            0x27 => {
+                let mut al = self.regs.al();
+                let mut cf = self.regs.flags.get(Flags::CF);
+                if (al & 0x0F) > 9 || self.regs.flags.get(Flags::AF) {
+                    let (new_al, carry) = al.overflowing_add(0x06);
+                    al = new_al;
+                    cf = cf || carry;
+                    self.regs.flags.set(Flags::AF, true);
+                } else {
+                    self.regs.flags.set(Flags::AF, false);
+                }
+                if al > 0x9F || cf {
+                    al = al.wrapping_add(0x60);
+                    cf = true;
+                }
+                self.regs.set_al(al);
+                self.regs.flags.set(Flags::CF, cf);
+                self.regs.flags.set(Flags::ZF, al == 0);
+                self.regs.flags.set(Flags::SF, (al & 0x80) != 0);
+                self.regs.flags.set(Flags::PF, parity_byte(al));
+                rec.mnemonic = "daa";
+            }
+            // DAS — Decimal Adjust after Subtraction.
+            0x2F => {
+                let mut al = self.regs.al();
+                let mut cf = self.regs.flags.get(Flags::CF);
+                if (al & 0x0F) > 9 || self.regs.flags.get(Flags::AF) {
+                    let (new_al, borrow) = al.overflowing_sub(0x06);
+                    al = new_al;
+                    cf = cf || borrow;
+                    self.regs.flags.set(Flags::AF, true);
+                } else {
+                    self.regs.flags.set(Flags::AF, false);
+                }
+                if al > 0x9F || cf {
+                    al = al.wrapping_sub(0x60);
+                    cf = true;
+                }
+                self.regs.set_al(al);
+                self.regs.flags.set(Flags::CF, cf);
+                self.regs.flags.set(Flags::ZF, al == 0);
+                self.regs.flags.set(Flags::SF, (al & 0x80) != 0);
+                self.regs.flags.set(Flags::PF, parity_byte(al));
+                rec.mnemonic = "das";
+            }
+            // AAA — ASCII Adjust after Addition.
+            0x37 => {
+                let mut al = self.regs.al();
+                let mut ah = self.regs.ah();
+                if (al & 0x0F) > 9 || self.regs.flags.get(Flags::AF) {
+                    al = al.wrapping_add(6);
+                    ah = ah.wrapping_add(1);
+                    self.regs.flags.set(Flags::AF, true);
+                    self.regs.flags.set(Flags::CF, true);
+                } else {
+                    self.regs.flags.set(Flags::AF, false);
+                    self.regs.flags.set(Flags::CF, false);
+                }
+                self.regs.set_al(al & 0x0F);
+                self.regs.set_ah(ah);
+                rec.mnemonic = "aaa";
+            }
+            // AAS — ASCII Adjust after Subtraction.
+            0x3F => {
+                let mut al = self.regs.al();
+                let mut ah = self.regs.ah();
+                if (al & 0x0F) > 9 || self.regs.flags.get(Flags::AF) {
+                    al = al.wrapping_sub(6);
+                    ah = ah.wrapping_sub(1);
+                    self.regs.flags.set(Flags::AF, true);
+                    self.regs.flags.set(Flags::CF, true);
+                } else {
+                    self.regs.flags.set(Flags::AF, false);
+                    self.regs.flags.set(Flags::CF, false);
+                }
+                self.regs.set_al(al & 0x0F);
+                self.regs.set_ah(ah);
+                rec.mnemonic = "aas";
+            }
+            // AAM — ASCII Adjust after Multiplication. Two-byte: D4 imm8 (usually 0x0A).
+            0xD4 => {
+                let base = self.fetch_u8();
+                let al = self.regs.al();
+                let Some(quot) = al.checked_div(base) else {
+                    rec.stopped = Some(StopReason::DivideError { ip: ip_before });
+                    self.regs.ip = ip_before;
+                    rec.bytes_consumed = 0;
+                    return rec;
+                };
+                self.regs.set_ah(quot);
+                self.regs.set_al(al % base);
+                let new_al = self.regs.al();
+                self.regs.flags.set(Flags::ZF, new_al == 0);
+                self.regs.flags.set(Flags::SF, (new_al & 0x80) != 0);
+                self.regs.flags.set(Flags::PF, parity_byte(new_al));
+                rec.mnemonic = "aam";
+            }
+            // AAD — ASCII Adjust before Division. Two-byte: D5 imm8 (usually 0x0A).
+            0xD5 => {
+                let base = self.fetch_u8();
+                let v = (u16::from(self.regs.ah()) * u16::from(base))
+                    .wrapping_add(u16::from(self.regs.al()))
+                    & 0xFF;
+                self.regs.set_al(v as u8);
+                self.regs.set_ah(0);
+                self.regs.flags.set(Flags::ZF, v == 0);
+                self.regs.flags.set(Flags::SF, (v & 0x80) != 0);
+                self.regs.flags.set(Flags::PF, parity_byte(v as u8));
+                rec.mnemonic = "aad";
             }
 
             // ---- misc utility opcodes ----
@@ -2127,6 +2344,104 @@ mod tests {
         assert!(c.regs.flags.get(Flags::SF));
         assert!(!c.regs.flags.get(Flags::ZF));
         assert!(!c.regs.flags.get(Flags::CF));
+    }
+
+    // ---- M1 close-out: far calls/jumps, BCD, LDS/LES ----
+
+    #[test]
+    fn far_jmp_sets_cs_and_ip() {
+        // EA <off> <seg> — jmp 0x0800:0x0050
+        let mut c = Cpu::new();
+        c.load_com(&[0xEA, 0x50, 0x00, 0x00, 0x08, 0xF4]);
+        // Plant a HLT at 0x0800:0x0050 so the program ends after the jump.
+        c.mem.write_u8(seg_off(0x0800, 0x0050), 0xF4);
+        c.run_until_halt(64);
+        assert_eq!(c.regs.cs, 0x0800);
+        // After hlt at 0x0800:0x0050, IP = 0x0051.
+        assert_eq!(c.regs.ip, 0x0051);
+    }
+
+    #[test]
+    fn call_far_and_retf_round_trip() {
+        // mov ax, 0x1111 ; call 0x0800:0x0050 ; mov bx, 0x2222 ; hlt
+        // At 0x0800:0x0050 we plant: mov dx, 0x9999 ; retf
+        let mut c = Cpu::new();
+        c.load_com(&[
+            0xB8, 0x11, 0x11, // mov ax, 0x1111
+            0x9A, 0x50, 0x00, 0x00, 0x08, // call far 0800:0050
+            0xBB, 0x22, 0x22, // mov bx, 0x2222
+            0xF4, // hlt
+        ]);
+        // Far function: mov dx, 0x9999 ; retf
+        c.mem.write_u8(seg_off(0x0800, 0x0050), 0xBA);
+        c.mem.write_u8(seg_off(0x0800, 0x0051), 0x99);
+        c.mem.write_u8(seg_off(0x0800, 0x0052), 0x99);
+        c.mem.write_u8(seg_off(0x0800, 0x0053), 0xCB);
+        c.run_until_halt(64);
+        assert_eq!(c.regs.ax, 0x1111);
+        assert_eq!(c.regs.dx, 0x9999); // far function ran
+        assert_eq!(c.regs.bx, 0x2222); // returned to caller
+        assert_eq!(c.regs.sp, 0xFFFE); // SP balanced
+    }
+
+    #[test]
+    fn lds_loads_offset_and_ds() {
+        // mov bx, 0x0200 ; lds si, [bx] ; hlt
+        // At DS:0x0200 we plant offset 0x4321 then segment 0x0900.
+        // Encoding LDS = C5 /r — reg=SI(6) rm=[BX](7) mod=00 → C5 37
+        let mut c = Cpu::new();
+        c.load_com(&[
+            0xBB, 0x00, 0x02, // mov bx, 0x0200
+            0xC5, 0x37, // lds si, [bx]
+            0xF4,
+        ]);
+        c.mem.write_u16(seg_off(c.regs.ds, 0x0200), 0x4321);
+        c.mem.write_u16(seg_off(c.regs.ds, 0x0202), 0x0900);
+        c.run_until_halt(64);
+        assert_eq!(c.regs.si, 0x4321);
+        assert_eq!(c.regs.ds, 0x0900);
+    }
+
+    #[test]
+    fn les_loads_offset_and_es() {
+        let mut c = Cpu::new();
+        c.load_com(&[
+            0xBB, 0x00, 0x02, // mov bx, 0x0200
+            0xC4, 0x3F, // les di, [bx] (reg=DI(7), rm=[BX](7), mod=00)
+            0xF4,
+        ]);
+        c.mem.write_u16(seg_off(c.regs.ds, 0x0200), 0xABCD);
+        c.mem.write_u16(seg_off(c.regs.ds, 0x0202), 0x0A00);
+        c.run_until_halt(64);
+        assert_eq!(c.regs.di, 0xABCD);
+        assert_eq!(c.regs.es, 0x0A00);
+    }
+
+    #[test]
+    fn aam_and_aad_are_complementary() {
+        // AAM 10: split AL into AH:AL of (AL/10, AL%10).
+        // mov ax, 0x0023 ; aam ; hlt → AH=3, AL=5 (35 / 10 = 3 r 5)
+        let c = run(&[0xB8, 0x23, 0x00, 0xD4, 0x0A, 0xF4]);
+        assert_eq!(c.regs.ah(), 3);
+        assert_eq!(c.regs.al(), 5);
+        // AAD 10: AL = AH*10 + AL, AH = 0.
+        // mov ax, 0x0305 ; aad ; hlt → AL=35, AH=0
+        let c2 = run(&[0xB8, 0x05, 0x03, 0xD5, 0x0A, 0xF4]);
+        assert_eq!(c2.regs.al(), 35);
+        assert_eq!(c2.regs.ah(), 0);
+    }
+
+    #[test]
+    fn daa_adjusts_after_bcd_addition() {
+        // mov al, 0x29 ; add al, 0x18 ; daa ; hlt
+        // 0x29 + 0x18 = 0x41. Low nibble is 0x1 (no fix needed). High
+        // nibble: 0x4. AF was set during the add (9+8>0xF) — wait,
+        // 0x29 + 0x18 = 0x41 with AF=1 since (9+8)>0xF.
+        // DAA: low nibble 1 ≤ 9 but AF=1 → add 6 → 0x47.
+        // High 4 ≤ 9 and CF=0 → no further fix.
+        // Result: AL = 0x47. (Decimal: 29 + 18 = 47. ✓)
+        let c = run(&[0xB0, 0x29, 0x04, 0x18, 0x27, 0xF4]);
+        assert_eq!(c.regs.al(), 0x47);
     }
 
     // ---- step_back / time-travel (M4.1) ----
