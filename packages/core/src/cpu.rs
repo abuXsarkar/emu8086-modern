@@ -113,6 +113,12 @@ pub struct Cpu {
     pub regs: Registers,
     pub mem: Memory,
     pub halted: bool,
+    /// Bytes the program has written to the DOS console via `INT 21h`.
+    /// The IDE (or CLI) drains this to render output. We append rather
+    /// than callback so the emulator stays pure and synchronous.
+    pub stdout: Vec<u8>,
+    /// DOS exit code from `INT 21h` AH=4Ch (or AH=00h legacy exit).
+    pub exit_code: Option<u8>,
 }
 
 impl Default for Cpu {
@@ -136,6 +142,8 @@ impl Cpu {
             regs: Registers::default(),
             mem: Memory::new(),
             halted: false,
+            stdout: Vec::new(),
+            exit_code: None,
         }
     }
 
@@ -154,6 +162,92 @@ impl Cpu {
         };
         self.mem.load(seg_off(seg, 0x100), image);
         self.halted = false;
+        self.stdout.clear();
+        self.exit_code = None;
+    }
+
+    /// Handle a software interrupt. We intercept the small subset of DOS
+    /// services that emu8086 lab manuals use; anything else returns
+    /// `Unimplemented` so the IDE can show a clear "INT N AH=H not
+    /// implemented" diagnostic instead of silently no-opping.
+    fn handle_int(&mut self, n: u8, ip_before: u16, rec: &mut StepRecord) {
+        match n {
+            0x20 => {
+                // Legacy CP/M-style exit.
+                self.halted = true;
+                self.exit_code = Some(0);
+                rec.mnemonic = "int";
+                rec.stopped = Some(StopReason::Halted);
+            }
+            0x21 => self.dos_int21(rec),
+            other => {
+                rec.stopped = Some(StopReason::Unimplemented {
+                    opcode: 0xCD,
+                    ip: ip_before,
+                });
+                let _ = other;
+            }
+        }
+    }
+
+    fn dos_int21(&mut self, rec: &mut StepRecord) {
+        let ah = self.regs.ah();
+        match ah {
+            // 01h: read char with echo. No real input attached yet —
+            // return 0 and keep going so a polling loop terminates rather
+            // than hanging the emulator. Real keyboard arrives in M4.
+            0x01 => {
+                self.regs.set_al(0);
+                rec.mnemonic = "int";
+            }
+            // 02h: print char in DL.
+            0x02 => {
+                self.stdout.push(self.regs.dl());
+                rec.mnemonic = "int";
+            }
+            // 06h: direct console I/O. If DL == 0xFF this is a non-blocking
+            // read (we treat it as "no key", ZF=1). Else, write DL.
+            0x06 => {
+                if self.regs.dl() == 0xFF {
+                    self.regs.set_al(0);
+                    self.regs.flags.set(Flags::ZF, true);
+                } else {
+                    self.stdout.push(self.regs.dl());
+                }
+                rec.mnemonic = "int";
+            }
+            // 09h: print $-terminated string at DS:DX.
+            0x09 => {
+                let mut off = self.regs.dx;
+                // Cap at 64 KiB worth of segment to avoid pathological
+                // missing-terminator programs hanging the runtime.
+                for _ in 0..0x10000u32 {
+                    let lin = seg_off(self.regs.ds, off);
+                    let b = self.mem.read_u8(lin);
+                    if b == b'$' {
+                        break;
+                    }
+                    self.stdout.push(b);
+                    off = off.wrapping_add(1);
+                }
+                rec.mnemonic = "int";
+            }
+            // 4Ch: terminate with exit code in AL. The 8086 manual also
+            // documents 00h as "terminate" with exit-code 0 — we treat it
+            // the same.
+            0x00 | 0x4C => {
+                self.exit_code = Some(self.regs.al());
+                self.halted = true;
+                rec.mnemonic = "int";
+                rec.stopped = Some(StopReason::Halted);
+            }
+            _ => {
+                rec.stopped = Some(StopReason::Unimplemented {
+                    opcode: 0xCD,
+                    ip: self.regs.ip.wrapping_sub(2),
+                });
+            }
+        }
     }
 
     fn fetch_u8(&mut self) -> u8 {
@@ -1123,6 +1217,29 @@ impl Cpu {
                 rec.mnemonic = "ret";
             }
 
+            // INT n — software interrupt. We intercept DOS-style services
+            // and route the rest through `handle_int` (currently most are
+            // unimplemented). The full IVT-driven path is deferred until
+            // we need real interrupt handlers in user code.
+            0xCD => {
+                let n = self.fetch_u8();
+                self.handle_int(n, ip_before, &mut rec);
+            }
+            // INT 3 (CC) — debugger trap.
+            0xCC => {
+                self.handle_int(3, ip_before, &mut rec);
+            }
+            // IRET — pop IP, CS, FLAGS. Matches the order INT pushes
+            // (FLAGS first, then CS, then IP). For now this is only
+            // exercised by host-pushed interrupt handlers; reaching it
+            // from a guest INT n would need the IVT path.
+            0xCF => {
+                self.regs.ip = self.pop_u16();
+                self.regs.cs = self.pop_u16();
+                self.regs.flags.0 = self.pop_u16();
+                rec.mnemonic = "iret";
+            }
+
             // ---- shifts and rotates ----
             // D0 r/m8, 1   ; D1 r/m16, 1   ; D2 r/m8, CL   ; D3 r/m16, CL
             // sub-op (mod-r/m reg field):
@@ -1537,6 +1654,46 @@ mod tests {
         assert!(c.regs.flags.get(Flags::SF));
         assert!(!c.regs.flags.get(Flags::ZF));
         assert!(!c.regs.flags.get(Flags::CF));
+    }
+
+    // ---- INT 21h DOS subset (M1.6) ----
+
+    #[test]
+    fn int21_putc_writes_to_stdout() {
+        // mov ah, 02h ; mov dl, 'A' ; int 21h ; mov ah, 4Ch ; int 21h
+        let c = run(&[0xB4, 0x02, 0xB2, b'A', 0xCD, 0x21, 0xB4, 0x4C, 0xCD, 0x21]);
+        assert!(c.halted);
+        assert_eq!(c.stdout, b"A");
+        assert_eq!(c.exit_code, Some(0));
+    }
+
+    #[test]
+    fn int21_puts_prints_until_dollar() {
+        // mov ah, 09h ; mov dx, 0x200 ; int 21h ; int 20h
+        // Place the string at DS:0x0200 manually.
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x09, 0xBA, 0x00, 0x02, 0xCD, 0x21, 0xCD, 0x20]);
+        for (i, b) in b"Hello, world!$".iter().enumerate() {
+            c.mem.write_u8(seg_off(c.regs.ds, 0x0200 + i as u16), *b);
+        }
+        c.run_until_halt(64);
+        assert!(c.halted);
+        assert_eq!(c.stdout, b"Hello, world!");
+    }
+
+    #[test]
+    fn int21_exit_4c_carries_al_as_exit_code() {
+        // mov ax, 4C2A ; int 21h
+        let c = run(&[0xB8, 0x2A, 0x4C, 0xCD, 0x21]);
+        assert!(c.halted);
+        assert_eq!(c.exit_code, Some(0x2A));
+    }
+
+    #[test]
+    fn int20_terminates() {
+        let c = run(&[0xCD, 0x20]);
+        assert!(c.halted);
+        assert_eq!(c.exit_code, Some(0));
     }
 
     // ---- shifts and rotates (M1.5) ----
