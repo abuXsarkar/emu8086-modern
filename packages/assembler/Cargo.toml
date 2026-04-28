@@ -16,4 +16,6 @@ crate-type = ["rlib"]
 [dependencies]
 thiserror = { workspace = true }
 serde = { workspace = true }
+
+[dev-dependencies]
 emu8086-core = { path = "../core" }
