@@ -8,11 +8,18 @@
 
 #![forbid(unsafe_code)]
 #![warn(clippy::all, clippy::pedantic)]
+#![allow(clippy::cast_possible_truncation, clippy::cast_lossless)]
 
 use serde::{Deserialize, Serialize};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::wasm_bindgen;
+
+pub mod cpu;
+pub mod mem;
+
+pub use cpu::{Cpu, Reg16, Reg8, StepRecord, StopReason};
+pub use mem::{seg_off, Memory, MEM_SIZE};
 
 /// Bootstrap probe used by the M0 hello-wasm path.
 ///
