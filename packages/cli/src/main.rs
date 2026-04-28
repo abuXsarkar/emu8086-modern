@@ -24,6 +24,7 @@ use clap::{Parser, Subcommand};
 use emu8086_assembler::{assemble, AssembleError, Dialect};
 use emu8086_core::Cpu;
 
+mod compat;
 mod grade;
 
 #[derive(Parser, Debug)]
@@ -82,7 +83,9 @@ enum Cmd {
         #[arg(long)]
         junit: Option<PathBuf>,
     },
-    /// Walk a directory and report compatibility issues (M2 — not yet implemented).
+    /// Walk a directory of `.asm` files and report which assemble
+    /// cleanly under this dialect. Pass a single file path to check
+    /// just that one. Exit 0 if everything passes, 1 otherwise.
     CompatReport { path: PathBuf },
 }
 
@@ -275,10 +278,7 @@ fn main() -> ExitCode {
             submission,
             junit,
         } => grade::run_spec(&spec, &submission, junit.as_deref()),
-        Cmd::CompatReport { .. } => {
-            eprintln!("emu8086: subcommand not yet implemented; see ROADMAP.md");
-            Ok(2)
-        }
+        Cmd::CompatReport { path } => compat::run(&path),
     };
     match result {
         Ok(code) => ExitCode::from(code),
