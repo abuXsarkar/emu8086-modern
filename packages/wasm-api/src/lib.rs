@@ -170,6 +170,143 @@ pub fn compile_and_run(source: &str, max_steps: u32) -> String {
     })
 }
 
+#[derive(Serialize, Default)]
+pub struct StepResultJson {
+    pub stdout: String,
+    pub exit_code: Option<u8>,
+    pub halted: bool,
+    pub mnemonic: String,
+    pub stopped: Option<String>,
+    pub registers: Registers,
+}
+
+/// Stateful single-step interface used by the web IDE's Step button.
+/// One instance owns one `Cpu`; load a fresh program with `load`, step
+/// with `step`, snapshot the current state with `state`. Reset is just
+/// "create a new one".
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+pub struct Emulator {
+    cpu: Cpu,
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+impl Emulator {
+    /// Construct an empty emulator; call `load_source` before stepping.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
+    #[must_use]
+    pub fn new() -> Self {
+        Self { cpu: Cpu::new() }
+    }
+
+    /// Assemble the source and load the resulting image. Returns the
+    /// same `RunResult` shape `compile_and_run` does (with `steps = 0`)
+    /// on success, or a structured error on failure.
+    pub fn load_source(&mut self, source: &str) -> String {
+        let img = match assemble(source, Dialect::default()) {
+            Ok(img) => img,
+            Err(e) => {
+                let (stage, msg, span) = match e {
+                    emu8086_assembler::AssembleError::Lex(le) => (
+                        "lex",
+                        le.msg.clone(),
+                        emu8086_assembler::Span::new(le.pos, le.pos + 1),
+                    ),
+                    emu8086_assembler::AssembleError::Parse(pe) => ("parse", pe.message, pe.span),
+                    emu8086_assembler::AssembleError::Encode(ee) => ("encode", ee.message, ee.span),
+                };
+                let (line, col) = locate(source, span.start);
+                let r = RunResult {
+                    ok: false,
+                    error: Some(RunError {
+                        stage,
+                        message: msg,
+                        line,
+                        column: col,
+                        start: span.start as u32,
+                        end: span.end as u32,
+                    }),
+                    ..Default::default()
+                };
+                return serde_json::to_string(&r).unwrap_or_default();
+            }
+        };
+        self.cpu = Cpu::new();
+        self.cpu.load_com(&img.bytes);
+        let r = RunResult {
+            ok: true,
+            stdout: String::new(),
+            exit_code: None,
+            steps: 0,
+            halted: false,
+            error: None,
+            registers: Registers::from(&self.cpu.regs),
+            bytes: img.bytes.len(),
+            origin: img.origin,
+            ..Default::default()
+        };
+        serde_json::to_string(&r).unwrap_or_default()
+    }
+
+    /// Step exactly one instruction. Returns a JSON `StepResultJson`.
+    pub fn step(&mut self) -> String {
+        let prev_stdout_len = self.cpu.stdout.len();
+        let rec = self.cpu.step();
+        let mnemonic = rec.mnemonic.to_string();
+        let stopped = rec.stopped.as_ref().map(|s| match s {
+            emu8086_core::StopReason::Halted => "halted".to_string(),
+            emu8086_core::StopReason::Unimplemented { opcode, ip } => {
+                format!("unimplemented opcode 0x{opcode:02X} at ip 0x{ip:04X}")
+            }
+            emu8086_core::StopReason::DivideError { ip } => {
+                format!("divide error at ip 0x{ip:04X}")
+            }
+        });
+        // Newly-emitted stdout slice (the program may have called INT 21h).
+        let new_stdout = String::from_utf8_lossy(&self.cpu.stdout[prev_stdout_len..]).into_owned();
+        let r = StepResultJson {
+            stdout: new_stdout,
+            exit_code: self.cpu.exit_code,
+            halted: self.cpu.halted,
+            mnemonic,
+            stopped,
+            registers: Registers::from(&self.cpu.regs),
+        };
+        serde_json::to_string(&r).unwrap_or_default()
+    }
+
+    /// Re-run from the start of the currently-loaded image up to
+    /// `max_steps` instructions. Convenient for "restart and run to
+    /// completion" without re-assembling.
+    pub fn run(&mut self, max_steps: u32) -> String {
+        let cap = if max_steps == 0 {
+            1_000_000
+        } else {
+            max_steps as usize
+        };
+        let steps = self.cpu.run_until_halt(cap);
+        let stdout = String::from_utf8_lossy(&self.cpu.stdout).into_owned();
+        let r = RunResult {
+            ok: true,
+            stdout,
+            stdout_lossy: false,
+            exit_code: self.cpu.exit_code,
+            steps,
+            halted: self.cpu.halted,
+            error: None,
+            registers: Registers::from(&self.cpu.regs),
+            bytes: 0,
+            origin: 0,
+        };
+        serde_json::to_string(&r).unwrap_or_default()
+    }
+}
+
+impl Default for Emulator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

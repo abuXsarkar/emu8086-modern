@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor as MonacoEditor } from "monaco-editor";
-import init, { compile_and_run } from "../../wasm-api/pkg/emu8086_wasm_api.js";
+import init, {
+  compile_and_run,
+  Emulator,
+} from "../../wasm-api/pkg/emu8086_wasm_api.js";
 import { ASM_LANG_ID, registerAsm8086 } from "./asm8086";
 import { EXAMPLES } from "./examples";
 
@@ -103,6 +106,9 @@ export function App() {
   const [source, setSource] = useState<string>(() => initialSource());
   const [result, setResult] = useState<RunResultJson | null>(null);
   const [running, setRunning] = useState<boolean>(false);
+  const [stepLog, setStepLog] = useState<string>("");
+  const [stepLoaded, setStepLoaded] = useState<boolean>(false);
+  const emuRef = useRef<Emulator | null>(null);
 
   // Persist on every edit, throttled implicitly by React's batching.
   useEffect(() => {
@@ -219,6 +225,71 @@ export function App() {
     runRef.current = onRun;
   });
 
+  interface StepResult {
+    stdout: string;
+    halted: boolean;
+    mnemonic: string;
+    stopped: string | null;
+    exit_code: number | null;
+    registers: RunRegisters;
+  }
+
+  // Reset the step session: assemble the current source, point the
+  // stateful Emulator at a fresh image, clear the visible step log
+  // and re-render registers at the program's entry point.
+  const onReset = () => {
+    if (coreState.kind !== "ready") return;
+    if (!emuRef.current) emuRef.current = new Emulator();
+    const json = emuRef.current.load_source(source);
+    const parsed = JSON.parse(json) as RunResultJson;
+    if (!parsed.ok) {
+      setResult(parsed);
+      applyDiagnostic(parsed.error);
+      setStepLoaded(false);
+      return;
+    }
+    setResult(parsed);
+    applyDiagnostic(null);
+    setStepLog("");
+    setStepLoaded(true);
+  };
+
+  const onStep = () => {
+    if (coreState.kind !== "ready") return;
+    if (!stepLoaded) {
+      onReset();
+      return;
+    }
+    if (!emuRef.current) return;
+    const json = emuRef.current.step();
+    const parsed = JSON.parse(json) as StepResult;
+    setResult((prev) => {
+      const baseline: RunResultJson = prev ?? {
+        ok: true,
+        stdout: "",
+        stdout_lossy: false,
+        exit_code: null,
+        steps: 0,
+        halted: false,
+        error: null,
+        registers: parsed.registers,
+        bytes: 0,
+        origin: 0,
+      };
+      return {
+        ...baseline,
+        stdout: baseline.stdout + parsed.stdout,
+        registers: parsed.registers,
+        halted: parsed.halted,
+        exit_code: parsed.exit_code ?? baseline.exit_code,
+      };
+    });
+    setStepLog((prev) => prev + parsed.mnemonic + (parsed.stopped ? ` [${parsed.stopped}]` : "") + "\n");
+    if (parsed.halted) {
+      setStepLoaded(false);
+    }
+  };
+
   const errorLine = result?.error?.line ?? 0;
   const sourceLines = useMemo(() => source.split("\n"), [source]);
 
@@ -291,6 +362,40 @@ export function App() {
                     </option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  onClick={onReset}
+                  disabled={running}
+                  style={{
+                    padding: "0.4rem 0.8rem",
+                    background: "#fff",
+                    color: "#222",
+                    border: "1px solid #888",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                  title="Re-assemble and point the stepper at instruction 0"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={onStep}
+                  disabled={running}
+                  style={{
+                    padding: "0.4rem 0.8rem",
+                    background: "#fff",
+                    color: "#222",
+                    border: "1px solid #888",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                  title="Execute one instruction (or assemble + step from start)"
+                >
+                  Step
+                </button>
                 <button
                   type="button"
                   onClick={onRun}
@@ -392,11 +497,32 @@ export function App() {
               )}
               {result?.ok && (
                 <div style={{ color: "#666", fontSize: 12, marginTop: 4 }}>
-                  {result.bytes} bytes assembled (origin = 0x{hex(result.origin)});{" "}
-                  {result.steps.toLocaleString()} steps;{" "}
+                  {result.bytes > 0 && <>{result.bytes} bytes assembled (origin = 0x{hex(result.origin)}); </>}
+                  {result.steps > 0 && <>{result.steps.toLocaleString()} steps; </>}
                   exit code{" "}
                   <code>{result.exit_code === null ? "—" : result.exit_code}</code>
                 </div>
+              )}
+              {stepLog && (
+                <details style={{ marginTop: "1rem" }}>
+                  <summary style={{ cursor: "pointer", color: "#666", fontSize: 13 }}>
+                    step log ({stepLog.split("\n").filter(Boolean).length} steps)
+                  </summary>
+                  <pre
+                    style={{
+                      background: "#111",
+                      color: "#aaa",
+                      padding: "0.5rem 0.75rem",
+                      borderRadius: 4,
+                      maxHeight: 200,
+                      overflow: "auto",
+                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                      fontSize: 12,
+                    }}
+                  >
+                    {stepLog}
+                  </pre>
+                </details>
               )}
             </div>
           </section>
