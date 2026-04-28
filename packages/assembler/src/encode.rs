@@ -476,6 +476,12 @@ fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
         // bytes either way (D4/D5 + imm).
         "aam" | "aad" if zero || one => 2,
         "int" if one => 2,
+        // IN / OUT have four forms each:
+        //   in al/ax, imm8       → E4 / E5  imm  (2 bytes)
+        //   in al/ax, dx         → EC / ED        (1 byte)
+        //   out imm8, al/ax      → E6 / E7  imm  (2 bytes)
+        //   out dx, al/ax        → EE / EF        (1 byte)
+        "in" | "out" if two => io_size(&instr.operands[0], &instr.operands[1])?,
         "push" | "pop" if one => {
             if let Some(name) = ident_name(&instr.operands[0]) {
                 if Reg16::from_name(&name).is_some() {
@@ -531,6 +537,25 @@ fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
             });
         }
     })
+}
+
+fn io_size(a: &Operand, b: &Operand) -> Result<u16, EncodeError> {
+    // Either operand can be the port operand (DX or imm8). The byte
+    // count is the same regardless of which side.
+    let a_dx = ident_name(a).is_some_and(|n| n.eq_ignore_ascii_case("dx"));
+    let b_dx = ident_name(b).is_some_and(|n| n.eq_ignore_ascii_case("dx"));
+    let a_imm = matches!(a, Operand::Number { .. });
+    let b_imm = matches!(b, Operand::Number { .. });
+    if a_dx || b_dx {
+        Ok(1)
+    } else if a_imm || b_imm {
+        Ok(2)
+    } else {
+        Err(EncodeError {
+            span: combined_span(a, b),
+            message: "in/out port must be DX or an 8-bit immediate".into(),
+        })
+    }
 }
 
 fn unary_subop(m: &str) -> Option<u8> {
@@ -980,9 +1005,76 @@ fn emit_instr(
             out,
             instr.span,
         ),
+        "in" => emit_in(&instr.operands[0], &instr.operands[1], out, instr.span),
+        "out" => emit_out(&instr.operands[0], &instr.operands[1], out, instr.span),
         _ => Err(EncodeError {
             span: instr.mnemonic_span,
             message: format!("unsupported mnemonic `{m}`"),
+        }),
+    }
+}
+
+fn emit_in(dst: &Operand, src: &Operand, out: &mut Vec<u8>, span: Span) -> Result<(), EncodeError> {
+    let dname = ident_name(dst).ok_or(EncodeError {
+        span,
+        message: "in expects AL or AX as destination".into(),
+    })?;
+    let is_ax = dname.eq_ignore_ascii_case("ax");
+    let is_al = dname.eq_ignore_ascii_case("al");
+    if !is_ax && !is_al {
+        return Err(EncodeError {
+            span,
+            message: "in destination must be AL or AX".into(),
+        });
+    }
+    match src {
+        Operand::Number { value, .. } => {
+            out.push(if is_al { 0xE4 } else { 0xE5 });
+            out.push(*value as u8);
+            Ok(())
+        }
+        Operand::Ident { name, .. } if name.eq_ignore_ascii_case("dx") => {
+            out.push(if is_al { 0xEC } else { 0xED });
+            Ok(())
+        }
+        _ => Err(EncodeError {
+            span: src.span(),
+            message: "in port must be DX or an 8-bit immediate".into(),
+        }),
+    }
+}
+
+fn emit_out(
+    dst: &Operand,
+    src: &Operand,
+    out: &mut Vec<u8>,
+    span: Span,
+) -> Result<(), EncodeError> {
+    let sname = ident_name(src).ok_or(EncodeError {
+        span,
+        message: "out expects AL or AX as source".into(),
+    })?;
+    let is_ax = sname.eq_ignore_ascii_case("ax");
+    let is_al = sname.eq_ignore_ascii_case("al");
+    if !is_ax && !is_al {
+        return Err(EncodeError {
+            span,
+            message: "out source must be AL or AX".into(),
+        });
+    }
+    match dst {
+        Operand::Number { value, .. } => {
+            out.push(if is_al { 0xE6 } else { 0xE7 });
+            out.push(*value as u8);
+            Ok(())
+        }
+        Operand::Ident { name, .. } if name.eq_ignore_ascii_case("dx") => {
+            out.push(if is_al { 0xEE } else { 0xEF });
+            Ok(())
+        }
+        _ => Err(EncodeError {
+            span: dst.span(),
+            message: "out port must be DX or an 8-bit immediate".into(),
         }),
     }
 }

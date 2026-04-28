@@ -292,6 +292,19 @@ impl Emulator {
     /// bytes to read (capped at 4096 so a runaway request doesn't
     /// hang the host). Output is space-separated two-char hex per
     /// byte, no trailing newline; the IDE re-flows it into rows.
+    /// Read one I/O port byte (e.g. port 199 = the 7-seg display).
+    #[must_use]
+    pub fn port_byte(&self, port: u16) -> u8 {
+        self.cpu.ports[port as usize]
+    }
+
+    /// Total number of `OUT` writes the program has done since load.
+    /// The IDE polls this to decide whether to redraw device panels.
+    #[must_use]
+    pub fn out_log_len(&self) -> u32 {
+        self.cpu.out_log.len() as u32
+    }
+
     #[must_use]
     pub fn memory_hex(&self, seg: u16, off: u16, len: u16) -> String {
         use std::fmt::Write as _;

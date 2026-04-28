@@ -7,6 +7,7 @@ import init, {
 } from "../../wasm-api/pkg/emu8086_wasm_api.js";
 import { ASM_LANG_ID, registerAsm8086 } from "./asm8086";
 import { EXAMPLES } from "./examples";
+import { SevenSegment } from "./SevenSegment";
 
 const STORAGE_KEY = "emu8086-modern.source";
 
@@ -137,6 +138,7 @@ export function App() {
   const [stepLog, setStepLog] = useState<string>("");
   const [stepLoaded, setStepLoaded] = useState<boolean>(false);
   const [memHex, setMemHex] = useState<string>("");
+  const [port199, setPort199] = useState<number>(0);
   const emuRef = useRef<Emulator | null>(null);
   const lineMapRef = useRef<Array<[number, number]>>([]);
   const decorationsRef = useRef<string[]>([]);
@@ -149,6 +151,11 @@ export function App() {
     const ds = regs.ds ?? 0;
     const hex = emuRef.current.memory_hex(ds, 0x0100, 256);
     setMemHex(hex);
+  }
+
+  function refreshDevices() {
+    if (!emuRef.current) return;
+    setPort199(emuRef.current.port_byte(199));
   }
 
   // Persist on every edit, throttled implicitly by React's batching.
@@ -342,6 +349,7 @@ export function App() {
       ((parsed.registers.cs ?? 0) << 4) + (parsed.registers.ip ?? 0);
     highlightLine(lineForIp(source, lineMapRef.current, linearIp));
     refreshMemHex(parsed.registers);
+    refreshDevices();
   };
 
   const onBack = () => {
@@ -374,6 +382,7 @@ export function App() {
       ((parsed.registers.cs ?? 0) << 4) + (parsed.registers.ip ?? 0);
     highlightLine(lineForIp(source, lineMapRef.current, linearIp));
     refreshMemHex(parsed.registers);
+    refreshDevices();
   };
 
   const onStep = () => {
@@ -415,6 +424,7 @@ export function App() {
       setStepLoaded(false);
     }
     refreshMemHex(parsed.registers);
+    refreshDevices();
   };
 
   const errorLine = result?.error?.line ?? 0;
@@ -720,6 +730,11 @@ export function App() {
                     )
                   : null}
               </div>
+            </div>
+
+            <div style={{ marginTop: "1rem" }}>
+              <strong style={{ display: "block", marginBottom: 4 }}>devices</strong>
+              <SevenSegment value={port199} />
             </div>
 
             {memHex && (
