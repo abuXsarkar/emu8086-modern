@@ -287,6 +287,27 @@ impl Emulator {
         serde_json::to_string(&r).unwrap_or_default()
     }
 
+    /// Read a slice of the emulator's memory as a hex-encoded string.
+    /// `seg:off` is the start of the slice; `len` is the number of
+    /// bytes to read (capped at 4096 so a runaway request doesn't
+    /// hang the host). Output is space-separated two-char hex per
+    /// byte, no trailing newline; the IDE re-flows it into rows.
+    #[must_use]
+    pub fn memory_hex(&self, seg: u16, off: u16, len: u16) -> String {
+        use std::fmt::Write as _;
+        let len = (len as usize).min(4096);
+        let lin = emu8086_core::seg_off(seg, off);
+        let slice = self.cpu.mem.slice(lin, len);
+        let mut out = String::with_capacity(slice.len() * 3);
+        for (i, b) in slice.iter().enumerate() {
+            if i > 0 {
+                out.push(' ');
+            }
+            let _ = write!(out, "{b:02X}");
+        }
+        out
+    }
+
     /// Step backwards by one instruction. Returns a `StepResultJson`
     /// shape, with `mnemonic = "back"` to make the host log readable.
     /// On empty history, returns the current state with `mnemonic = ""`.

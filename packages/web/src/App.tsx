@@ -136,9 +136,20 @@ export function App() {
   const [running, setRunning] = useState<boolean>(false);
   const [stepLog, setStepLog] = useState<string>("");
   const [stepLoaded, setStepLoaded] = useState<boolean>(false);
+  const [memHex, setMemHex] = useState<string>("");
   const emuRef = useRef<Emulator | null>(null);
   const lineMapRef = useRef<Array<[number, number]>>([]);
   const decorationsRef = useRef<string[]>([]);
+
+  // Pull a 256-byte slice of memory at DS:0x100 (the .com origin) and
+  // render it as a 16×16 hex grid. Called after every reset / step /
+  // step_back so the panel mirrors the live state.
+  function refreshMemHex(regs: RunRegisters | undefined) {
+    if (!emuRef.current || !regs) return;
+    const ds = regs.ds ?? 0;
+    const hex = emuRef.current.memory_hex(ds, 0x0100, 256);
+    setMemHex(hex);
+  }
 
   // Persist on every edit, throttled implicitly by React's batching.
   useEffect(() => {
@@ -330,6 +341,7 @@ export function App() {
     const linearIp =
       ((parsed.registers.cs ?? 0) << 4) + (parsed.registers.ip ?? 0);
     highlightLine(lineForIp(source, lineMapRef.current, linearIp));
+    refreshMemHex(parsed.registers);
   };
 
   const onBack = () => {
@@ -361,6 +373,7 @@ export function App() {
     const linearIp =
       ((parsed.registers.cs ?? 0) << 4) + (parsed.registers.ip ?? 0);
     highlightLine(lineForIp(source, lineMapRef.current, linearIp));
+    refreshMemHex(parsed.registers);
   };
 
   const onStep = () => {
@@ -401,6 +414,7 @@ export function App() {
     if (parsed.halted) {
       setStepLoaded(false);
     }
+    refreshMemHex(parsed.registers);
   };
 
   const errorLine = result?.error?.line ?? 0;
@@ -707,6 +721,44 @@ export function App() {
                   : null}
               </div>
             </div>
+
+            {memHex && (
+              <div style={{ marginTop: "1rem" }}>
+                <strong style={{ display: "block", marginBottom: 4 }}>
+                  memory{" "}
+                  <span style={{ color: "#888", fontWeight: 400, fontSize: 12 }}>
+                    DS:0x100..1FF
+                  </span>
+                </strong>
+                <pre
+                  style={{
+                    background: "#111",
+                    color: "#ddd",
+                    padding: "0.5rem 0.6rem",
+                    borderRadius: 4,
+                    fontFamily:
+                      "ui-monospace, SFMono-Regular, Menlo, monospace",
+                    fontSize: 11,
+                    margin: 0,
+                    maxHeight: 200,
+                    overflow: "auto",
+                  }}
+                >
+                  {(() => {
+                    const tokens = memHex.split(" ");
+                    const rows: string[] = [];
+                    for (let i = 0; i < tokens.length; i += 16) {
+                      const off = (0x100 + i)
+                        .toString(16)
+                        .toUpperCase()
+                        .padStart(4, "0");
+                      rows.push(`${off}: ${tokens.slice(i, i + 16).join(" ")}`);
+                    }
+                    return rows.join("\n");
+                  })()}
+                </pre>
+              </div>
+            )}
           </aside>
         </div>
       )}
