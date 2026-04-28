@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import init, { compile_and_run } from "../../wasm-api/pkg/emu8086_wasm_api.js";
+import { ASM_LANG_ID, registerAsm8086 } from "./asm8086";
 
 type CoreState =
   | { kind: "loading" }
@@ -9,7 +11,8 @@ type CoreState =
 const SAMPLE = `; hello.asm — type a program and click Run.
 ;
 ; Try changing the message, or replacing it with your own
-; computation. The full ISA is documented in the project README.
+; computation. Memory operands, EQU constants, REP prefixes,
+; the full ALU group, shifts, MUL/DIV, INT 21h — all work.
 
 org 100h
 
@@ -86,7 +89,7 @@ function flagBadge(name: string, on: boolean) {
         display: "inline-block",
         padding: "0 6px",
         marginRight: 6,
-        border: "1px solid #ccc",
+        border: "1px solid #2a2a2a",
         borderRadius: 4,
         background: on ? "#0a7" : "#222",
         color: on ? "#000" : "#888",
@@ -123,6 +126,10 @@ export function App() {
       cancelled = true;
     };
   }, []);
+
+  const onEditorMount: OnMount = (_editor, monacoApi: Monaco) => {
+    registerAsm8086(monacoApi);
+  };
 
   const onRun = () => {
     if (coreState.kind !== "ready") return;
@@ -164,7 +171,7 @@ export function App() {
       style={{
         fontFamily: "system-ui, -apple-system, sans-serif",
         padding: "1.5rem 2rem",
-        maxWidth: 1100,
+        maxWidth: 1180,
         margin: "0 auto",
         lineHeight: 1.45,
       }}
@@ -217,21 +224,36 @@ export function App() {
                 {running ? "running…" : "Run"}
               </button>
             </div>
-            <textarea
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-              spellCheck={false}
+
+            <div
               style={{
-                width: "100%",
-                height: 360,
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                fontSize: 14,
-                padding: "0.5rem",
-                border: "1px solid #ccc",
+                border: "1px solid #2a2a2a",
                 borderRadius: 4,
-                resize: "vertical",
+                overflow: "hidden",
+                height: 420,
               }}
-            />
+            >
+              <Editor
+                height="100%"
+                defaultLanguage={ASM_LANG_ID}
+                language={ASM_LANG_ID}
+                theme="vs-dark"
+                value={source}
+                onChange={(v) => setSource(v ?? "")}
+                onMount={onEditorMount}
+                options={{
+                  fontFamily:
+                    "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                  fontSize: 14,
+                  minimap: { enabled: false },
+                  lineNumbers: "on",
+                  scrollBeyondLastLine: false,
+                  wordWrap: "off",
+                  tabSize: 4,
+                  renderWhitespace: "selection",
+                }}
+              />
+            </div>
 
             <div style={{ marginTop: "1rem" }}>
               <strong>output</strong>
@@ -243,7 +265,8 @@ export function App() {
                   borderRadius: 4,
                   minHeight: 80,
                   whiteSpace: "pre-wrap",
-                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                  fontFamily:
+                    "ui-monospace, SFMono-Regular, Menlo, monospace",
                 }}
               >
                 {result?.stdout || (running ? "running…" : "(no output yet — click Run)")}
@@ -256,7 +279,8 @@ export function App() {
                     padding: "0.6rem 0.8rem",
                     borderRadius: 4,
                     marginTop: "0.5rem",
-                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                    fontFamily:
+                      "ui-monospace, SFMono-Regular, Menlo, monospace",
                     fontSize: 13,
                     color: "#900",
                   }}
@@ -298,7 +322,8 @@ export function App() {
               <table
                 style={{
                   borderCollapse: "collapse",
-                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                  fontFamily:
+                    "ui-monospace, SFMono-Regular, Menlo, monospace",
                   fontSize: 13,
                   marginTop: 4,
                 }}
@@ -346,7 +371,7 @@ export function App() {
 
       <footer style={{ marginTop: "2rem", color: "#666", fontSize: 13 }}>
         <a href="https://github.com/abuXsarkar/emu8086-modern">github</a> ·{" "}
-        full IDE (Monaco editor, time-travel debugger, devices) arrives in M3-M4 — see ROADMAP.md.
+        time-travel debugger and virtual peripherals arrive in M4 — see ROADMAP.md.
       </footer>
     </main>
   );

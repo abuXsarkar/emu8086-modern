@@ -15,6 +15,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
+    "monaco-editor": "^0.52.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^4.5.5"
