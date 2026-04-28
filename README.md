@@ -64,7 +64,7 @@ See [`docs/emu8086-compatibility.md`](docs/emu8086-compatibility.md) for the ful
 - **Emulator core (Rust + wasm).** Almost the entire 8086 ISA: full register file with high/low aliasing, 1 MiB segmented memory, mod-r/m addressing modes with segment overrides, the MOV family (incl. `LEA`, `XCHG`, segment registers, accumulator-direct moffs), arithmetic with 8086-correct flag math (CF/OF/SF/ZF/AF/PF), logical and shift/rotate group, full stack ops, control flow including all 16 conditional jumps, the LOOP family + JCXZ, near `CALL`/`RET`, string ops with REP/REPE/REPNE, `MUL`/`IMUL`/`DIV`/`IDIV` with divide-error trap, port I/O (`IN`/`OUT`), software interrupts including a DOS `INT 21h` subset (functions 01h, 02h, 06h, 09h, 4Ch).
 - **Assembler (Rust).** Lex + two-pass parse + encode for `.com`-style programs. Mnemonics: `mov`, the eight ALU ops (with full mod-r/m memory operands like `add ax, [bx+si+4]`), the seven shift/rotate ops by 1 or by `cl`, `int`, `push`/`pop` (incl. segregs), `inc`/`dec`, all 16 `Jcc`, `LOOP`/`JCXZ`, `JMP`/`CALL` near, `RET`, the single-byte flag/halt/no-op opcodes, `cbw`, `cwd`, `lahf`, `sahf`, `xlat`, `pushf`, `popf`, the ten string ops (`movsb` … `scasw`). Directives: `org`, `db`, `dw`, `equ`. Number bases: dec, `0FFh` MASM hex, `1011b` binary, `077o` octal, `0x10` C-style hex. Char literals `'A'`. Labels with forward references. Memory operands: `[bx]`, `[bx+si]`, `[bx+si+disp]`, `[label-disp]`, `[direct16]`.
 - **CLI (`emu8086`).** `assemble`, `run`, `run-asm` (assemble + run in one step), `trace` (JSON step-by-step execution log — one record per instruction with mnemonic + post-step registers), `version`. Source diagnostics show the file path, 1-based line:column, source line, and a caret on the offending span — `rustc`-style.
-- **Web IDE (React + Vite + wasm).** A textarea editor, Run button, output panel, register dump, flag badges. The wasm bundle includes both the assembler and the core, so the browser is the runtime.
+- **Web IDE (React + Vite + Monaco + wasm).** Monaco editor with 8086-asm syntax highlighting, snippets for common patterns, hover docs over every mnemonic, red-squiggle error markers, an example loader, localStorage autosave, Ctrl/Cmd+Enter to run, **Reset / Step / Run** buttons that single-step a stateful emulator, and a current-instruction highlight that walks down the source as you step. The whole pipeline (assembler + emulator) ships as wasm so the browser is the runtime.
 - **CI.** Rust on Linux/macOS/Windows, web build, markdown lint.
 
 The same hello-world program can be run through any of these surfaces and produces identical output.
@@ -101,10 +101,10 @@ pnpm --filter @emu8086/web dev    # opens http://localhost:5173
 
 What is **not** built yet (planned, see [`ROADMAP.md`](ROADMAP.md)):
 
-- `dup` (`db 16 dup(0)`), `BYTE PTR`/`WORD PTR` size overrides, full `model` / `proc` directives — M2.3c onward.
+- `model` / `proc` directives — M2.5.
 - The `emu8086.inc` macro pack (`PRINT`, `PRINTN`, `GOTOXY`, …) — M2.6.
 - Far jumps and calls, BCD adjust opcodes, `LDS`/`LES` — late M1.
-- Monaco editor, time-travel debugger, virtual peripherals — M3-M4.
+- Time-travel debugger (back-stepping), virtual peripherals — M4.
 - Autograder, share-links, classroom mode, LMS integration — M5.
 
 ---
