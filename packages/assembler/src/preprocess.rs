@@ -40,9 +40,18 @@ struct MacroDef {
 }
 
 pub fn expand_macros(toks: &[Spanned]) -> Result<Vec<Spanned>, PreprocessError> {
-    let mut macros: HashMap<String, MacroDef> = HashMap::new();
+    let mut state = ExpandState::default();
+    expand_into(toks, &mut state)
+}
+
+#[derive(Default)]
+struct ExpandState {
+    macros: HashMap<String, MacroDef>,
+    local_counter: u32,
+}
+
+fn expand_into(toks: &[Spanned], state: &mut ExpandState) -> Result<Vec<Spanned>, PreprocessError> {
     let mut out: Vec<Spanned> = Vec::with_capacity(toks.len());
-    let mut local_counter: u32 = 0;
     let mut i = 0;
 
     while i < toks.len() {
@@ -101,14 +110,20 @@ pub fn expand_macros(toks: &[Spanned]) -> Result<Vec<Spanned>, PreprocessError> 
                             message: format!("macro `{name}` is missing a closing ENDM"),
                         });
                     }
-                    let body = toks[body_start..body_end].to_vec();
+                    let raw_body = toks[body_start..body_end].to_vec();
                     let endm_end = toks[body_end].span.end;
+                    // Pre-expand the body using the macros visible at
+                    // this point in the source. This makes calls
+                    // inside a body resolve at *definition* time, so a
+                    // call site doesn't need a second expander pass to
+                    // pick them up.
+                    let body = expand_into(&raw_body, state)?;
                     // Skip the ENDM token itself, plus its trailing newline.
                     let mut after_endm = body_end + 1;
                     if matches!(toks.get(after_endm).map(|t| &t.tok), Some(Token::Newline)) {
                         after_endm += 1;
                     }
-                    macros.insert(
+                    state.macros.insert(
                         name.to_ascii_lowercase(),
                         MacroDef {
                             params,
@@ -134,7 +149,7 @@ pub fn expand_macros(toks: &[Spanned]) -> Result<Vec<Spanned>, PreprocessError> 
         if at_statement_start {
             if let Some(t) = toks.get(i) {
                 if let Token::Ident(name) = &t.tok {
-                    if let Some(def) = macros.get(&name.to_ascii_lowercase()).cloned() {
+                    if let Some(def) = state.macros.get(&name.to_ascii_lowercase()).cloned() {
                         let call_span = t.span;
                         let mut j = i + 1;
                         // Collect positional args: each arg is the
@@ -178,8 +193,8 @@ pub fn expand_macros(toks: &[Spanned]) -> Result<Vec<Spanned>, PreprocessError> 
                         // Expand: walk body, substituting params and
                         // suffixing local-style `@@…` labels with a
                         // unique counter.
-                        local_counter += 1;
-                        let suffix = format!("__{local_counter}");
+                        state.local_counter += 1;
+                        let suffix = format!("__{}", state.local_counter);
                         for tok in &def.body {
                             match &tok.tok {
                                 Token::Ident(s) => {

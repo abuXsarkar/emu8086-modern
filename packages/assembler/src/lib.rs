@@ -86,6 +86,9 @@ impl From<encode::EncodeError> for AssembleError {
 /// applied to label addresses).
 pub fn assemble(source: &str, _dialect: Dialect) -> Result<AssembledImage, AssembleError> {
     let toks = lexer::tokenize(source)?;
+    // Macros pre-expand at definition time (a body may itself call an
+    // earlier-defined macro), so a single expansion pass produces the
+    // fully-resolved token stream.
     let toks = preprocess::expand_macros(&toks)?;
     let prog = parser::parse(&toks)?;
     let img = encode::encode(&prog)?;
