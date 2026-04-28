@@ -478,6 +478,12 @@ fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
         }
         "jmp" if one => 3,  // E9 + rel16 (we always use near for this slice)
         "call" if one => 3, // E8 + rel16
+        // shifts / rotates: D0/D1 (count=1), D2/D3 (count=CL).
+        // We always use the modrm-on-register form here; r/m=mem comes
+        // free if the dst is `[bx]` etc. since we route through classify_mem.
+        "shl" | "sal" | "shr" | "sar" | "rol" | "ror" | "rcl" | "rcr" if two => {
+            shift_size(&instr.operands[0], &instr.operands[1])?
+        }
         "jz" | "je" | "jnz" | "jne" | "jc" | "jb" | "jnae" | "jnc" | "jae" | "jnb" | "ja"
         | "jnbe" | "jbe" | "jna" | "jl" | "jnge" | "jge" | "jnl" | "jle" | "jng" | "jg"
         | "jnle" | "js" | "jns" | "jo" | "jno" | "jp" | "jpe" | "jnp" | "jpo" | "loop"
@@ -492,6 +498,48 @@ fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
                 message: format!("unsupported mnemonic `{m}` in this assembler slice"),
             });
         }
+    })
+}
+
+/// Sub-op selector for the 8086 shift/rotate group (the reg field of
+/// the mod-r/m byte).
+fn shift_subop(m: &str) -> Option<u8> {
+    match m {
+        "rol" => Some(0),
+        "ror" => Some(1),
+        "rcl" => Some(2),
+        "rcr" => Some(3),
+        "shl" | "sal" => Some(4),
+        "shr" => Some(5),
+        "sar" => Some(7),
+        _ => None,
+    }
+}
+
+fn shift_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
+    // Count source must be the literal 1 or the CL register.
+    match src {
+        Operand::Number { value: 1, .. } => {}
+        Operand::Ident { name, .. } if name.eq_ignore_ascii_case("cl") => {}
+        _ => {
+            return Err(EncodeError {
+                span: src.span(),
+                message: "shift count must be 1 or CL".into(),
+            });
+        }
+    }
+    if let Some(name) = ident_name(dst) {
+        if Reg8::from_name(&name).is_some() || Reg16::from_name(&name).is_some() {
+            return Ok(2); // opcode + modrm (mod=11)
+        }
+    }
+    if let Operand::Mem(m) = dst {
+        let enc = classify_mem(m, None)?;
+        return Ok(2 + enc.extra_bytes());
+    }
+    Err(EncodeError {
+        span: combined_span(dst, src),
+        message: "unsupported shift/rotate operand".into(),
     })
 }
 
@@ -783,11 +831,74 @@ fn emit_instr(
             let opcode = jcc_opcode(m).unwrap();
             emit_short_jump(opcode, &instr.operands[0], here, labels, out, instr.span)
         }
+        m if shift_subop(m).is_some() => {
+            let sub = shift_subop(m).unwrap();
+            emit_shift(
+                sub,
+                &instr.operands[0],
+                &instr.operands[1],
+                labels,
+                out,
+                instr.span,
+            )
+        }
         _ => Err(EncodeError {
             span: instr.mnemonic_span,
             message: format!("unsupported mnemonic `{m}`"),
         }),
     }
+}
+
+fn emit_shift(
+    sub: u8,
+    dst: &Operand,
+    src: &Operand,
+    labels: &HashMap<String, u16>,
+    out: &mut Vec<u8>,
+    span: Span,
+) -> Result<(), EncodeError> {
+    // count source: literal 1 → D0/D1 (8/16-bit), CL → D2/D3.
+    let by_cl = match src {
+        Operand::Number { value: 1, .. } => false,
+        Operand::Ident { name, .. } if name.eq_ignore_ascii_case("cl") => true,
+        _ => {
+            return Err(EncodeError {
+                span: src.span(),
+                message: "shift count must be 1 or CL".into(),
+            });
+        }
+    };
+
+    // dst is a register or a memory operand. Pick width from dst.
+    if let Some(name) = ident_name(dst) {
+        let lname = name.to_ascii_lowercase();
+        if let Some(r) = Reg8::from_name(&lname) {
+            let opcode = if by_cl { 0xD2 } else { 0xD0 };
+            out.push(opcode);
+            out.push(0xC0 | (sub << 3) | r.code());
+            return Ok(());
+        }
+        if let Some(r) = Reg16::from_name(&lname) {
+            let opcode = if by_cl { 0xD3 } else { 0xD1 };
+            out.push(opcode);
+            out.push(0xC0 | (sub << 3) | r.code());
+            return Ok(());
+        }
+    }
+    if let Operand::Mem(m) = dst {
+        let enc = classify_mem(m, Some(labels))?;
+        // Default to word width for memory; later slices add BYTE PTR.
+        let opcode = if by_cl { 0xD3 } else { 0xD1 };
+        out.push(opcode);
+        out.push(enc.modrm_byte(sub));
+        emit_disp(out, enc);
+        return Ok(());
+    }
+
+    Err(EncodeError {
+        span,
+        message: "unsupported shift/rotate destination".into(),
+    })
 }
 
 fn emit_mov(
@@ -1267,6 +1378,27 @@ mod tests {
         // mov al, [bx-1]  →  8A 47 FF  (mod=01 rm=BX disp8=-1)
         let bytes = asm("mov al, [bx-1]\n");
         assert_eq!(bytes, vec![0x8A, 0x47, 0xFF]);
+    }
+
+    #[test]
+    fn shl_al_by_1() {
+        // shl al, 1 → D0 /4 mod=11 rm=AL(0) → D0 E0
+        let bytes = asm("shl al, 1\n");
+        assert_eq!(bytes, vec![0xD0, 0xE0]);
+    }
+
+    #[test]
+    fn shr_ax_by_cl() {
+        // shr ax, cl → D3 /5 mod=11 rm=AX(0) → D3 E8
+        let bytes = asm("shr ax, cl\n");
+        assert_eq!(bytes, vec![0xD3, 0xE8]);
+    }
+
+    #[test]
+    fn rol_byte_at_bx_by_1() {
+        // rol [bx], 1 → D1 /0 mod=00 rm=[BX](7) → D1 07 (word width default)
+        let bytes = asm("rol [bx], 1\n");
+        assert_eq!(bytes, vec![0xD1, 0x07]);
     }
 
     #[test]
