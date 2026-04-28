@@ -3,8 +3,8 @@
 > A modern, open-source, cross-platform 8086 emulator and assembly-language IDE — purpose-built for students and easy for institutes to adopt.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Status: M2 in progress](https://img.shields.io/badge/status-M2--in--progress-yellow)
-![Tests: 130+](https://img.shields.io/badge/tests-130%2B%20passing-brightgreen)
+![Status: M5 shipped (alpha)](https://img.shields.io/badge/status-M5%20shipped%20(alpha)-yellowgreen)
+![Tests: 200+](https://img.shields.io/badge/tests-200%2B%20passing-brightgreen)
 ![Platforms: Web · Linux · macOS · Windows](https://img.shields.io/badge/platforms-web%20%7C%20linux%20%7C%20macos%20%7C%20windows-blue)
 
 `emu8086-modern` is a clean-room reimplementation of the classroom-favorite emu8086 IDE, built for the way courses are taught today: in browsers, on Chromebooks, in Linux labs, with Git, and with autograding. It keeps source compatibility with existing emu8086 course materials wherever practical, while fixing the legacy software's biggest pain points.
@@ -61,10 +61,10 @@ See [`docs/emu8086-compatibility.md`](docs/emu8086-compatibility.md) for the ful
 
 ## What works today
 
-- **Emulator core (Rust + wasm).** Almost the entire 8086 ISA: full register file with high/low aliasing, 1 MiB segmented memory, mod-r/m addressing modes with segment overrides, the MOV family (incl. `LEA`, `XCHG`, segment registers, accumulator-direct moffs), arithmetic with 8086-correct flag math (CF/OF/SF/ZF/AF/PF), logical and shift/rotate group, full stack ops, control flow including all 16 conditional jumps, the LOOP family + JCXZ, near `CALL`/`RET`, string ops with REP/REPE/REPNE, `MUL`/`IMUL`/`DIV`/`IDIV` with divide-error trap, port I/O (`IN`/`OUT`), software interrupts including a DOS `INT 21h` subset (functions 01h, 02h, 06h, 09h, 4Ch).
-- **Assembler (Rust).** Lex + two-pass parse + encode for `.com`-style programs. Mnemonics: `mov`, the eight ALU ops (with full mod-r/m memory operands like `add ax, [bx+si+4]`), the seven shift/rotate ops by 1 or by `cl`, `int`, `push`/`pop` (incl. segregs), `inc`/`dec`, all 16 `Jcc`, `LOOP`/`JCXZ`, `JMP`/`CALL` near, `RET`, the single-byte flag/halt/no-op opcodes, `cbw`, `cwd`, `lahf`, `sahf`, `xlat`, `pushf`, `popf`, the ten string ops (`movsb` … `scasw`). Directives: `org`, `db`, `dw`, `equ`. Number bases: dec, `0FFh` MASM hex, `1011b` binary, `077o` octal, `0x10` C-style hex. Char literals `'A'`. Labels with forward references. Memory operands: `[bx]`, `[bx+si]`, `[bx+si+disp]`, `[label-disp]`, `[direct16]`.
-- **CLI (`emu8086`).** `assemble`, `run`, `run-asm` (assemble + run in one step), `trace` (JSON step-by-step execution log — one record per instruction with mnemonic + post-step registers), `version`. Source diagnostics show the file path, 1-based line:column, source line, and a caret on the offending span — `rustc`-style.
-- **Web IDE (React + Vite + Monaco + wasm).** Monaco editor with 8086-asm syntax highlighting, snippets for common patterns, hover docs over every mnemonic, red-squiggle error markers, an example loader, localStorage autosave, Ctrl/Cmd+Enter to run, **Reset / Step / Run** buttons that single-step a stateful emulator, and a current-instruction highlight that walks down the source as you step. The whole pipeline (assembler + emulator) ships as wasm so the browser is the runtime.
+- **Emulator core (Rust + wasm).** Complete 8086 mainline ISA: full register file with high/low aliasing, 1 MiB segmented memory, mod-r/m addressing with segment overrides, the MOV family (incl. `LEA`, `XCHG`, segment registers, accumulator moffs, `LDS`/`LES`), arithmetic with 8086-correct flag math (CF/OF/SF/ZF/AF/PF), logical + shift/rotate group, full stack, control flow with all 16 conditional jumps + LOOP family + JCXZ, near *and* far `CALL`/`RET`/`JMP`, string ops with REP/REPE/REPNE, `MUL`/`IMUL`/`DIV`/`IDIV` with divide-error trap, port I/O (`IN`/`OUT`), software interrupts including a DOS `INT 21h` subset (01h, 02h, 06h, 09h, 4Ch), and the BCD-adjust opcodes (DAA/DAS/AAA/AAS/AAM/AAD). **Time-travel debugger:** `step_back` walks one instruction back via diff snapshots (registers + per-step memory writes + stdout/exit_code).
+- **Assembler (Rust).** Lex + macro preprocessor + two-pass parse + encode. Mnemonics: nearly every M1 opcode — `mov`, the eight ALU ops (with full mod-r/m memory operands like `add ax, [bx+si+4]`), the seven shift/rotate ops by 1 or `cl`, `mul`/`imul`/`div`/`idiv`, `neg`/`not`/`test`, `int`, `push`/`pop` (incl. segregs), `inc`/`dec`, all 16 `Jcc`, `LOOP`/`JCXZ`, `JMP`/`CALL` near, `RET`/`RETF`, `IN`/`OUT`, the BCD adjusts, single-byte flag/halt/no-op opcodes, `cbw`, `cwd`, `lahf`, `sahf`, `xlat`, `pushf`, `popf`, the ten string ops (`movsb` … `scasw`), REP/REPE/REPNE prefixes. Directives: `org`, `db`, `dw`, `equ`, `dup`, `BYTE PTR` / `WORD PTR`. **User-defined macros** via `name MACRO/ENDM` with positional args and per-call-unique `@@` labels. Number bases: dec, `0FFh` MASM hex, `1011b` binary, `077o` octal, `0x10` C-style hex. Char literals `'A'`. Labels with forward references. Full mod-r/m memory operands.
+- **CLI (`emu8086`).** `assemble`, `run`, `run-asm`, `trace` (JSON step-by-step execution log), `grade` (run a YAML test spec against a submission with optional JUnit XML output), `version`. Source diagnostics show the file path, 1-based line:column, source line, and a caret on the offending span — `rustc`-style.
+- **Web IDE (React + Vite + Monaco + wasm).** Monaco editor with 8086-asm syntax highlighting, snippets, hover docs over every mnemonic, red-squiggle error markers, example loader, localStorage autosave, Ctrl/Cmd+Enter to run, **Reset / ◀ Back / Step ▶ / Run** buttons backed by a stateful emulator with diff-snapshot time travel, **share-link** button that base64url-encodes the buffer into the URL fragment, **register dump + flag badges + memory hex viewer + 7-segment display + traffic-light peripheral** all updating live as you step. The whole pipeline (assembler + emulator) ships as wasm so the browser is the runtime.
 - **CI.** Rust on Linux/macOS/Windows, web build, markdown lint.
 
 The same hello-world program can be run through any of these surfaces and produces identical output.
@@ -89,6 +89,12 @@ cargo run  -p emu8086-cli -- run-asm examples/streq.asm
 # Trace a program (JSON array of step records, one per instruction)
 cargo run  -p emu8086-cli -- trace examples/hello.asm | jq .[0]
 
+# Autograde a student submission against a YAML spec
+cargo run -p emu8086-cli -- grade \
+  examples/assignments/sum10/spec.yml \
+  examples/assignments/sum10/submission.asm
+# → 1/1 passed
+
 # Or build artifacts separately
 cargo run -p emu8086-cli -- assemble examples/hello.asm -o hello.com
 cargo run -p emu8086-cli -- run hello.com
@@ -101,11 +107,12 @@ pnpm --filter @emu8086/web dev    # opens http://localhost:5173
 
 What is **not** built yet (planned, see [`ROADMAP.md`](ROADMAP.md)):
 
-- `model` / `proc` directives — M2.5.
-- The `emu8086.inc` macro pack (`PRINT`, `PRINTN`, `GOTOXY`, …) — M2.6.
-- Far jumps and calls, BCD adjust opcodes, `LDS`/`LES` — late M1.
-- Time-travel debugger (back-stepping), virtual peripherals — M4.
-- Autograder, share-links, classroom mode, LMS integration — M5.
+- `.MODEL` / `PROC` / `ENDP` / `INVOKE` MASM directives.
+- An `emu8086.inc`-equivalent stdlib (PRINT, PRINTN, GOTOXY, etc.) shipped as a header file. The macro mechanism is in place; only the library text is missing.
+- Additional virtual peripherals (LED matrix, stepper motor, printer, screen text mode, keyboard).
+- LTI 1.3 launch (Moodle / Canvas).
+- Native desktop builds via Tauri (M7).
+- Plugin SDK 1.0, code-signed release artifacts, external accessibility audit, pilot-course validation — M6/M7 work that needs external infrastructure.
 
 ---
 
