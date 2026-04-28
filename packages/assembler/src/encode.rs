@@ -422,7 +422,9 @@ fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
 
     Ok(match m.as_str() {
         "nop" | "hlt" | "ret" | "iret" | "cbw" | "cwd" | "lahf" | "sahf" | "xlat" | "xlatb"
-        | "clc" | "stc" | "cmc" | "cld" | "std" | "cli" | "sti" | "pushf" | "popf"
+        | "clc" | "stc" | "cmc" | "cld" | "std" | "cli" | "sti" | "pushf" | "popf" | "movsb"
+        | "movsw" | "cmpsb" | "cmpsw" | "lodsb" | "lodsw" | "stosb" | "stosw" | "scasb"
+        | "scasw"
             if zero =>
         {
             1
@@ -483,23 +485,24 @@ fn mov_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
     // mov reg16, [direct]: 2 + 2 (we always use the modrm form for now)
     if let Some(name) = ident_name(dst) {
         if Reg16::from_name(&name).is_some() {
-            if matches!(src, Operand::Number { .. } | Operand::Ident { .. }) {
-                return Ok(3);
-            }
+            // reg, reg form first — both are 2 bytes.
             if let Some(s) = ident_name(src) {
                 if Reg16::from_name(&s).is_some() {
                     return Ok(2);
                 }
             }
+            // reg, mem
             if let Operand::Mem(m) = src {
                 let enc = classify_mem(m, None)?;
                 return Ok(2 + enc.extra_bytes());
             }
+            // reg, imm | reg, label — B8+r ib ib (3 bytes)
+            if matches!(src, Operand::Number { .. } | Operand::Ident { .. }) {
+                return Ok(3);
+            }
         }
         if Reg8::from_name(&name).is_some() {
-            if matches!(src, Operand::Number { .. }) {
-                return Ok(2);
-            }
+            // reg, reg first
             if let Some(s) = ident_name(src) {
                 if Reg8::from_name(&s).is_some() {
                     return Ok(2);
@@ -508,6 +511,9 @@ fn mov_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
             if let Operand::Mem(m) = src {
                 let enc = classify_mem(m, None)?;
                 return Ok(2 + enc.extra_bytes());
+            }
+            if matches!(src, Operand::Number { .. }) {
+                return Ok(2);
             }
         }
     }
@@ -536,10 +542,10 @@ fn mov_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
 }
 
 fn arith_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
-    // r/r 16: 2 bytes ; r/r 8: 2 bytes ; r16, imm: 3-4 ; r8, imm: 2-3.
-    // For M2.1 we support `add reg, reg` (2) and `add r16, imm16` via 81 (4).
     let dst_name = ident_name(dst);
     let src_name = ident_name(src);
+
+    // reg, reg
     if let (Some(d), Some(s)) = (dst_name.as_deref(), src_name.as_deref()) {
         if Reg16::from_name(d).is_some() && Reg16::from_name(s).is_some() {
             return Ok(2);
@@ -548,9 +554,10 @@ fn arith_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
             return Ok(2);
         }
     }
+
+    // reg, imm and reg8, imm
     if let Some(d) = dst_name.as_deref() {
         if Reg16::from_name(d).is_some() && matches!(src, Operand::Number { .. }) {
-            // Special-case AL/AX accumulator forms to keep size minimal:
             if d.eq_ignore_ascii_case("ax") {
                 return Ok(3); // 05 imm16 etc
             }
@@ -563,6 +570,35 @@ fn arith_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
             return Ok(3); // 80 /op rm imm8
         }
     }
+
+    // reg, mem  (form 2 / 3 of the 00..3D group)
+    if let Some(d) = dst_name.as_deref() {
+        if let Operand::Mem(m) = src {
+            let enc = classify_mem(m, None)?;
+            if Reg16::from_name(d).is_some() {
+                return Ok(2 + enc.extra_bytes());
+            }
+            if Reg8::from_name(d).is_some() {
+                return Ok(2 + enc.extra_bytes());
+            }
+        }
+    }
+
+    // mem, reg  (form 0 / 1)
+    if let Operand::Mem(m) = dst {
+        let enc = classify_mem(m, None)?;
+        if let Some(s) = src_name.as_deref() {
+            if Reg16::from_name(s).is_some() || Reg8::from_name(s).is_some() {
+                return Ok(2 + enc.extra_bytes());
+            }
+        }
+        // mem, imm — use 81 /op (4 bytes total + disp) for u16, 80 /op for u8.
+        // We assume word width for now; later slices will honor `BYTE PTR`.
+        if let Operand::Number { .. } = src {
+            return Ok(4 + enc.extra_bytes());
+        }
+    }
+
     Err(EncodeError {
         span: combined_span(dst, src),
         message: "unsupported arithmetic form in this assembler slice".into(),
@@ -595,6 +631,16 @@ fn emit_instr(
         "sti" => Some(0xFB),
         "pushf" => Some(0x9C),
         "popf" => Some(0x9D),
+        "movsb" => Some(0xA4),
+        "movsw" => Some(0xA5),
+        "cmpsb" => Some(0xA6),
+        "cmpsw" => Some(0xA7),
+        "stosb" => Some(0xAA),
+        "stosw" => Some(0xAB),
+        "lodsb" => Some(0xAC),
+        "lodsw" => Some(0xAD),
+        "scasb" => Some(0xAE),
+        "scasw" => Some(0xAF),
         _ => None,
     };
     if let Some(b) = one_byte {
@@ -695,6 +741,7 @@ fn emit_instr(
                 kind,
                 &instr.operands[0],
                 &instr.operands[1],
+                labels,
                 out,
                 instr.span,
             )
@@ -823,14 +870,65 @@ fn emit_alu(
     kind: u8,
     dst: &Operand,
     src: &Operand,
+    labels: &HashMap<String, u16>,
     out: &mut Vec<u8>,
     span: Span,
 ) -> Result<(), EncodeError> {
+    // mem, reg / mem, imm — the destination is in memory, the source
+    // is a register or immediate. Form bits 0/1 select the 8/16 width.
+    if let Operand::Mem(m) = dst {
+        let enc = classify_mem(m, Some(labels))?;
+        if let Some(sname) = ident_name(src) {
+            let l = sname.to_ascii_lowercase();
+            if let Some(rs) = Reg16::from_name(&l) {
+                out.push((kind << 3) | 0x01);
+                out.push(enc.modrm_byte(rs.code()));
+                emit_disp(out, enc);
+                return Ok(());
+            }
+            if let Some(rs) = Reg8::from_name(&l) {
+                out.push(kind << 3);
+                out.push(enc.modrm_byte(rs.code()));
+                emit_disp(out, enc);
+                return Ok(());
+            }
+        }
+        if let Operand::Number { value, .. } = src {
+            // 81 /op r/m16, imm16 — assume word width; BYTE PTR support arrives later.
+            out.push(0x81);
+            out.push(enc.modrm_byte(kind));
+            emit_disp(out, enc);
+            out.extend_from_slice(&(*value as u16).to_le_bytes());
+            return Ok(());
+        }
+        return Err(EncodeError {
+            span,
+            message: "unsupported `<alu> mem, _` form".into(),
+        });
+    }
+
     let dname = ident_name(dst).ok_or(EncodeError {
         span,
-        message: "left side must be a register here".into(),
+        message: "left side must be a register or memory operand here".into(),
     })?;
     let lname = dname.to_ascii_lowercase();
+
+    // reg, mem — form bits 2/3 select the width. Opcode = (kind<<3) | 0x02 or 0x03.
+    if let Operand::Mem(m) = src {
+        let enc = classify_mem(m, Some(labels))?;
+        if let Some(rd) = Reg16::from_name(&lname) {
+            out.push((kind << 3) | 0x03);
+            out.push(enc.modrm_byte(rd.code()));
+            emit_disp(out, enc);
+            return Ok(());
+        }
+        if let Some(rd) = Reg8::from_name(&lname) {
+            out.push((kind << 3) | 0x02);
+            out.push(enc.modrm_byte(rd.code()));
+            emit_disp(out, enc);
+            return Ok(());
+        }
+    }
 
     if let (Some(rd), Some(s)) = (
         Reg16::from_name(&lname),
@@ -1118,13 +1216,32 @@ mod tests {
     }
 
     #[test]
+    fn add_reg_mem() {
+        // add ax, [bx]  →  03 /r mod=00 reg=AX(0) rm=[BX](7) → 03 07
+        let bytes = asm("add ax, [bx]\n");
+        assert_eq!(bytes, vec![0x03, 0x07]);
+    }
+
+    #[test]
+    fn cmp_mem_reg_8bit() {
+        // cmp [bx+si], al → 38 /r reg=AL(0) rm=[BX+SI](0) mod=00 → 38 00
+        // 38 = (kind=7=cmp << 3) | 0 = 0x38
+        let bytes = asm("cmp [bx+si], al\n");
+        assert_eq!(bytes, vec![0x38, 0x00]);
+    }
+
+    #[test]
+    fn add_mem_imm16() {
+        // add [bx], 1 → 81 /0 mod=00 rm=[BX](7) imm16  → 81 07 01 00
+        let bytes = asm("add [bx], 1\n");
+        assert_eq!(bytes, vec![0x81, 0x07, 0x01, 0x00]);
+    }
+
+    #[test]
     fn invalid_register_pair_diagnoses() {
         let toks = crate::lexer::tokenize("mov ax, [bx+bp]\n").unwrap();
         let prog = crate::parser::parse(&toks).unwrap();
         let err = encode(&prog).unwrap_err();
-        assert!(
-            err.message.contains("two base registers"),
-            "got: {err}"
-        );
+        assert!(err.message.contains("two base registers"), "got: {err}");
     }
 }
