@@ -7,10 +7,11 @@
 
 use std::fs;
 use std::io::Write as _;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
+use emu8086_assembler::{assemble, AssembleError, Dialect};
 use emu8086_core::Cpu;
 
 #[derive(Parser, Debug)]
@@ -26,23 +27,28 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Cmd {
-    /// Print the embedded core version (M0 hello-world).
+    /// Print the embedded core version.
     Version,
-    /// Run a `.com`-style raw image (loaded at CS:0x100 with all segments
-    /// equal). Reads bytes from `image`, executes until HLT or step budget,
-    /// and writes anything the program sent to DOS console (INT 21h fn 02h
-    /// or 09h) to this process's stdout.
+    /// Run a `.com`-style raw image (loaded at CS:0x100).
     Run {
-        /// Path to the raw program image.
         image: PathBuf,
-        /// Hard cap on instructions executed before we abort. Prevents a
-        /// runaway loop from hanging the runner.
         #[arg(long, default_value_t = 1_000_000)]
         max_steps: usize,
     },
-    /// Assemble a source file (M2 — not yet implemented).
-    Assemble { input: PathBuf },
-    /// Trace a program and emit JSON (M1 — not yet implemented).
+    /// Assemble a `.asm` source file into a raw image.
+    Assemble {
+        input: PathBuf,
+        /// Output path. Defaults to the input with `.com` extension.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// Assemble and run a `.asm` source file in one step.
+    RunAsm {
+        input: PathBuf,
+        #[arg(long, default_value_t = 1_000_000)]
+        max_steps: usize,
+    },
+    /// Trace a program and emit JSON (M5 — not yet implemented).
     Trace { input: PathBuf },
     /// Grade a submission against a YAML spec (M5 — not yet implemented).
     Grade { spec: PathBuf, submission: PathBuf },
@@ -50,16 +56,16 @@ enum Cmd {
     CompatReport { path: PathBuf },
 }
 
-fn cmd_run(image_path: &PathBuf, max_steps: usize) -> anyhow::Result<u8> {
-    let bytes = fs::read(image_path)?;
+fn run_image(image_bytes: &[u8], max_steps: usize) -> anyhow::Result<u8> {
     let mut cpu = Cpu::new();
-    cpu.load_com(&bytes);
+    cpu.load_com(image_bytes);
     let steps = cpu.run_until_halt(max_steps);
 
-    // Always flush whatever the program wrote, even on a runaway abort.
-    let mut out = std::io::stdout().lock();
-    out.write_all(&cpu.stdout)?;
-    out.flush()?;
+    {
+        let mut out = std::io::stdout().lock();
+        out.write_all(&cpu.stdout)?;
+        out.flush()?;
+    }
 
     if !cpu.halted {
         eprintln!(
@@ -71,6 +77,93 @@ fn cmd_run(image_path: &PathBuf, max_steps: usize) -> anyhow::Result<u8> {
     Ok(cpu.exit_code.unwrap_or(0))
 }
 
+fn cmd_run(image_path: &Path, max_steps: usize) -> anyhow::Result<u8> {
+    let bytes = fs::read(image_path)?;
+    run_image(&bytes, max_steps)
+}
+
+fn cmd_assemble(input: &Path, output: Option<&Path>) -> anyhow::Result<u8> {
+    let source = fs::read_to_string(input)?;
+    let img = match assemble(&source, Dialect::default()) {
+        Ok(img) => img,
+        Err(e) => {
+            print_assemble_error(input, &source, &e);
+            return Ok(2);
+        }
+    };
+    let out_path = if let Some(p) = output {
+        p.to_path_buf()
+    } else {
+        let mut p = input.to_path_buf();
+        p.set_extension("com");
+        p
+    };
+    fs::write(&out_path, &img.bytes)?;
+    eprintln!(
+        "emu8086: wrote {} bytes to {} (origin={:#06X}, {} labels)",
+        img.bytes.len(),
+        out_path.display(),
+        img.origin,
+        img.labels.len()
+    );
+    Ok(0)
+}
+
+fn cmd_run_asm(input: &Path, max_steps: usize) -> anyhow::Result<u8> {
+    let source = fs::read_to_string(input)?;
+    let img = match assemble(&source, Dialect::default()) {
+        Ok(img) => img,
+        Err(e) => {
+            print_assemble_error(input, &source, &e);
+            return Ok(2);
+        }
+    };
+    run_image(&img.bytes, max_steps)
+}
+
+/// Pretty-print a diagnostic with a source line and caret.
+fn print_assemble_error(input: &Path, source: &str, err: &AssembleError) {
+    let (span, message) = match err {
+        AssembleError::Lex(e) => (
+            emu8086_assembler::Span::new(e.pos, e.pos + 1),
+            e.msg.clone(),
+        ),
+        AssembleError::Parse(e) => (e.span, e.message.clone()),
+        AssembleError::Encode(e) => (e.span, e.message.clone()),
+    };
+    let (line_no, col, line_text) = locate_span(source, span.start);
+    eprintln!("error: {message}");
+    eprintln!("  --> {}:{}:{}", input.display(), line_no, col);
+    eprintln!("   |");
+    eprintln!("{line_no:3} | {line_text}");
+    let caret_col = col.saturating_sub(1);
+    let caret_len = (span.end.saturating_sub(span.start)).max(1);
+    eprintln!(
+        "   | {pad}{caret}",
+        pad = " ".repeat(caret_col),
+        caret = "^".repeat(caret_len)
+    );
+}
+
+fn locate_span(source: &str, byte_pos: usize) -> (usize, usize, &str) {
+    let mut line_start = 0usize;
+    let mut line_no = 1usize;
+    for (i, b) in source.bytes().enumerate() {
+        if i == byte_pos {
+            break;
+        }
+        if b == b'\n' {
+            line_no += 1;
+            line_start = i + 1;
+        }
+    }
+    let line_end = source[line_start..]
+        .find('\n')
+        .map_or(source.len(), |o| line_start + o);
+    let col = byte_pos.saturating_sub(line_start) + 1;
+    (line_no, col, &source[line_start..line_end])
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let result: anyhow::Result<u8> = match cli.cmd {
@@ -79,7 +172,9 @@ fn main() -> ExitCode {
             Ok(0)
         }
         Cmd::Run { image, max_steps } => cmd_run(&image, max_steps),
-        Cmd::Assemble { .. } | Cmd::Trace { .. } | Cmd::Grade { .. } | Cmd::CompatReport { .. } => {
+        Cmd::Assemble { input, output } => cmd_assemble(&input, output.as_deref()),
+        Cmd::RunAsm { input, max_steps } => cmd_run_asm(&input, max_steps),
+        Cmd::Trace { .. } | Cmd::Grade { .. } | Cmd::CompatReport { .. } => {
             eprintln!("emu8086: subcommand not yet implemented; see ROADMAP.md");
             Ok(2)
         }
