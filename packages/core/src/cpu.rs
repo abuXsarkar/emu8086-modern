@@ -97,6 +97,9 @@ pub enum StopReason {
     Halted,
     /// Decoder hit an opcode that hasn't been implemented yet (M1 will whittle this down).
     Unimplemented { opcode: u8, ip: u16 },
+    /// DIV/IDIV with a zero divisor or a quotient that doesn't fit. The
+    /// 8086 raises INT 0; our diagnostic surface mirrors that.
+    DivideError { ip: u16 },
 }
 
 /// What one `step` did. Rich enough for the IDE's diff highlighting.
@@ -119,6 +122,21 @@ pub struct Cpu {
     pub stdout: Vec<u8>,
     /// DOS exit code from `INT 21h` AH=4Ch (or AH=00h legacy exit).
     pub exit_code: Option<u8>,
+    /// 64 KiB port I/O space. The full ISA `IN` / `OUT` opcodes route
+    /// here. Devices (M4) override individual ports through callbacks
+    /// — until then this is a plain backing store, sufficient to build
+    /// programs against and to record what they wrote.
+    pub ports: Box<[u8]>,
+    /// Append-only log of every `OUT` (port, value, width). Used by the
+    /// virtual-device tests to assert "the program wrote X to port Y".
+    pub out_log: Vec<PortWrite>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PortWrite {
+    pub port: u16,
+    pub value: u16,
+    pub width: u8, // 8 or 16
 }
 
 impl Default for Cpu {
@@ -144,6 +162,8 @@ impl Cpu {
             halted: false,
             stdout: Vec::new(),
             exit_code: None,
+            ports: vec![0u8; 0x10000].into_boxed_slice(),
+            out_log: Vec::new(),
         }
     }
 
@@ -164,6 +184,36 @@ impl Cpu {
         self.halted = false;
         self.stdout.clear();
         self.exit_code = None;
+        self.out_log.clear();
+        // Ports are not zeroed on load — they model device state, not
+        // program state. Reset by constructing a new Cpu.
+    }
+
+    fn port_in_u8(&self, port: u16) -> u8 {
+        self.ports[port as usize]
+    }
+    fn port_in_u16(&self, port: u16) -> u16 {
+        let lo = self.ports[port as usize];
+        let hi = self.ports[port.wrapping_add(1) as usize];
+        u16::from_le_bytes([lo, hi])
+    }
+    fn port_out_u8(&mut self, port: u16, value: u8) {
+        self.ports[port as usize] = value;
+        self.out_log.push(PortWrite {
+            port,
+            value: u16::from(value),
+            width: 8,
+        });
+    }
+    fn port_out_u16(&mut self, port: u16, value: u16) {
+        let [lo, hi] = value.to_le_bytes();
+        self.ports[port as usize] = lo;
+        self.ports[port.wrapping_add(1) as usize] = hi;
+        self.out_log.push(PortWrite {
+            port,
+            value,
+            width: 16,
+        });
     }
 
     /// Handle a software interrupt. We intercept the small subset of DOS
@@ -1156,8 +1206,8 @@ impl Cpu {
                 }
             }
 
-            // F6 / F7 — unary group: 0 TEST imm, 2 NOT, 3 NEG.
-            // 4..7 (MUL/IMUL/DIV/IDIV) arrive in a later slice.
+            // F6 / F7 — unary group on r/m. Sub-op via reg field of mod-r/m:
+            // 0/1 TEST imm, 2 NOT, 3 NEG, 4 MUL, 5 IMUL, 6 DIV, 7 IDIV.
             0xF6 => {
                 let modrm = self.fetch_u8();
                 let sub = (modrm >> 3) & 0b111;
@@ -1180,11 +1230,60 @@ impl Cpu {
                         self.write_rm8(modrm, override_seg, v);
                         rec.mnemonic = "neg";
                     }
+                    4 => {
+                        // MUL r/m8: AX = AL * r/m8 (unsigned). CF=OF set
+                        // iff AH != 0 (i.e. result didn't fit in AL alone).
+                        let result = u16::from(self.regs.al()) * u16::from(a);
+                        self.regs.ax = result;
+                        let nonzero_high = (result >> 8) != 0;
+                        self.regs.flags.set(Flags::CF, nonzero_high);
+                        self.regs.flags.set(Flags::OF, nonzero_high);
+                        rec.mnemonic = "mul";
+                    }
+                    5 => {
+                        // IMUL r/m8: AX = (i16)(i8 AL) * (i16)(i8 r/m8).
+                        // CF=OF set iff AX != sign-extension of AL.
+                        let result = i16::from(self.regs.al() as i8) * i16::from(a as i8);
+                        self.regs.ax = result as u16;
+                        let truncated = (result as i8) as i16;
+                        let overflow = truncated != result;
+                        self.regs.flags.set(Flags::CF, overflow);
+                        self.regs.flags.set(Flags::OF, overflow);
+                        rec.mnemonic = "imul";
+                    }
+                    6 => {
+                        // DIV r/m8: AX / r/m8 → AL=quotient, AH=remainder.
+                        if a == 0 {
+                            rec.stopped = Some(StopReason::DivideError { ip: ip_before });
+                        } else {
+                            let q = self.regs.ax / u16::from(a);
+                            let r = self.regs.ax % u16::from(a);
+                            if q > 0xFF {
+                                rec.stopped = Some(StopReason::DivideError { ip: ip_before });
+                            } else {
+                                self.regs.set_al(q as u8);
+                                self.regs.set_ah(r as u8);
+                                rec.mnemonic = "div";
+                            }
+                        }
+                    }
                     _ => {
-                        rec.stopped = Some(StopReason::Unimplemented {
-                            opcode: op,
-                            ip: ip_before,
-                        });
+                        // IDIV r/m8.
+                        if a == 0 {
+                            rec.stopped = Some(StopReason::DivideError { ip: ip_before });
+                        } else {
+                            let dividend = self.regs.ax as i16;
+                            let divisor = i16::from(a as i8);
+                            let q = dividend / divisor;
+                            let r = dividend % divisor;
+                            if i8::try_from(q).is_err() {
+                                rec.stopped = Some(StopReason::DivideError { ip: ip_before });
+                            } else {
+                                self.regs.set_al(q as u8);
+                                self.regs.set_ah(r as u8);
+                                rec.mnemonic = "idiv";
+                            }
+                        }
                     }
                 }
             }
@@ -1210,11 +1309,63 @@ impl Cpu {
                         self.write_rm16(modrm, override_seg, v);
                         rec.mnemonic = "neg";
                     }
+                    4 => {
+                        // MUL r/m16: DX:AX = AX * r/m16.
+                        let result = u32::from(self.regs.ax) * u32::from(a);
+                        self.regs.ax = result as u16;
+                        self.regs.dx = (result >> 16) as u16;
+                        let nonzero_high = self.regs.dx != 0;
+                        self.regs.flags.set(Flags::CF, nonzero_high);
+                        self.regs.flags.set(Flags::OF, nonzero_high);
+                        rec.mnemonic = "mul";
+                    }
+                    5 => {
+                        // IMUL r/m16: DX:AX = AX * r/m16 (signed).
+                        let result = i32::from(self.regs.ax as i16) * i32::from(a as i16);
+                        self.regs.ax = result as u16;
+                        self.regs.dx = (result >> 16) as u16;
+                        let truncated = (result as i16) as i32;
+                        let overflow = truncated != result;
+                        self.regs.flags.set(Flags::CF, overflow);
+                        self.regs.flags.set(Flags::OF, overflow);
+                        rec.mnemonic = "imul";
+                    }
+                    6 => {
+                        // DIV r/m16: DX:AX / r/m16 → AX=q, DX=r.
+                        if a == 0 {
+                            rec.stopped = Some(StopReason::DivideError { ip: ip_before });
+                        } else {
+                            let dividend =
+                                (u32::from(self.regs.dx) << 16) | u32::from(self.regs.ax);
+                            let q = dividend / u32::from(a);
+                            let r = dividend % u32::from(a);
+                            if q > 0xFFFF {
+                                rec.stopped = Some(StopReason::DivideError { ip: ip_before });
+                            } else {
+                                self.regs.ax = q as u16;
+                                self.regs.dx = r as u16;
+                                rec.mnemonic = "div";
+                            }
+                        }
+                    }
                     _ => {
-                        rec.stopped = Some(StopReason::Unimplemented {
-                            opcode: op,
-                            ip: ip_before,
-                        });
+                        // IDIV r/m16.
+                        if a == 0 {
+                            rec.stopped = Some(StopReason::DivideError { ip: ip_before });
+                        } else {
+                            let dividend =
+                                (i32::from(self.regs.dx as i16) << 16) | i32::from(self.regs.ax);
+                            let divisor = i32::from(a as i16);
+                            let q = dividend / divisor;
+                            let r = dividend % divisor;
+                            if i16::try_from(q).is_err() {
+                                rec.stopped = Some(StopReason::DivideError { ip: ip_before });
+                            } else {
+                                self.regs.ax = q as u16;
+                                self.regs.dx = r as u16;
+                                rec.mnemonic = "idiv";
+                            }
+                        }
                     }
                 }
             }
@@ -1482,6 +1633,88 @@ impl Cpu {
                 rec.mnemonic = "ret";
             }
 
+            // ---- misc utility opcodes ----
+            // CBW (98): sign-extend AL into AH.
+            0x98 => {
+                self.regs.set_ah(if (self.regs.al() & 0x80) != 0 {
+                    0xFF
+                } else {
+                    0
+                });
+                rec.mnemonic = "cbw";
+            }
+            // CWD (99): sign-extend AX into DX.
+            0x99 => {
+                self.regs.dx = if (self.regs.ax & 0x8000) != 0 {
+                    0xFFFF
+                } else {
+                    0
+                };
+                rec.mnemonic = "cwd";
+            }
+            // SAHF (9E): low byte of FLAGS = AH (only the documented bits).
+            0x9E => {
+                let mask: u16 = Flags::CF | Flags::PF | Flags::AF | Flags::ZF | Flags::SF;
+                let hi = self.regs.flags.0 & !mask;
+                self.regs.flags.0 = hi | (u16::from(self.regs.ah()) & mask);
+                rec.mnemonic = "sahf";
+            }
+            // LAHF (9F): AH = low byte of FLAGS.
+            0x9F => {
+                self.regs.set_ah((self.regs.flags.0 & 0xFF) as u8);
+                rec.mnemonic = "lahf";
+            }
+            // XLAT/XLATB (D7): AL = [DS:BX+AL].
+            0xD7 => {
+                let off = self.regs.bx.wrapping_add(u16::from(self.regs.al()));
+                let lin = seg_off(self.read_seg(override_seg.unwrap_or(SegReg::Ds)), off);
+                self.regs.set_al(self.mem.read_u8(lin));
+                rec.mnemonic = "xlat";
+            }
+
+            // ---- port I/O ----
+            // IN AL, imm8  — E4 imm8
+            // IN AX, imm8  — E5 imm8
+            // OUT imm8, AL — E6 imm8
+            // OUT imm8, AX — E7 imm8
+            0xE4 => {
+                let port = u16::from(self.fetch_u8());
+                self.regs.set_al(self.port_in_u8(port));
+                rec.mnemonic = "in";
+            }
+            0xE5 => {
+                let port = u16::from(self.fetch_u8());
+                self.regs.ax = self.port_in_u16(port);
+                rec.mnemonic = "in";
+            }
+            0xE6 => {
+                let port = u16::from(self.fetch_u8());
+                self.port_out_u8(port, self.regs.al());
+                rec.mnemonic = "out";
+            }
+            0xE7 => {
+                let port = u16::from(self.fetch_u8());
+                self.port_out_u16(port, self.regs.ax);
+                rec.mnemonic = "out";
+            }
+            // IN AL, DX (EC) ; IN AX, DX (ED) ; OUT DX, AL (EE) ; OUT DX, AX (EF)
+            0xEC => {
+                self.regs.set_al(self.port_in_u8(self.regs.dx));
+                rec.mnemonic = "in";
+            }
+            0xED => {
+                self.regs.ax = self.port_in_u16(self.regs.dx);
+                rec.mnemonic = "in";
+            }
+            0xEE => {
+                self.port_out_u8(self.regs.dx, self.regs.al());
+                rec.mnemonic = "out";
+            }
+            0xEF => {
+                self.port_out_u16(self.regs.dx, self.regs.ax);
+                rec.mnemonic = "out";
+            }
+
             other => {
                 rec.stopped = Some(StopReason::Unimplemented {
                     opcode: other,
@@ -1490,7 +1723,10 @@ impl Cpu {
             }
         }
 
-        if let Some(StopReason::Unimplemented { .. }) = rec.stopped {
+        if matches!(
+            rec.stopped,
+            Some(StopReason::Unimplemented { .. } | StopReason::DivideError { .. })
+        ) {
             self.regs.ip = ip_before;
         }
         rec.bytes_consumed = (self.regs.ip.wrapping_sub(ip_before)) as u8;
@@ -1586,9 +1822,10 @@ mod tests {
 
     #[test]
     fn unimplemented_opcode_halts_at_ip() {
-        // 0xF6 with reg=110 is DIV (not yet implemented at the time of writing).
+        // 0x9B (WAIT/FWAIT) is intentionally not implemented and acts as a
+        // stable canary for the "park IP at the offending byte" behavior.
         let mut c = Cpu::new();
-        c.load_com(&[0xF6, 0xF0]);
+        c.load_com(&[0x9B]);
         let rec = c.step();
         assert!(matches!(
             rec.stopped,
@@ -1805,6 +2042,108 @@ mod tests {
         assert!(c.regs.flags.get(Flags::SF));
         assert!(!c.regs.flags.get(Flags::ZF));
         assert!(!c.regs.flags.get(Flags::CF));
+    }
+
+    // ---- M1.8: MUL/DIV, IN/OUT, misc utility opcodes ----
+
+    #[test]
+    fn mul_r_m8_sets_cf_when_high_byte_nonzero() {
+        // mov al, 200 ; mov bl, 5 ; mul bl ; hlt
+        // F6 /4 mod=11 rm=BL(3) → modrm 0xE3
+        let c = run(&[0xB0, 0xC8, 0xB3, 0x05, 0xF6, 0xE3, 0xF4]);
+        assert_eq!(c.regs.ax, 1000);
+        assert!(c.regs.flags.get(Flags::CF));
+        assert!(c.regs.flags.get(Flags::OF));
+    }
+
+    #[test]
+    fn imul_r_m8_negative_result() {
+        // mov al, -2 ; mov bl, 3 ; imul bl ; hlt → AX = -6 = 0xFFFA
+        let c = run(&[0xB0, 0xFE, 0xB3, 0x03, 0xF6, 0xEB, 0xF4]);
+        assert_eq!(c.regs.ax, 0xFFFA);
+    }
+
+    #[test]
+    fn div_r_m16_dx_ax_pair() {
+        // mov dx, 0 ; mov ax, 1000 ; mov bx, 7 ; div bx ; hlt
+        // F7 /6 rm=BX(3) → 0xF3
+        let c = run(&[
+            0xBA, 0x00, 0x00, 0xB8, 0xE8, 0x03, 0xBB, 0x07, 0x00, 0xF7, 0xF3, 0xF4,
+        ]);
+        assert_eq!(c.regs.ax, 142); // 1000 / 7
+        assert_eq!(c.regs.dx, 6); // 1000 % 7
+    }
+
+    #[test]
+    fn div_by_zero_traps() {
+        // mov ax, 100 ; mov bl, 0 ; div bl ; hlt — should stop with DivideError.
+        let mut c = Cpu::new();
+        c.load_com(&[0xB8, 0x64, 0x00, 0xB3, 0x00, 0xF6, 0xF3, 0xF4]);
+        let mut last = StepRecord::default();
+        for _ in 0..10 {
+            last = c.step();
+            if last.stopped.is_some() {
+                break;
+            }
+        }
+        assert!(matches!(last.stopped, Some(StopReason::DivideError { .. })));
+    }
+
+    #[test]
+    fn cbw_sign_extends_al() {
+        // mov al, 0x80 ; cbw ; hlt → AX = 0xFF80
+        let c = run(&[0xB0, 0x80, 0x98, 0xF4]);
+        assert_eq!(c.regs.ax, 0xFF80);
+    }
+
+    #[test]
+    fn cwd_sign_extends_ax() {
+        // mov ax, 0x8001 ; cwd ; hlt → DX = 0xFFFF
+        let c = run(&[0xB8, 0x01, 0x80, 0x99, 0xF4]);
+        assert_eq!(c.regs.dx, 0xFFFF);
+    }
+
+    #[test]
+    fn lahf_loads_low_flags_into_ah() {
+        // stc ; lahf ; hlt — AH should have CF bit set.
+        let c = run(&[0xF9, 0x9F, 0xF4]);
+        assert_eq!(c.regs.ah() & 0x01, 0x01);
+    }
+
+    #[test]
+    fn out_logs_port_writes() {
+        // mov al, 0x42 ; out 0x64, al ; hlt
+        let c = run(&[0xB0, 0x42, 0xE6, 0x64, 0xF4]);
+        assert_eq!(
+            c.out_log,
+            vec![PortWrite {
+                port: 0x64,
+                value: 0x42,
+                width: 8
+            }]
+        );
+        assert_eq!(c.ports[0x64], 0x42);
+    }
+
+    #[test]
+    fn in_reads_port_bytes() {
+        let mut c = Cpu::new();
+        c.load_com(&[0xE4, 0x60, 0xF4]); // in al, 0x60 ; hlt
+        c.ports[0x60] = 0x99;
+        c.run_until_halt(16);
+        assert_eq!(c.regs.al(), 0x99);
+    }
+
+    #[test]
+    fn xlat_indexes_table_via_bx_al() {
+        // mov bx, 0x0900 ; mov al, 3 ; xlat ; hlt
+        let mut c = Cpu::new();
+        c.load_com(&[0xBB, 0x00, 0x09, 0xB0, 0x03, 0xD7, 0xF4]);
+        for (i, b) in [10u8, 20, 30, 40, 50].iter().enumerate() {
+            c.mem.write_u8(seg_off(c.regs.ds, 0x0900 + i as u16), *b);
+        }
+        c.run_until_halt(16);
+        assert_eq!(c.regs.al(), 40);
     }
 
     // ---- string ops (M1.7) ----
