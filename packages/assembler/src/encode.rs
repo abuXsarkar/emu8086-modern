@@ -5,7 +5,197 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::lexer::Span;
-use crate::parser::{DataItem, Directive, Instr, Item, Operand, Program};
+use crate::parser::{DataItem, Directive, Instr, Item, MemRef, MemTerm, Operand, Program};
+
+/// Resolved 8086 memory operand: which mod-r/m bits it produces, plus
+/// any sign-extended displacement to emit after the mod-r/m byte.
+#[derive(Debug, Clone, Copy)]
+struct MemEncoded {
+    /// 3-bit `rm` field of the mod-r/m byte.
+    rm: u8,
+    /// 2-bit `mod` field (00, 01, 10).
+    mode: u8,
+    /// Number of displacement bytes after the mod-r/m (0, 1, or 2).
+    disp_bytes: u8,
+    /// Sign-extended displacement value to write (low byte first when
+    /// `disp_bytes == 2`).
+    disp: i32,
+}
+
+impl MemEncoded {
+    fn modrm_byte(self, reg_field: u8) -> u8 {
+        (self.mode << 6) | ((reg_field & 0b111) << 3) | (self.rm & 0b111)
+    }
+
+    fn extra_bytes(self) -> u16 {
+        u16::from(self.disp_bytes)
+    }
+}
+
+fn mem_reg_kind(name: &str) -> Option<&'static str> {
+    match name.to_ascii_lowercase().as_str() {
+        "bx" | "bp" => Some("BASE"),
+        "si" | "di" => Some("INDEX"),
+        _ => None,
+    }
+}
+
+fn mem_reg_canonical(name: &str) -> &'static str {
+    match name.to_ascii_lowercase().as_str() {
+        "bx" => "BX",
+        "bp" => "BP",
+        "si" => "SI",
+        "di" => "DI",
+        _ => "?",
+    }
+}
+
+/// Recognize "this is a register, just not one valid in `[]`" so we
+/// can emit a focused diagnostic instead of "undefined label".
+fn is_other_reg(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "ax" | "cx"
+            | "dx"
+            | "sp"
+            | "al"
+            | "cl"
+            | "dl"
+            | "bl"
+            | "ah"
+            | "ch"
+            | "dh"
+            | "bh"
+            | "es"
+            | "cs"
+            | "ss"
+            | "ds"
+    )
+}
+
+/// Resolve a parsed `[a + b + …]` memory reference into its 8086
+/// addressing mode. Resolves label references against `labels` to fold
+/// them into the displacement; emits a useful error if the term list
+/// doesn't match a valid 8086 base/index pair.
+fn classify_mem(
+    mem: &MemRef,
+    labels: Option<&HashMap<String, u16>>,
+) -> Result<MemEncoded, EncodeError> {
+    let mut base: Option<&'static str> = None;
+    let mut index: Option<&'static str> = None;
+    let mut disp: i64 = 0;
+
+    for t in &mem.terms {
+        match t {
+            MemTerm::Number { value, .. } => {
+                disp = disp.wrapping_add(*value);
+            }
+            MemTerm::Ident { name, sign, span } => {
+                if let Some(role) = mem_reg_kind(name) {
+                    if *sign != 1 {
+                        return Err(EncodeError {
+                            span: *span,
+                            message: format!("register `{name}` cannot be subtracted in `[]`"),
+                        });
+                    }
+                    let canon = mem_reg_canonical(name);
+                    match role {
+                        "BASE" => {
+                            if let Some(existing) = base {
+                                return Err(EncodeError {
+                                    span: *span,
+                                    message: format!(
+                                        "two base registers in `[]` (`{existing}` and `{canon}`); only one of BX or BP is allowed"
+                                    ),
+                                });
+                            }
+                            base = Some(canon);
+                        }
+                        "INDEX" => {
+                            if let Some(existing) = index {
+                                return Err(EncodeError {
+                                    span: *span,
+                                    message: format!(
+                                        "two index registers in `[]` (`{existing}` and `{canon}`); only one of SI or DI is allowed"
+                                    ),
+                                });
+                            }
+                            index = Some(canon);
+                        }
+                        _ => unreachable!(),
+                    }
+                } else if is_other_reg(name) {
+                    return Err(EncodeError {
+                        span: *span,
+                        message: format!(
+                            "register `{name}` cannot appear in `[]`; only BX, BP, SI, DI are valid 8086 base/index registers"
+                        ),
+                    });
+                } else if let Some(lbls) = labels {
+                    let v = lbls.get(name).copied().ok_or(EncodeError {
+                        span: *span,
+                        message: format!("undefined label `{name}`"),
+                    })?;
+                    disp = disp.wrapping_add(i64::from(sign.signum()) * i64::from(v));
+                } else {
+                    // Pass 1 sizing: conservative disp16 contribution.
+                    disp = disp.wrapping_add(i64::from(sign.signum()) * 0x1000);
+                }
+            }
+        }
+    }
+
+    // Map (base, index) → rm code (and default segment).
+    let rm: u8 = match (base, index) {
+        (Some("BX"), Some("SI")) => 0b000,
+        (Some("BX"), Some("DI")) => 0b001,
+        (Some("BP"), Some("SI")) => 0b010,
+        (Some("BP"), Some("DI")) => 0b011,
+        (None, Some("SI")) => 0b100,
+        (None, Some("DI")) => 0b101,
+        (Some("BP"), None) => 0b110,
+        (Some("BX"), None) => 0b111,
+        (None, None) => 0b110, // mod=00 rm=110 disp16 — direct address
+        _ => {
+            return Err(EncodeError {
+                span: mem.span,
+                message: format!(
+                    "invalid 8086 addressing mode (base={base:?}, index={index:?}); legal pairs are BX+SI, BX+DI, BP+SI, BP+DI, plus single SI / DI / BP / BX"
+                ),
+            });
+        }
+    };
+
+    // Pick mode + displacement width.
+    let (mode, disp_bytes) = if base.is_none() && index.is_none() {
+        (0b00, 2u8) // direct: mod=00 rm=110 disp16
+    } else if disp == 0 && rm != 0b110 {
+        // [BP] alone uses mod=01 disp8=0 because mod=00 rm=110 means
+        // disp16-direct rather than [BP].
+        (0b00, 0u8)
+    } else if disp == 0 && rm == 0b110 {
+        (0b01, 1u8)
+    } else if (-128..=127).contains(&disp) {
+        (0b01, 1u8)
+    } else {
+        (0b10, 2u8)
+    };
+
+    Ok(MemEncoded {
+        rm,
+        mode,
+        disp_bytes,
+        disp: disp as i32,
+    })
+}
+
+fn emit_disp(out: &mut Vec<u8>, enc: MemEncoded) {
+    match enc.disp_bytes {
+        0 => {}
+        1 => out.push(enc.disp as i8 as u8),
+        _ => out.extend_from_slice(&((enc.disp as i16) as u16).to_le_bytes()),
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Reg8 {
@@ -289,6 +479,8 @@ fn mov_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
     // mov reg8, imm8:   B0+r ib    (2)
     // mov reg16, label: B8+r ib ib (3)
     // mov reg, reg:     2 bytes
+    // mov reg, mem / mem, reg: 2 + disp_bytes
+    // mov reg16, [direct]: 2 + 2 (we always use the modrm form for now)
     if let Some(name) = ident_name(dst) {
         if Reg16::from_name(&name).is_some() {
             if matches!(src, Operand::Number { .. } | Operand::Ident { .. }) {
@@ -298,6 +490,10 @@ fn mov_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
                 if Reg16::from_name(&s).is_some() {
                     return Ok(2);
                 }
+            }
+            if let Operand::Mem(m) = src {
+                let enc = classify_mem(m, None)?;
+                return Ok(2 + enc.extra_bytes());
             }
         }
         if Reg8::from_name(&name).is_some() {
@@ -309,6 +505,28 @@ fn mov_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
                     return Ok(2);
                 }
             }
+            if let Operand::Mem(m) = src {
+                let enc = classify_mem(m, None)?;
+                return Ok(2 + enc.extra_bytes());
+            }
+        }
+    }
+    if let Operand::Mem(m) = dst {
+        // mov mem, r8/r16 or mov mem, imm
+        let enc = classify_mem(m, None)?;
+        match src {
+            Operand::Ident { name, .. } => {
+                if Reg8::from_name(&name.to_ascii_lowercase()).is_some()
+                    || Reg16::from_name(&name.to_ascii_lowercase()).is_some()
+                {
+                    return Ok(2 + enc.extra_bytes());
+                }
+            }
+            Operand::Number { .. } => {
+                // C6/C7 modrm imm — assume word for now.
+                return Ok(3 + enc.extra_bytes());
+            }
+            _ => {}
         }
     }
     Err(EncodeError {
@@ -501,54 +719,95 @@ fn emit_mov(
     out: &mut Vec<u8>,
     span: Span,
 ) -> Result<(), EncodeError> {
-    let dname = ident_name(dst).ok_or(EncodeError {
-        span,
-        message: "left side of mov must be a register here".into(),
-    })?;
-    let lname = dname.to_ascii_lowercase();
+    // mov reg, imm / reg / label
+    if let Some(dname) = ident_name(dst) {
+        let lname = dname.to_ascii_lowercase();
 
-    // mov reg16, imm16 / label
-    if let Some(r) = Reg16::from_name(&lname) {
-        match src {
-            Operand::Number { value, .. } => {
-                out.push(0xB8 + r.code());
-                let v = *value as u16;
-                out.extend_from_slice(&v.to_le_bytes());
-                return Ok(());
-            }
-            Operand::Ident { name, span } => {
-                if let Some(other) = Reg16::from_name(&name.to_ascii_lowercase()) {
-                    // mov r16, r16 — encode as 89 /reg=src/rm=dst,mod=11.
-                    out.push(0x89);
-                    out.push(0xC0 | (other.code() << 3) | r.code());
+        if let Some(r) = Reg16::from_name(&lname) {
+            match src {
+                Operand::Number { value, .. } => {
+                    out.push(0xB8 + r.code());
+                    out.extend_from_slice(&(*value as u16).to_le_bytes());
                     return Ok(());
                 }
-                let v = labels.get(name).copied().ok_or(EncodeError {
-                    span: *span,
-                    message: format!("undefined label `{name}`"),
-                })?;
-                out.push(0xB8 + r.code());
-                out.extend_from_slice(&v.to_le_bytes());
-                return Ok(());
+                Operand::Ident { name, span } => {
+                    if let Some(other) = Reg16::from_name(&name.to_ascii_lowercase()) {
+                        out.push(0x89);
+                        out.push(0xC0 | (other.code() << 3) | r.code());
+                        return Ok(());
+                    }
+                    let v = labels.get(name).copied().ok_or(EncodeError {
+                        span: *span,
+                        message: format!("undefined label `{name}`"),
+                    })?;
+                    out.push(0xB8 + r.code());
+                    out.extend_from_slice(&v.to_le_bytes());
+                    return Ok(());
+                }
+                Operand::Mem(m) => {
+                    // mov r16, r/m16 = 8B /r
+                    let enc = classify_mem(m, Some(labels))?;
+                    out.push(0x8B);
+                    out.push(enc.modrm_byte(r.code()));
+                    emit_disp(out, enc);
+                    return Ok(());
+                }
             }
-            _ => {}
+        }
+
+        if let Some(r) = Reg8::from_name(&lname) {
+            match src {
+                Operand::Number { value, .. } => {
+                    out.push(0xB0 + r.code());
+                    out.push(*value as u8);
+                    return Ok(());
+                }
+                Operand::Ident { name, .. } => {
+                    if let Some(other) = Reg8::from_name(&name.to_ascii_lowercase()) {
+                        out.push(0x88);
+                        out.push(0xC0 | (other.code() << 3) | r.code());
+                        return Ok(());
+                    }
+                }
+                Operand::Mem(m) => {
+                    // mov r8, r/m8 = 8A /r
+                    let enc = classify_mem(m, Some(labels))?;
+                    out.push(0x8A);
+                    out.push(enc.modrm_byte(r.code()));
+                    emit_disp(out, enc);
+                    return Ok(());
+                }
+            }
         }
     }
 
-    // mov reg8, imm8 / reg8
-    if let Some(r) = Reg8::from_name(&lname) {
+    // mov mem, src
+    if let Operand::Mem(m) = dst {
+        let enc = classify_mem(m, Some(labels))?;
         match src {
-            Operand::Number { value, .. } => {
-                out.push(0xB0 + r.code());
-                out.push(*value as u8);
-                return Ok(());
-            }
             Operand::Ident { name, .. } => {
-                if let Some(other) = Reg8::from_name(&name.to_ascii_lowercase()) {
-                    out.push(0x88);
-                    out.push(0xC0 | (other.code() << 3) | r.code());
+                let lname = name.to_ascii_lowercase();
+                if let Some(r) = Reg16::from_name(&lname) {
+                    // mov r/m16, r16 = 89 /r
+                    out.push(0x89);
+                    out.push(enc.modrm_byte(r.code()));
+                    emit_disp(out, enc);
                     return Ok(());
                 }
+                if let Some(r) = Reg8::from_name(&lname) {
+                    out.push(0x88);
+                    out.push(enc.modrm_byte(r.code()));
+                    emit_disp(out, enc);
+                    return Ok(());
+                }
+            }
+            Operand::Number { value, .. } => {
+                // mov word ptr [mem], imm — we always emit C7 word form for now.
+                out.push(0xC7);
+                out.push(enc.modrm_byte(0));
+                emit_disp(out, enc);
+                out.extend_from_slice(&(*value as u16).to_le_bytes());
+                return Ok(());
             }
             _ => {}
         }
@@ -798,14 +1057,74 @@ mod tests {
             msg: db \"Hello, world!$\"\n\
         ";
         let bytes = asm(src);
-        // The same hand-assembled sequence the M1.6 CLI test uses, modulo
-        // the `pad` we used there: the assembler's layout puts msg right
-        // after the second `int 21h`, so msg offset = 0x100 + size(prog).
-        // We just assert that the program runs and prints the string.
         let mut cpu = emu8086_core::Cpu::new();
         cpu.load_com(&bytes);
         cpu.run_until_halt(1024);
         assert!(cpu.halted);
         assert_eq!(cpu.stdout, b"Hello, world!");
+    }
+
+    // ---- memory operands (M2.2) ----
+
+    #[test]
+    fn mov_reg_mem_via_bx() {
+        // mov al, [bx]   →  8A /r mod=00 reg=AL(0) rm=[BX](7)  → 8A 07
+        let bytes = asm("mov al, [bx]\n");
+        assert_eq!(bytes, vec![0x8A, 0x07]);
+    }
+
+    #[test]
+    fn mov_mem_reg_with_disp8() {
+        // mov [bx+4], al → 88 /r mod=01 reg=AL(0) rm=[BX](7) disp8=4  → 88 47 04
+        let bytes = asm("mov [bx+4], al\n");
+        assert_eq!(bytes, vec![0x88, 0x47, 0x04]);
+    }
+
+    #[test]
+    fn mov_reg_mem_bx_si_pair_with_disp16() {
+        // mov ax, [bx+si+0x1234] → 8B /r mod=10 reg=AX(0) rm=[BX+SI](0)
+        // disp16=0x1234 → 8B 80 34 12
+        let bytes = asm("mov ax, [bx+si+0x1234]\n");
+        assert_eq!(bytes, vec![0x8B, 0x80, 0x34, 0x12]);
+    }
+
+    #[test]
+    fn mov_mem_direct_address() {
+        // mov ax, [0x0234] → 8B /r mod=00 reg=AX(0) rm=110 disp16=0x0234
+        // → 8B 06 34 02
+        let bytes = asm("mov ax, [0x0234]\n");
+        assert_eq!(bytes, vec![0x8B, 0x06, 0x34, 0x02]);
+    }
+
+    #[test]
+    fn mov_word_ptr_imm_to_memory() {
+        // mov [bx], 0x0042 → C7 /0 mod=00 rm=[BX](7) imm16  → C7 07 42 00
+        let bytes = asm("mov [bx], 0x42\n");
+        assert_eq!(bytes, vec![0xC7, 0x07, 0x42, 0x00]);
+    }
+
+    #[test]
+    fn bp_alone_uses_disp8_zero() {
+        // mov al, [bp]    must encode as mod=01 rm=110 disp8=0  →  8A 46 00
+        let bytes = asm("mov al, [bp]\n");
+        assert_eq!(bytes, vec![0x8A, 0x46, 0x00]);
+    }
+
+    #[test]
+    fn bx_minus_one_is_signed_disp() {
+        // mov al, [bx-1]  →  8A 47 FF  (mod=01 rm=BX disp8=-1)
+        let bytes = asm("mov al, [bx-1]\n");
+        assert_eq!(bytes, vec![0x8A, 0x47, 0xFF]);
+    }
+
+    #[test]
+    fn invalid_register_pair_diagnoses() {
+        let toks = crate::lexer::tokenize("mov ax, [bx+bp]\n").unwrap();
+        let prog = crate::parser::parse(&toks).unwrap();
+        let err = encode(&prog).unwrap_err();
+        assert!(
+            err.message.contains("two base registers"),
+            "got: {err}"
+        );
     }
 }

@@ -51,20 +51,33 @@ pub enum Operand {
         value: u32,
         span: Span,
     },
-    /// `[expr]` — memory operand. For M2.1 we accept only a bare immediate
-    /// (i.e. `[0x100]`) or a single register/identifier inside the brackets;
-    /// full mod-r/m parsing arrives in M2.3.
-    Mem {
-        inner: Box<Operand>,
-        span: Span,
-    },
+    /// `[expr]` — memory operand. The encoder classifies the term list
+    /// against the 8086 base/index pairs and produces the appropriate
+    /// mod-r/m + displacement bytes.
+    Mem(MemRef),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemRef {
+    pub terms: Vec<MemTerm>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MemTerm {
+    /// An identifier inside the brackets — can be a register (BX, SI, …),
+    /// or a label whose offset will be added in as displacement.
+    Ident { name: String, sign: i8, span: Span },
+    /// A literal displacement.
+    Number { value: i64, span: Span },
 }
 
 impl Operand {
     #[must_use]
     pub fn span(&self) -> Span {
         match self {
-            Self::Ident { span, .. } | Self::Number { span, .. } | Self::Mem { span, .. } => *span,
+            Self::Ident { span, .. } | Self::Number { span, .. } => *span,
+            Self::Mem(m) => m.span,
         }
     }
 }
@@ -312,12 +325,63 @@ impl Parser<'_> {
             }
             Token::LBracket => {
                 let l = self.bump();
-                let inner = self.parse_operand()?;
+                let mut terms: Vec<MemTerm> = Vec::new();
+                let mut sign: i8 = 1;
+                loop {
+                    let t = self.peek().clone();
+                    match t.tok {
+                        Token::Ident(name) => {
+                            self.bump();
+                            terms.push(MemTerm::Ident {
+                                name,
+                                sign,
+                                span: t.span,
+                            });
+                        }
+                        Token::Number(n) => {
+                            self.bump();
+                            terms.push(MemTerm::Number {
+                                value: i64::from(sign) * (n as i64),
+                                span: t.span,
+                            });
+                        }
+                        _ => {
+                            return Err(ParseError {
+                                span: t.span,
+                                message: format!(
+                                    "expected register or number inside `[]`, found {}",
+                                    t.tok
+                                ),
+                            });
+                        }
+                    }
+                    let next = self.peek().clone();
+                    match next.tok {
+                        Token::Plus => {
+                            self.bump();
+                            sign = 1;
+                        }
+                        Token::Minus => {
+                            self.bump();
+                            sign = -1;
+                        }
+                        Token::RBracket => break,
+                        _ => {
+                            return Err(ParseError {
+                                span: next.span,
+                                message: format!(
+                                    "expected `+`, `-`, or `]` inside `[]`, found {}",
+                                    next.tok
+                                ),
+                            });
+                        }
+                    }
+                }
                 let r = self.expect(&Token::RBracket)?;
-                Ok(Operand::Mem {
-                    inner: Box::new(inner),
+                Ok(Operand::Mem(MemRef {
+                    terms,
                     span: Span::new(l.span.start, r.span.end),
-                })
+                }))
             }
             other => Err(ParseError {
                 span: cur.span,
