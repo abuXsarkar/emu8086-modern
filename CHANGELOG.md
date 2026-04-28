@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Highlights since the project bootstrap
+
+- **M0 → M5 milestones** all shipped at alpha quality. M6/M7 require external infrastructure (institute pilot, code-signing, external a11y audit) and are tracked but not started.
+- **`emu8086`** CLI: `assemble`, `run`, `run-asm`, `trace` (JSON), `grade` (YAML spec → JUnit XML), `compat-report` (corpus check), `version`. File-level `include "..."` resolution before assembly.
+- **Web IDE**: Monaco editor with full 8086-asm syntax highlighting, snippets, hover docs, red-squiggle error markers, **Reset / ◀ Back / Step ▶ / Run** debugger backed by the stateful `Emulator` class (with diff-snapshot time travel), live register/flag/memory panels, **7-segment display** and **traffic-light** peripherals, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, localStorage autosave, example loader.
+- **Composite GitHub Action** at `.github/actions/grade/` for drop-in GitHub Classroom integration.
+- **emu8086.inc-style stdlib** (`examples/lib/stdlib.asm`) shipping `PUTC`, `NEWLINE`, `PRINT`, `PRINTN`, `GOTOXY`, `CLEAR_SCREEN` — all built on the assembler's `MACRO`/`ENDM` mechanism with pre-expansion at definition time so nested macros resolve cleanly.
+- **11 working example programs** in `examples/`, each with an integration test asserting byte-for-byte output through the CLI: hello, sum, array_sum, streq, countdown, stackdemo, macro_putc, hello_macros, hello_include, seven_seg, traffic.
+
 ### Added
 
 - **emu8086-core** — almost-complete 8086 emulator: register file with high/low aliasing, 1 MiB segmented memory with `seg:off → linear` translation, mod-r/m memory addressing with segment overrides, MOV family (incl. LEA, XCHG, segment registers, accumulator moffs), arithmetic + logical + shift/rotate groups with full 8086 flag math (CF/OF/SF/ZF/AF/PF), stack (PUSH/POP regs/segregs/flags/r/m), control flow (JMP, all 16 Jcc, LOOP family, JCXZ, near CALL/RET), string ops with REP/REPE/REPNE, MUL/IMUL/DIV/IDIV with DivideError trap, port I/O (IN/OUT) with `out_log`, software interrupts (INT n / IRET / INT 3) with DOS subset (INT 21h fn 01h, 02h, 06h, 09h, 4Ch; INT 20h). 98 unit tests.
