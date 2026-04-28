@@ -237,6 +237,12 @@ impl Emulator {
             }
         };
         self.cpu = Cpu::new();
+        // Default history budget for the IDE: the same 1M-step cap that
+        // `compile_and_run` uses. Step recording costs ~tens of bytes
+        // per step (registers + the few memory writes the step did),
+        // so 1M steps × ~30 B is ~30 MB worst-case — but most programs
+        // stop in seconds and stay well under that.
+        self.cpu.set_history_capacity(1_000_000);
         self.cpu.load_com(&img.bytes);
         let r = RunResult {
             ok: true,
@@ -276,6 +282,22 @@ impl Emulator {
             halted: self.cpu.halted,
             mnemonic,
             stopped,
+            registers: Registers::from(&self.cpu.regs),
+        };
+        serde_json::to_string(&r).unwrap_or_default()
+    }
+
+    /// Step backwards by one instruction. Returns a `StepResultJson`
+    /// shape, with `mnemonic = "back"` to make the host log readable.
+    /// On empty history, returns the current state with `mnemonic = ""`.
+    pub fn step_back(&mut self) -> String {
+        let took = self.cpu.step_back();
+        let r = StepResultJson {
+            stdout: String::new(),
+            exit_code: self.cpu.exit_code,
+            halted: self.cpu.halted,
+            mnemonic: if took { "back".into() } else { String::new() },
+            stopped: None,
             registers: Registers::from(&self.cpu.regs),
         };
         serde_json::to_string(&r).unwrap_or_default()

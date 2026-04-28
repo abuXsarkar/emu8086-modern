@@ -14,9 +14,16 @@ pub const fn seg_off(seg: u16, off: u16) -> usize {
 
 /// Flat 1 MiB byte memory. Helpers do little-endian word access and
 /// transparently wrap at the 1 MiB boundary.
+///
+/// When `tracking` is `Some`, every byte-level write also records the
+/// (linear-address, previous-byte) so a higher layer can undo the
+/// writes for time-travel. The tracker is short-lived: the CPU sets
+/// `Some(Vec::new())` before each step, takes the buffer out
+/// afterwards, and stores it in its history stack.
 #[derive(Clone)]
 pub struct Memory {
     bytes: Box<[u8]>,
+    tracking: Option<Vec<(usize, u8)>>,
 }
 
 impl Default for Memory {
@@ -30,6 +37,28 @@ impl Memory {
     pub fn new() -> Self {
         Self {
             bytes: vec![0u8; MEM_SIZE].into_boxed_slice(),
+            tracking: None,
+        }
+    }
+
+    /// Begin recording byte-level writes. Anything previously buffered
+    /// is dropped — start_tracking is the "start of a fresh step".
+    pub fn start_tracking(&mut self) {
+        self.tracking = Some(Vec::new());
+    }
+
+    /// Stop tracking and return whatever writes were buffered.
+    /// Returns an empty vec if tracking was off.
+    pub fn take_tracking(&mut self) -> Vec<(usize, u8)> {
+        self.tracking.take().unwrap_or_default()
+    }
+
+    /// Apply a list of `(lin, prev_byte)` pairs in reverse order to undo
+    /// a previous step's effects on memory. The tracker is bypassed for
+    /// these writes — undoing isn't itself an event we want to record.
+    pub fn restore_writes(&mut self, writes: &[(usize, u8)]) {
+        for &(lin, prev) in writes.iter().rev() {
+            self.bytes[lin & (MEM_SIZE - 1)] = prev;
         }
     }
 
@@ -46,7 +75,11 @@ impl Memory {
     }
 
     pub fn write_u8(&mut self, lin: usize, value: u8) {
-        self.bytes[lin & (MEM_SIZE - 1)] = value;
+        let i = lin & (MEM_SIZE - 1);
+        if let Some(buf) = self.tracking.as_mut() {
+            buf.push((i, self.bytes[i]));
+        }
+        self.bytes[i] = value;
     }
 
     pub fn write_u16(&mut self, lin: usize, value: u16) {

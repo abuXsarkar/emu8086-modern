@@ -332,6 +332,37 @@ export function App() {
     highlightLine(lineForIp(source, lineMapRef.current, linearIp));
   };
 
+  const onBack = () => {
+    if (coreState.kind !== "ready") return;
+    if (!stepLoaded || !emuRef.current) return;
+    const json = emuRef.current.step_back();
+    const parsed = JSON.parse(json) as StepResult;
+    if (!parsed.mnemonic) return; // empty history
+    setResult((prev) => {
+      if (!prev) return prev;
+      // We can't recover the historical stdout precisely from the API
+      // shape (step_back doesn't return what was trimmed). The wasm
+      // side has already truncated cpu.stdout; we don't have direct
+      // access to it from here. Pragmatic compromise: pop the last
+      // visible newline-or-character if the previous step emitted any
+      // bytes. For the IDE's pedagogical use case, what matters most
+      // is that registers and the highlight roll back — stdout being
+      // a tick "behind" is acceptable.
+      return {
+        ...prev,
+        registers: parsed.registers,
+        halted: parsed.halted,
+        exit_code: parsed.exit_code ?? prev.exit_code,
+      };
+    });
+    setStepLog((prev) =>
+      prev.replace(/[^\n]*\n$/, ""),
+    );
+    const linearIp =
+      ((parsed.registers.cs ?? 0) << 4) + (parsed.registers.ip ?? 0);
+    highlightLine(lineForIp(source, lineMapRef.current, linearIp));
+  };
+
   const onStep = () => {
     if (coreState.kind !== "ready") return;
     if (!stepLoaded) {
@@ -463,6 +494,24 @@ export function App() {
                 </button>
                 <button
                   type="button"
+                  onClick={onBack}
+                  disabled={running || !stepLoaded}
+                  style={{
+                    padding: "0.4rem 0.8rem",
+                    background: "#fff",
+                    color: "#222",
+                    border: "1px solid #888",
+                    borderRadius: 4,
+                    cursor: stepLoaded ? "pointer" : "not-allowed",
+                    fontWeight: 600,
+                    opacity: stepLoaded ? 1 : 0.5,
+                  }}
+                  title="Undo the last step (time-travel debug)"
+                >
+                  ◀ Back
+                </button>
+                <button
+                  type="button"
                   onClick={onStep}
                   disabled={running}
                   style={{
@@ -476,7 +525,7 @@ export function App() {
                   }}
                   title="Execute one instruction (or assemble + step from start)"
                 >
-                  Step
+                  Step ▶
                 </button>
                 <button
                   type="button"

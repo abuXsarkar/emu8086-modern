@@ -15,7 +15,8 @@
     clippy::cast_sign_loss,
     clippy::many_single_char_names,
     clippy::doc_overindented_list_items,
-    clippy::similar_names
+    clippy::similar_names,
+    clippy::doc_markdown
 )]
 
 use serde::{Deserialize, Serialize};

@@ -130,6 +130,29 @@ pub struct Cpu {
     /// Append-only log of every `OUT` (port, value, width). Used by the
     /// virtual-device tests to assert "the program wrote X to port Y".
     pub out_log: Vec<PortWrite>,
+    /// Per-step undo stack. Each entry captures everything we need to
+    /// rewind one `step()`. Bounded by the caller (the IDE caps it at
+    /// a configurable budget); when full we simply stop recording so
+    /// step_back returns false past the recorded horizon.
+    pub history: Vec<Snapshot>,
+    /// Hard cap on history depth. Default 0 (recording disabled);
+    /// raise via `set_history_capacity` from the host.
+    pub history_capacity: usize,
+}
+
+/// Per-step undo record. Storing only the *changes* (registers before
+/// the step + memory writes the step performed + a few prefix lengths
+/// of the side-effect logs) keeps the per-step memory cost in the tens
+/// of bytes for typical programs, vs the megabytes a full state copy
+/// would need.
+#[derive(Debug, Clone)]
+pub struct Snapshot {
+    pub regs: Registers,
+    pub halted: bool,
+    pub exit_code: Option<u8>,
+    pub mem_writes: Vec<(usize, u8)>,
+    pub stdout_len: usize,
+    pub out_log_len: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -164,7 +187,37 @@ impl Cpu {
             exit_code: None,
             ports: vec![0u8; 0x10000].into_boxed_slice(),
             out_log: Vec::new(),
+            history: Vec::new(),
+            history_capacity: 0,
         }
+    }
+
+    /// Enable per-step recording up to `cap` snapshots deep. Raising
+    /// the cap doesn't backfill; lowering it truncates from the front
+    /// (oldest first). Pass 0 to disable recording.
+    pub fn set_history_capacity(&mut self, cap: usize) {
+        self.history_capacity = cap;
+        if self.history.len() > cap {
+            let drop = self.history.len() - cap;
+            self.history.drain(..drop);
+        }
+    }
+
+    /// Drop one step from history.
+    /// Returns true if there was something to undo. After step_back the
+    /// CPU is exactly where it was just before the most recent step()
+    /// — same registers, same memory, same stdout.
+    pub fn step_back(&mut self) -> bool {
+        let Some(snap) = self.history.pop() else {
+            return false;
+        };
+        self.regs = snap.regs;
+        self.halted = snap.halted;
+        self.exit_code = snap.exit_code;
+        self.mem.restore_writes(&snap.mem_writes);
+        self.stdout.truncate(snap.stdout_len);
+        self.out_log.truncate(snap.out_log_len);
+        true
     }
 
     /// Initialize a `.com`-style program: code at `cs:0x100`, IP at 0x100, all
@@ -744,6 +797,17 @@ impl Cpu {
                 stopped: Some(StopReason::Halted),
                 ..Default::default()
             };
+        }
+        // Begin tracking memory writes for this step so step_back can
+        // undo them. Cheaper than cloning the whole 1 MiB Memory.
+        let recording = self.history_capacity > 0;
+        let regs_before = self.regs;
+        let halted_before = self.halted;
+        let exit_code_before = self.exit_code;
+        let stdout_len_before = self.stdout.len();
+        let out_log_len_before = self.out_log.len();
+        if recording {
+            self.mem.start_tracking();
         }
         let ip_before = self.regs.ip;
         let mut rec = StepRecord::default();
@@ -1730,6 +1794,27 @@ impl Cpu {
             self.regs.ip = ip_before;
         }
         rec.bytes_consumed = (self.regs.ip.wrapping_sub(ip_before)) as u8;
+        // Record this step into history. We do it for every step,
+        // including HLT/Unimplemented/DivideError, so the user can step
+        // back across them.
+        if recording {
+            let mem_writes = self.mem.take_tracking();
+            // Maintain the capacity budget by dropping the oldest
+            // snapshot when we're full. VecDeque would be tidier but
+            // we already have Vec everywhere and the cost of a Vec
+            // shift at the cap boundary is amortized fine.
+            if self.history.len() >= self.history_capacity {
+                self.history.remove(0);
+            }
+            self.history.push(Snapshot {
+                regs: regs_before,
+                halted: halted_before,
+                exit_code: exit_code_before,
+                mem_writes,
+                stdout_len: stdout_len_before,
+                out_log_len: out_log_len_before,
+            });
+        }
         rec
     }
 
@@ -2042,6 +2127,78 @@ mod tests {
         assert!(c.regs.flags.get(Flags::SF));
         assert!(!c.regs.flags.get(Flags::ZF));
         assert!(!c.regs.flags.get(Flags::CF));
+    }
+
+    // ---- step_back / time-travel (M4.1) ----
+
+    #[test]
+    fn step_back_undoes_register_changes() {
+        let mut c = Cpu::new();
+        c.set_history_capacity(64);
+        c.load_com(&[0xB8, 0x34, 0x12, 0xBB, 0x78, 0x56, 0xF4]);
+        // mov ax, 0x1234 ; mov bx, 0x5678 ; hlt
+        c.step(); // mov ax
+        c.step(); // mov bx
+        assert_eq!(c.regs.ax, 0x1234);
+        assert_eq!(c.regs.bx, 0x5678);
+        assert!(c.step_back()); // undo mov bx
+        assert_eq!(c.regs.bx, 0);
+        assert_eq!(c.regs.ax, 0x1234);
+        assert!(c.step_back()); // undo mov ax
+        assert_eq!(c.regs.ax, 0);
+        assert!(!c.step_back()); // empty history
+    }
+
+    #[test]
+    fn step_back_undoes_memory_writes() {
+        let mut c = Cpu::new();
+        c.set_history_capacity(64);
+        c.load_com(&[
+            0xBB, 0x00, 0x02, // mov bx, 0x0200
+            0xB0, 0xAA, // mov al, 0xAA
+            0x88, 0x07, // mov [bx], al
+            0xF4,
+        ]);
+        c.run_until_halt(64);
+        let lin = seg_off(c.regs.ds, 0x0200);
+        assert_eq!(c.mem.read_u8(lin), 0xAA);
+        // Roll back the store: byte at DS:0x0200 should revert to 0.
+        c.step_back(); // hlt
+        assert!(c.step_back()); // mov [bx], al — the actual write
+        assert_eq!(c.mem.read_u8(lin), 0);
+    }
+
+    #[test]
+    fn step_back_undoes_stdout_emission() {
+        let mut c = Cpu::new();
+        c.set_history_capacity(64);
+        c.load_com(&[
+            0xB4, 0x02, // mov ah, 02h
+            0xB2, b'X', // mov dl, 'X'
+            0xCD, 0x21, // int 21h
+            0xF4,
+        ]);
+        c.run_until_halt(64);
+        assert_eq!(c.stdout, b"X");
+        c.step_back(); // hlt
+        assert!(c.step_back()); // int 21h — must trim the X off stdout
+        assert_eq!(c.stdout, b"");
+    }
+
+    #[test]
+    fn history_capacity_is_a_hard_cap() {
+        let mut c = Cpu::new();
+        c.set_history_capacity(2);
+        // Three independent register writes.
+        c.load_com(&[0xB0, 0x01, 0xB0, 0x02, 0xB0, 0x03, 0xF4]);
+        for _ in 0..3 {
+            c.step();
+        }
+        assert_eq!(c.history.len(), 2);
+        // We can only step back twice; the first write is lost to the cap.
+        assert!(c.step_back());
+        assert!(c.step_back());
+        assert!(!c.step_back());
     }
 
     // ---- M1.8: MUL/DIV, IN/OUT, misc utility opcodes ----
