@@ -422,6 +422,129 @@ impl Cpu {
         }
     }
 
+    /// Step SI by `delta` bytes, observing the direction flag (DF=0 means
+    /// forward, DF=1 means backward, per the 8086 manual).
+    fn string_step_si(&mut self, delta: u16) {
+        if self.regs.flags.get(Flags::DF) {
+            self.regs.si = self.regs.si.wrapping_sub(delta);
+        } else {
+            self.regs.si = self.regs.si.wrapping_add(delta);
+        }
+    }
+
+    fn string_step_di(&mut self, delta: u16) {
+        if self.regs.flags.get(Flags::DF) {
+            self.regs.di = self.regs.di.wrapping_sub(delta);
+        } else {
+            self.regs.di = self.regs.di.wrapping_add(delta);
+        }
+    }
+
+    /// Run a string opcode (or one with a REP prefix) to completion. The
+    /// `op` is the actual string-op opcode (A4/A5/A6/A7/AA/AB/AC/AD/AE/AF).
+    /// `rep` is None for one-shot, Some(true) for REPE/REP, Some(false)
+    /// for REPNE. For MOVS/STOS/LODS the REPE/REPNE distinction is ignored
+    /// (any REP form just repeats CX times).
+    #[allow(clippy::too_many_lines)]
+    fn run_string_op(&mut self, op: u8, rep: Option<bool>, override_seg: Option<SegReg>) {
+        let zf_check = matches!(op, 0xA6 | 0xA7 | 0xAE | 0xAF); // CMPS/SCAS
+                                                                // Hard cap: at most 0x10000 iterations per single REP, since CX is u16.
+        let cap = if rep.is_some() { 0x10000u32 } else { 1 };
+        let ds_or_override = override_seg.unwrap_or(SegReg::Ds);
+        for _ in 0..cap {
+            if rep.is_some() && self.regs.cx == 0 {
+                break;
+            }
+            match op {
+                // MOVSB / MOVSW
+                0xA4 | 0xA5 => {
+                    let src_lin = seg_off(self.read_seg(ds_or_override), self.regs.si);
+                    let dst_lin = seg_off(self.regs.es, self.regs.di);
+                    if op == 0xA4 {
+                        let v = self.mem.read_u8(src_lin);
+                        self.mem.write_u8(dst_lin, v);
+                        self.string_step_si(1);
+                        self.string_step_di(1);
+                    } else {
+                        let v = self.mem.read_u16(src_lin);
+                        self.mem.write_u16(dst_lin, v);
+                        self.string_step_si(2);
+                        self.string_step_di(2);
+                    }
+                }
+                // CMPSB / CMPSW
+                0xA6 | 0xA7 => {
+                    let src_lin = seg_off(self.read_seg(ds_or_override), self.regs.si);
+                    let dst_lin = seg_off(self.regs.es, self.regs.di);
+                    if op == 0xA6 {
+                        let a = self.mem.read_u8(src_lin);
+                        let b = self.mem.read_u8(dst_lin);
+                        let (_, f) = alu::sub8(a, b, false);
+                        self.regs.flags = f;
+                        self.string_step_si(1);
+                        self.string_step_di(1);
+                    } else {
+                        let a = self.mem.read_u16(src_lin);
+                        let b = self.mem.read_u16(dst_lin);
+                        let (_, f) = alu::sub16(a, b, false);
+                        self.regs.flags = f;
+                        self.string_step_si(2);
+                        self.string_step_di(2);
+                    }
+                }
+                // STOSB / STOSW — store AL/AX into ES:DI.
+                0xAA | 0xAB => {
+                    let dst_lin = seg_off(self.regs.es, self.regs.di);
+                    if op == 0xAA {
+                        self.mem.write_u8(dst_lin, self.regs.al());
+                        self.string_step_di(1);
+                    } else {
+                        self.mem.write_u16(dst_lin, self.regs.ax);
+                        self.string_step_di(2);
+                    }
+                }
+                // LODSB / LODSW — load AL/AX from DS:SI.
+                0xAC | 0xAD => {
+                    let src_lin = seg_off(self.read_seg(ds_or_override), self.regs.si);
+                    if op == 0xAC {
+                        self.regs.set_al(self.mem.read_u8(src_lin));
+                        self.string_step_si(1);
+                    } else {
+                        self.regs.ax = self.mem.read_u16(src_lin);
+                        self.string_step_si(2);
+                    }
+                }
+                // SCASB / SCASW — compare AL/AX with [ES:DI].
+                0xAE | 0xAF => {
+                    let dst_lin = seg_off(self.regs.es, self.regs.di);
+                    if op == 0xAE {
+                        let (_, f) = alu::sub8(self.regs.al(), self.mem.read_u8(dst_lin), false);
+                        self.regs.flags = f;
+                        self.string_step_di(1);
+                    } else {
+                        let (_, f) = alu::sub16(self.regs.ax, self.mem.read_u16(dst_lin), false);
+                        self.regs.flags = f;
+                        self.string_step_di(2);
+                    }
+                }
+                _ => unreachable!("run_string_op called with non-string opcode"),
+            }
+            if rep.is_none() {
+                break;
+            }
+            self.regs.cx = self.regs.cx.wrapping_sub(1);
+            // ZF-aware termination for CMPS/SCAS only.
+            if zf_check {
+                let zf = self.regs.flags.get(Flags::ZF);
+                match rep {
+                    Some(true) if !zf => break, // REPE: stop on first not-equal
+                    Some(false) if zf => break, // REPNE: stop on first equal
+                    _ => {}
+                }
+            }
+        }
+    }
+
     fn push_u16(&mut self, value: u16) {
         self.regs.sp = self.regs.sp.wrapping_sub(2);
         let lin = seg_off(self.regs.ss, self.regs.sp);
@@ -575,10 +698,15 @@ impl Cpu {
         let ip_before = self.regs.ip;
         let mut rec = StepRecord::default();
 
-        // Consume any segment-override prefixes (LOCK and REP land in their
-        // own slices; on 8086 multiple prefixes are accepted with the last
-        // override winning).
+        // Consume any prefix bytes. On 8086 multiple prefixes are accepted
+        // with the last of each kind winning. We track:
+        //   - segment override (26/2E/36/3E)
+        //   - REP family (F2 REPNE, F3 REP/REPE) for string ops
+        //   - LOCK (F0) is silently absorbed; it has no observable effect
+        //     in our single-thread emulator and is rare in lab programs.
         let mut override_seg: Option<SegReg> = None;
+        // None = no rep, Some(true) = REPE/REP, Some(false) = REPNE.
+        let mut rep: Option<bool> = None;
         let op = loop {
             let b = self.fetch_u8();
             match b {
@@ -586,6 +714,9 @@ impl Cpu {
                 0x2E => override_seg = Some(SegReg::Cs),
                 0x36 => override_seg = Some(SegReg::Ss),
                 0x3E => override_seg = Some(SegReg::Ds),
+                0xF0 => {} // LOCK — absorbed
+                0xF2 => rep = Some(false),
+                0xF3 => rep = Some(true),
                 _ => break b,
             }
         };
@@ -1217,6 +1348,26 @@ impl Cpu {
                 rec.mnemonic = "ret";
             }
 
+            // ---- string ops ----
+            // MOVSB/MOVSW (A4/A5), CMPSB/CMPSW (A6/A7), STOSB/STOSW (AA/AB),
+            // LODSB/LODSW (AC/AD), SCASB/SCASW (AE/AF). Honors a REP/REPE/REPNE
+            // prefix; for MOVS/STOS/LODS the prefix's E/NE bit is ignored.
+            0xA4..=0xA7 | 0xAA..=0xAF => {
+                self.run_string_op(op, rep, override_seg);
+                rec.mnemonic = match op {
+                    0xA4 => "movsb",
+                    0xA5 => "movsw",
+                    0xA6 => "cmpsb",
+                    0xA7 => "cmpsw",
+                    0xAA => "stosb",
+                    0xAB => "stosw",
+                    0xAC => "lodsb",
+                    0xAD => "lodsw",
+                    0xAE => "scasb",
+                    _ => "scasw",
+                };
+            }
+
             // INT n — software interrupt. We intercept DOS-style services
             // and route the rest through `handle_int` (currently most are
             // unimplemented). The full IVT-driven path is deferred until
@@ -1654,6 +1805,104 @@ mod tests {
         assert!(c.regs.flags.get(Flags::SF));
         assert!(!c.regs.flags.get(Flags::ZF));
         assert!(!c.regs.flags.get(Flags::CF));
+    }
+
+    // ---- string ops (M1.7) ----
+
+    #[test]
+    fn movsb_with_rep_copies_bytes() {
+        let mut c = Cpu::new();
+        c.load_com(&[
+            0xBE, 0x00, 0x02, // mov si, 0x0200
+            0xBF, 0x00, 0x03, // mov di, 0x0300
+            0xB9, 0x05, 0x00, // mov cx, 5
+            0xFC, // cld
+            0xF3, 0xA4, // rep movsb
+            0xF4, // hlt
+        ]);
+        for (i, b) in b"hello".iter().enumerate() {
+            c.mem.write_u8(seg_off(c.regs.ds, 0x0200 + i as u16), *b);
+        }
+        c.run_until_halt(64);
+        let mut out = [0u8; 5];
+        for (i, slot) in out.iter_mut().enumerate() {
+            *slot = c.mem.read_u8(seg_off(c.regs.es, 0x0300 + i as u16));
+        }
+        assert_eq!(&out, b"hello");
+        assert_eq!(c.regs.cx, 0);
+        assert_eq!(c.regs.si, 0x0205);
+        assert_eq!(c.regs.di, 0x0305);
+    }
+
+    #[test]
+    fn stosb_with_rep_fills_buffer() {
+        let mut c = Cpu::new();
+        c.load_com(&[
+            0xB0, b'X', 0xBF, 0x00, 0x04, 0xB9, 0x04, 0x00, 0xFC, 0xF3, 0xAA, 0xF4,
+        ]);
+        c.run_until_halt(64);
+        for i in 0..4 {
+            assert_eq!(
+                c.mem.read_u8(seg_off(c.regs.es, 0x0400 + i)),
+                b'X',
+                "byte {i}"
+            );
+        }
+        assert_eq!(c.regs.cx, 0);
+    }
+
+    #[test]
+    fn lodsb_decrements_si_when_df_set() {
+        let mut c = Cpu::new();
+        c.load_com(&[0xFD, 0xBE, 0x00, 0x05, 0xAC, 0xF4]);
+        c.mem.write_u8(seg_off(c.regs.ds, 0x0500), 0x42);
+        c.run_until_halt(64);
+        assert_eq!(c.regs.al(), 0x42);
+        assert_eq!(c.regs.si, 0x04FF);
+    }
+
+    #[test]
+    fn repe_cmpsb_stops_on_mismatch() {
+        let mut c = Cpu::new();
+        c.load_com(&[
+            0xBE, 0x00, 0x06, // mov si, 0x0600
+            0xBF, 0x00, 0x07, // mov di, 0x0700
+            0xB9, 0x06, 0x00, // mov cx, 6
+            0xFC, // cld
+            0xF3, 0xA6, // repe cmpsb
+            0xF4, // hlt
+        ]);
+        for (i, b) in b"abcXef".iter().enumerate() {
+            c.mem.write_u8(seg_off(c.regs.ds, 0x0600 + i as u16), *b);
+        }
+        for (i, b) in b"abcdef".iter().enumerate() {
+            c.mem.write_u8(seg_off(c.regs.es, 0x0700 + i as u16), *b);
+        }
+        c.run_until_halt(64);
+        // a,b,c match (CX 6→3), X≠d on iter 4 (CX 3→2 then break), so CX = 2.
+        assert_eq!(c.regs.cx, 2);
+        assert!(!c.regs.flags.get(Flags::ZF));
+    }
+
+    #[test]
+    fn scasb_finds_terminator() {
+        // strlen via SCASB: AL=0; REPNE SCASB ends on the null terminator.
+        let mut c = Cpu::new();
+        c.load_com(&[
+            0xB0, 0x00, // mov al, 0
+            0xBF, 0x00, 0x08, // mov di, 0x0800
+            0xB9, 0xFF, 0xFF, // mov cx, 0xFFFF
+            0xFC, // cld
+            0xF2, 0xAE, // repne scasb
+            0xF4, // hlt
+        ]);
+        for (i, b) in b"world\0".iter().enumerate() {
+            c.mem.write_u8(seg_off(c.regs.es, 0x0800 + i as u16), *b);
+        }
+        c.run_until_halt(64);
+        // CX dropped from 0xFFFF by 6 (5 letters + terminator).
+        assert_eq!(c.regs.cx, 0xFFF9);
+        assert!(c.regs.flags.get(Flags::ZF));
     }
 
     // ---- INT 21h DOS subset (M1.6) ----
