@@ -3,29 +3,24 @@ import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor as MonacoEditor } from "monaco-editor";
 import init, { compile_and_run } from "../../wasm-api/pkg/emu8086_wasm_api.js";
 import { ASM_LANG_ID, registerAsm8086 } from "./asm8086";
+import { EXAMPLES } from "./examples";
+
+const STORAGE_KEY = "emu8086-modern.source";
 
 type CoreState =
   | { kind: "loading" }
   | { kind: "ready" }
   | { kind: "error"; message: string };
 
-const SAMPLE = `; hello.asm — type a program and click Run.
-;
-; Try changing the message, or replacing it with your own
-; computation. Memory operands, EQU constants, REP prefixes,
-; the full ALU group, shifts, MUL/DIV, INT 21h — all work.
-
-org 100h
-
-    mov dx, msg
-    mov ah, 9
-    int 21h
-
-    mov ax, 4C00h
-    int 21h
-
-msg: db "Hello, world!$"
-`;
+function initialSource(): string {
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored && stored.trim().length > 0) return stored;
+  } catch {
+    // localStorage may be unavailable (private browsing, sandboxed iframe).
+  }
+  return EXAMPLES[0].source;
+}
 
 interface RunRegisters {
   ax: number;
@@ -105,9 +100,18 @@ function flagBadge(name: string, on: boolean) {
 
 export function App() {
   const [coreState, setCoreState] = useState<CoreState>({ kind: "loading" });
-  const [source, setSource] = useState<string>(SAMPLE);
+  const [source, setSource] = useState<string>(() => initialSource());
   const [result, setResult] = useState<RunResultJson | null>(null);
   const [running, setRunning] = useState<boolean>(false);
+
+  // Persist on every edit, throttled implicitly by React's batching.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, source);
+    } catch {
+      // ignore — see initialSource for the same defensive pattern.
+    }
+  }, [source]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,10 +135,21 @@ export function App() {
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
 
+  const runRef = useRef<() => void>(() => {});
+
   const onEditorMount: OnMount = (editor, monacoApi: Monaco) => {
     editorRef.current = editor;
     monacoRef.current = monacoApi;
     registerAsm8086(monacoApi);
+    // Ctrl/Cmd+Enter runs the program. We close over a ref so the
+    // command always sees the latest `onRun` (closures inside Monaco
+    // commands aren't re-bound on re-render).
+    editor.addCommand(
+      monacoApi.KeyMod.CtrlCmd | monacoApi.KeyCode.Enter,
+      () => {
+        runRef.current();
+      },
+    );
   };
 
   // Project the assembler's diagnostic onto a Monaco marker so the
@@ -199,6 +214,10 @@ export function App() {
       setRunning(false);
     }
   };
+  // Keep the ref pointing at the latest onRun closure.
+  useEffect(() => {
+    runRef.current = onRun;
+  });
 
   const errorLine = result?.error?.line ?? 0;
   const sourceLines = useMemo(() => source.split("\n"), [source]);
@@ -244,22 +263,51 @@ export function App() {
               }}
             >
               <strong>source</strong>
-              <button
-                type="button"
-                onClick={onRun}
-                disabled={running}
-                style={{
-                  padding: "0.4rem 1rem",
-                  background: "#0a7",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: running ? "default" : "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                {running ? "running…" : "Run"}
-              </button>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    const ex = EXAMPLES.find((x) => x.id === e.target.value);
+                    if (ex) {
+                      setSource(ex.source);
+                      e.currentTarget.value = "";
+                    }
+                  }}
+                  style={{
+                    padding: "0.35rem 0.5rem",
+                    border: "1px solid #ccc",
+                    borderRadius: 4,
+                    background: "#fff",
+                    fontSize: 13,
+                  }}
+                  title="Replace the editor with one of the bundled examples"
+                >
+                  <option value="" disabled>
+                    Load example…
+                  </option>
+                  {EXAMPLES.map((ex) => (
+                    <option key={ex.id} value={ex.id}>
+                      {ex.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={onRun}
+                  disabled={running}
+                  style={{
+                    padding: "0.4rem 1rem",
+                    background: "#0a7",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: running ? "default" : "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  {running ? "running…" : "Run (Ctrl+Enter)"}
+                </button>
+              </div>
             </div>
 
             <div
