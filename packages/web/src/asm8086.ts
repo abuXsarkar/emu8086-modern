@@ -203,4 +203,131 @@ export function registerAsm8086(monacoApi: typeof monaco): void {
       { open: "'", close: "'" },
     ],
   });
+
+  monacoApi.languages.registerCompletionItemProvider(ASM_LANG_ID, {
+    provideCompletionItems(model, position) {
+      const word = model.getWordUntilPosition(position);
+      const range = {
+        startLineNumber: position.lineNumber,
+        startColumn: word.startColumn,
+        endLineNumber: position.lineNumber,
+        endColumn: word.endColumn,
+      };
+      const k = monacoApi.languages.CompletionItemKind;
+      const snip =
+        monacoApi.languages.CompletionItemInsertTextRule
+          .InsertAsSnippet;
+      return {
+        suggestions: [
+          {
+            label: "hello",
+            kind: k.Snippet,
+            detail: "DOS hello-world template",
+            insertText: [
+              "org 100h",
+              "",
+              "    mov dx, msg",
+              "    mov ah, 9",
+              "    int 21h",
+              "",
+              "    mov ax, 4C00h",
+              "    int 21h",
+              "",
+              "msg: db \"${1:Hello, world!}$\"",
+            ].join("\n"),
+            insertTextRules: snip,
+            range,
+          },
+          {
+            label: "putc",
+            kind: k.Snippet,
+            detail: "INT 21h fn 02h: print one char (DL)",
+            insertText: [
+              "mov dl, '${1:A}'",
+              "mov ah, 02h",
+              "int 21h",
+            ].join("\n"),
+            insertTextRules: snip,
+            range,
+          },
+          {
+            label: "puts",
+            kind: k.Snippet,
+            detail: "INT 21h fn 09h: print $-terminated string at DS:DX",
+            insertText: [
+              "mov dx, ${1:msg}",
+              "mov ah, 9",
+              "int 21h",
+            ].join("\n"),
+            insertTextRules: snip,
+            range,
+          },
+          {
+            label: "exit",
+            kind: k.Snippet,
+            detail: "INT 21h fn 4Ch: terminate with exit code AL",
+            insertText: ["mov ax, 4C00h", "int 21h"].join("\n"),
+            insertTextRules: snip,
+            range,
+          },
+          {
+            label: "loop-cx",
+            kind: k.Snippet,
+            detail: "Basic LOOP body with CX iterations",
+            insertText: [
+              "mov cx, ${1:10}",
+              "${2:loop_top}:",
+              "    ${3:; body}",
+              "    loop ${2:loop_top}",
+            ].join("\n"),
+            insertTextRules: snip,
+            range,
+          },
+          {
+            label: "save-regs",
+            kind: k.Snippet,
+            detail: "Push/pop pattern to preserve registers across a body",
+            insertText: [
+              "push ax",
+              "push bx",
+              "push cx",
+              "push dx",
+              "    ${1:; body}",
+              "pop dx",
+              "pop cx",
+              "pop bx",
+              "pop ax",
+            ].join("\n"),
+            insertTextRules: snip,
+            range,
+          },
+          {
+            label: "print-digit",
+            kind: k.Snippet,
+            detail: "Print AL as a single ASCII decimal digit (0-9)",
+            insertText: [
+              "mov dl, al",
+              "add dl, '0'",
+              "mov ah, 02h",
+              "int 21h",
+            ].join("\n"),
+            insertTextRules: snip,
+            range,
+          },
+          {
+            label: "newline",
+            kind: k.Snippet,
+            detail: "Print a single newline (LF)",
+            insertText: [
+              "mov dl, 10",
+              "mov ah, 02h",
+              "int 21h",
+            ].join("\n"),
+            insertTextRules: snip,
+            range,
+          },
+        ],
+      };
+    },
+  });
 }
