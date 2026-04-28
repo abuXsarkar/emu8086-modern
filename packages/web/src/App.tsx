@@ -17,7 +17,45 @@ type CoreState =
   | { kind: "ready" }
   | { kind: "error"; message: string };
 
+/// Decode a share-link fragment, e.g. "#code=eyJ...". Returns the
+/// decoded source on success, or null if the fragment is missing or
+/// unreadable. Encoding is base64url so the link survives copy/paste
+/// across chat clients without escaping issues.
+function decodeShareFragment(): string | null {
+  if (typeof window === "undefined") return null;
+  const hash = window.location.hash.replace(/^#/, "");
+  if (!hash) return null;
+  const params = new URLSearchParams(hash);
+  const encoded = params.get("code");
+  if (!encoded) return null;
+  try {
+    // base64url → standard base64 → bytes → UTF-8 string.
+    const normalized = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    const padded =
+      normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder("utf-8").decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function encodeShareFragment(source: string): string {
+  const bytes = new TextEncoder().encode(source);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  const b64 = btoa(binary);
+  // base64url: + → -, / → _, drop trailing =
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 function initialSource(): string {
+  // A share-link in the URL beats both stored buffer and default —
+  // someone went to the trouble of sending a specific program.
+  const shared = decodeShareFragment();
+  if (shared !== null) return shared;
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored && stored.trim().length > 0) return stored;
@@ -141,6 +179,7 @@ export function App() {
   const [memHex, setMemHex] = useState<string>("");
   const [port199, setPort199] = useState<number>(0);
   const [port4, setPort4] = useState<number>(0);
+  const [shareToast, setShareToast] = useState<string>("");
   const emuRef = useRef<Emulator | null>(null);
   const lineMapRef = useRef<Array<[number, number]>>([]);
   const decorationsRef = useRef<string[]>([]);
@@ -159,6 +198,28 @@ export function App() {
     if (!emuRef.current) return;
     setPort199(emuRef.current.port_byte(199));
     setPort4(emuRef.current.port_byte(4));
+  }
+
+  function onShare() {
+    const fragment = encodeShareFragment(source);
+    const url = `${window.location.origin}${window.location.pathname}#code=${fragment}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard
+        .writeText(url)
+        .then(() => {
+          setShareToast("link copied to clipboard");
+          window.setTimeout(() => setShareToast(""), 1800);
+        })
+        .catch(() => {
+          window.location.hash = `code=${fragment}`;
+          setShareToast("link is in the URL bar");
+          window.setTimeout(() => setShareToast(""), 1800);
+        });
+    } else {
+      window.location.hash = `code=${fragment}`;
+      setShareToast("link is in the URL bar");
+      window.setTimeout(() => setShareToast(""), 1800);
+    }
   }
 
   // Persist on every edit, throttled implicitly by React's batching.
@@ -570,6 +631,27 @@ export function App() {
                 >
                   {running ? "running…" : "Run (Ctrl+Enter)"}
                 </button>
+                <button
+                  type="button"
+                  onClick={onShare}
+                  style={{
+                    padding: "0.4rem 0.8rem",
+                    background: "#fff",
+                    color: "#222",
+                    border: "1px solid #888",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                  title="Copy a URL that re-opens this program in the IDE"
+                >
+                  ↗ Share
+                </button>
+                {shareToast && (
+                  <span style={{ color: "#0a7", fontSize: 13, marginLeft: 4 }}>
+                    {shareToast}
+                  </span>
+                )}
               </div>
             </div>
 
