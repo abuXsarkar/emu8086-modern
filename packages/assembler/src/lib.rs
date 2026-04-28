@@ -42,6 +42,7 @@ use thiserror::Error;
 pub mod encode;
 pub mod lexer;
 pub mod parser;
+pub mod preprocess;
 
 pub use encode::AssembledImage;
 pub use lexer::Span;
@@ -58,11 +59,18 @@ pub enum AssembleError {
     #[error("{0}")]
     Lex(#[from] lexer::LexError),
     #[error("{0}")]
+    Preprocess(preprocess::PreprocessError),
+    #[error("{0}")]
     Parse(parser::ParseError),
     #[error("{0}")]
     Encode(encode::EncodeError),
 }
 
+impl From<preprocess::PreprocessError> for AssembleError {
+    fn from(e: preprocess::PreprocessError) -> Self {
+        Self::Preprocess(e)
+    }
+}
 impl From<parser::ParseError> for AssembleError {
     fn from(e: parser::ParseError) -> Self {
         Self::Parse(e)
@@ -78,6 +86,7 @@ impl From<encode::EncodeError> for AssembleError {
 /// applied to label addresses).
 pub fn assemble(source: &str, _dialect: Dialect) -> Result<AssembledImage, AssembleError> {
     let toks = lexer::tokenize(source)?;
+    let toks = preprocess::expand_macros(&toks)?;
     let prog = parser::parse(&toks)?;
     let img = encode::encode(&prog)?;
     Ok(img)

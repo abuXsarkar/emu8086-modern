@@ -121,6 +121,9 @@ fn run_inner(source: &str, max_steps: usize) -> RunResult {
                     le.msg.clone(),
                     emu8086_assembler::Span::new(le.pos, le.pos + 1),
                 ),
+                emu8086_assembler::AssembleError::Preprocess(pe) => {
+                    ("preprocess", pe.message, pe.span)
+                }
                 emu8086_assembler::AssembleError::Parse(pe) => ("parse", pe.message, pe.span),
                 emu8086_assembler::AssembleError::Encode(ee) => ("encode", ee.message, ee.span),
             };
@@ -217,6 +220,9 @@ impl Emulator {
                         le.msg.clone(),
                         emu8086_assembler::Span::new(le.pos, le.pos + 1),
                     ),
+                    emu8086_assembler::AssembleError::Preprocess(pe) => {
+                        ("preprocess", pe.message, pe.span)
+                    }
                     emu8086_assembler::AssembleError::Parse(pe) => ("parse", pe.message, pe.span),
                     emu8086_assembler::AssembleError::Encode(ee) => ("encode", ee.message, ee.span),
                 };

@@ -203,6 +203,7 @@ fn print_assemble_error(input: &Path, source: &str, err: &AssembleError) {
             emu8086_assembler::Span::new(e.pos, e.pos + 1),
             e.msg.clone(),
         ),
+        AssembleError::Preprocess(e) => (e.span, e.message.clone()),
         AssembleError::Parse(e) => (e.span, e.message.clone()),
         AssembleError::Encode(e) => (e.span, e.message.clone()),
     };
