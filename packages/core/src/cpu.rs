@@ -1122,6 +1122,90 @@ impl Cpu {
                 self.regs.ip = self.pop_u16();
                 rec.mnemonic = "ret";
             }
+
+            // ---- shifts and rotates ----
+            // D0 r/m8, 1   ; D1 r/m16, 1   ; D2 r/m8, CL   ; D3 r/m16, CL
+            // sub-op (mod-r/m reg field):
+            //   0 ROL | 1 ROR | 2 RCL | 3 RCR | 4 SHL | 5 SHR | 6 SHL alias | 7 SAR
+            0xD0..=0xD3 => {
+                let modrm = self.fetch_u8();
+                let sub = (modrm >> 3) & 0b111;
+                let count: u8 = if op & 0b10 == 0 { 1 } else { self.regs.cl() };
+                let prev = self.regs.flags;
+                if op & 0b01 == 0 {
+                    // 8-bit form.
+                    let a = self.read_rm8(modrm, override_seg);
+                    let (v, f, name) = match sub {
+                        0 => {
+                            let (v, f) = alu::rol8(a, count, prev);
+                            (v, f, "rol")
+                        }
+                        1 => {
+                            let (v, f) = alu::ror8(a, count, prev);
+                            (v, f, "ror")
+                        }
+                        2 => {
+                            let (v, f) = alu::rcl8(a, count, prev);
+                            (v, f, "rcl")
+                        }
+                        3 => {
+                            let (v, f) = alu::rcr8(a, count, prev);
+                            (v, f, "rcr")
+                        }
+                        4 | 6 => {
+                            let (v, f) = alu::shl8(a, count, prev);
+                            (v, f, "shl")
+                        }
+                        5 => {
+                            let (v, f) = alu::shr8(a, count, prev);
+                            (v, f, "shr")
+                        }
+                        _ => {
+                            let (v, f) = alu::sar8(a, count, prev);
+                            (v, f, "sar")
+                        }
+                    };
+                    self.regs.flags = f;
+                    self.write_rm8(modrm, override_seg, v);
+                    rec.mnemonic = name;
+                } else {
+                    // 16-bit form.
+                    let a = self.read_rm16(modrm, override_seg);
+                    let (v, f, name) = match sub {
+                        0 => {
+                            let (v, f) = alu::rol16(a, count, prev);
+                            (v, f, "rol")
+                        }
+                        1 => {
+                            let (v, f) = alu::ror16(a, count, prev);
+                            (v, f, "ror")
+                        }
+                        2 => {
+                            let (v, f) = alu::rcl16(a, count, prev);
+                            (v, f, "rcl")
+                        }
+                        3 => {
+                            let (v, f) = alu::rcr16(a, count, prev);
+                            (v, f, "rcr")
+                        }
+                        4 | 6 => {
+                            let (v, f) = alu::shl16(a, count, prev);
+                            (v, f, "shl")
+                        }
+                        5 => {
+                            let (v, f) = alu::shr16(a, count, prev);
+                            (v, f, "shr")
+                        }
+                        _ => {
+                            let (v, f) = alu::sar16(a, count, prev);
+                            (v, f, "sar")
+                        }
+                    };
+                    self.regs.flags = f;
+                    self.write_rm16(modrm, override_seg, v);
+                    rec.mnemonic = name;
+                }
+            }
             // RET imm16 — C2 (near, then SP += imm16).
             0xC2 => {
                 let imm = self.fetch_u16();
@@ -1453,6 +1537,52 @@ mod tests {
         assert!(c.regs.flags.get(Flags::SF));
         assert!(!c.regs.flags.get(Flags::ZF));
         assert!(!c.regs.flags.get(Flags::CF));
+    }
+
+    // ---- shifts and rotates (M1.5) ----
+
+    #[test]
+    fn shl_al_by_1() {
+        // mov al, 0x81 ; shl al, 1 ; hlt   →  AL = 0x02, CF=1, OF=1
+        // SHL r/m8, 1 = D0 /4 ; mod=11 rm=AL → modrm 0xE0
+        let c = run(&[0xB0, 0x81, 0xD0, 0xE0, 0xF4]);
+        assert_eq!(c.regs.al(), 0x02);
+        assert!(c.regs.flags.get(Flags::CF));
+        assert!(c.regs.flags.get(Flags::OF));
+    }
+
+    #[test]
+    fn shr_al_by_cl() {
+        // mov al, 0x80 ; mov cl, 3 ; shr al, cl ; hlt → AL = 0x10
+        // SHR r/m8, CL = D2 /5 ; mod=11 rm=AL → modrm 0xE8
+        let c = run(&[0xB0, 0x80, 0xB1, 0x03, 0xD2, 0xE8, 0xF4]);
+        assert_eq!(c.regs.al(), 0x10);
+        assert!(!c.regs.flags.get(Flags::CF)); // last-out bit was 0
+    }
+
+    #[test]
+    fn sar_preserves_sign_runtime() {
+        // mov ax, 0x8000 ; mov cl, 4 ; sar ax, cl ; hlt → AX = 0xF800
+        // SAR r/m16, CL = D3 /7 ; rm=AX → modrm 0xF8
+        let c = run(&[0xB8, 0x00, 0x80, 0xB1, 0x04, 0xD3, 0xF8, 0xF4]);
+        assert_eq!(c.regs.ax, 0xF800);
+        assert!(c.regs.flags.get(Flags::SF));
+    }
+
+    #[test]
+    fn rol_then_ror_recovers_value() {
+        // mov al, 0xC3 ; rol al, 1 ; ror al, 1 ; hlt → AL back to 0xC3
+        // ROL = D0 /0 → modrm 0xC0 ; ROR = D0 /1 → modrm 0xC8
+        let c = run(&[0xB0, 0xC3, 0xD0, 0xC0, 0xD0, 0xC8, 0xF4]);
+        assert_eq!(c.regs.al(), 0xC3);
+    }
+
+    #[test]
+    fn rcl_uses_input_carry() {
+        // stc ; mov al, 0 ; rcl al, 1 ; hlt → AL = 0x01 (CF rotated in at bottom)
+        // RCL = D0 /2 → modrm 0xD0
+        let c = run(&[0xF9, 0xB0, 0x00, 0xD0, 0xD0, 0xF4]);
+        assert_eq!(c.regs.al(), 0x01);
     }
 
     // ---- stack + control flow (M1.4) ----
