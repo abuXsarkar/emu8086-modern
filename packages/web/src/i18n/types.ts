@@ -81,7 +81,7 @@ export interface Strings {
   themeLight: string;
 }
 
-export type LocaleId = "en" | "es";
+export type LocaleId = "en" | "es" | "bn";
 
 export interface Locale {
   id: LocaleId;
