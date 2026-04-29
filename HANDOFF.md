@@ -152,7 +152,7 @@ In priority order if I were continuing:
 ### Known minor gaps / nits
 
 - The `traffic.asm` and `seven_seg.asm` example tests are smoke (they don't currently capture port state via the CLI). They run cleanly but the integration test only asserts they assemble + halt cleanly. To actually verify device state via the CLI, expose `out_log` from the wasm-api to the CLI, or add a `--port-snapshot` JSON dump. (The new `led_matrix.asm` does have a wasm-api unit test that covers row state, so it's a step ahead of the other two.)
-- The `compat-report` walks `examples/` recursively, which means `examples/lib/stdlib.asm` gets included in the corpus. It currently passes (assembles to 0 bytes — all macros, no instructions) but it's a slightly weird signal. Either add a `.compat-ignore` mechanism or have compat-report skip files that match `lib/*.asm`.
+- `compat-report` now accepts repeatable `--exclude PATTERN` (substring match against the relative path), so the standard `--exclude lib/` invocation drops include-only macro packs from the corpus. The default walk still pulls them in — that was deliberate, since hard-coding "skip lib/" would surprise anyone using the dir for something else.
 - The README claims "200+ tests" — actual is around 200, but the precise count creeps up commit-to-commit. If you care about tightness, parameterize via a small `cargo xtask count-tests` script.
 
 ---

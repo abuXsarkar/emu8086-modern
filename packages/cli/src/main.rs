@@ -87,7 +87,15 @@ enum Cmd {
     /// Walk a directory of `.asm` files and report which assemble
     /// cleanly under this dialect. Pass a single file path to check
     /// just that one. Exit 0 if everything passes, 1 otherwise.
-    CompatReport { path: PathBuf },
+    CompatReport {
+        path: PathBuf,
+        /// Skip files whose relative path contains the given substring.
+        /// Repeat the flag for multiple patterns. Common case:
+        /// `--exclude lib/` to ignore include-only macro packs that
+        /// assemble to zero bytes.
+        #[arg(long = "exclude", value_name = "PATTERN")]
+        excludes: Vec<String>,
+    },
 }
 
 fn run_image(image_bytes: &[u8], max_steps: usize) -> anyhow::Result<u8> {
@@ -282,7 +290,7 @@ fn main() -> ExitCode {
             submission,
             junit,
         } => grade::run_spec(&spec, &submission, junit.as_deref()),
-        Cmd::CompatReport { path } => compat::run(&path),
+        Cmd::CompatReport { path, excludes } => compat::run(&path, &excludes),
     };
     match result {
         Ok(code) => ExitCode::from(code),
