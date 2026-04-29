@@ -236,6 +236,20 @@ impl Parser<'_> {
                     }));
                     return Ok(());
                 }
+                // MASM-style inline data declaration: `NAME DB items…`
+                // is sugar for `NAME: db items…`. We emit the label
+                // here and let the directive-keyword fallthrough below
+                // parse the remainder of the line normally.
+                Token::Ident(maybe_kw)
+                    if matches!(maybe_kw.to_ascii_lowercase().as_str(), "db" | "dw" | "dd") =>
+                {
+                    items.push(Item::Label {
+                        name: name.clone(),
+                        span: lab.span,
+                    });
+                    // pos is already at the directive keyword; do not
+                    // restore. Fall through to head-matching below.
+                }
                 _ => {
                     self.pos = saved;
                 }
