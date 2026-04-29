@@ -331,6 +331,15 @@ impl Emulator {
         rows
     }
 
+    /// The full current console output as a UTF-8 string (replacing
+    /// invalid bytes with U+FFFD). Surfaced so the IDE can re-sync
+    /// after a `step_back` — that call truncates `cpu.stdout` on the
+    /// core side, but the React state has no diff to apply.
+    #[must_use]
+    pub fn stdout(&self) -> String {
+        String::from_utf8_lossy(&self.cpu.stdout).into_owned()
+    }
+
     #[must_use]
     pub fn memory_hex(&self, seg: u16, off: u16, len: u16) -> String {
         use std::fmt::Write as _;

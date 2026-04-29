@@ -425,18 +425,15 @@ export function App() {
     const json = emuRef.current.step_back();
     const parsed = JSON.parse(json) as StepResult;
     if (!parsed.mnemonic) return; // empty history
+    // The core has already truncated cpu.stdout to the pre-step length;
+    // pull the synced view so the output panel un-prints any byte that
+    // the rolled-back instruction had emitted.
+    const syncedStdout = emuRef.current.stdout();
     setResult((prev) => {
       if (!prev) return prev;
-      // We can't recover the historical stdout precisely from the API
-      // shape (step_back doesn't return what was trimmed). The wasm
-      // side has already truncated cpu.stdout; we don't have direct
-      // access to it from here. Pragmatic compromise: pop the last
-      // visible newline-or-character if the previous step emitted any
-      // bytes. For the IDE's pedagogical use case, what matters most
-      // is that registers and the highlight roll back — stdout being
-      // a tick "behind" is acceptable.
       return {
         ...prev,
+        stdout: syncedStdout,
         registers: parsed.registers,
         halted: parsed.halted,
         exit_code: parsed.exit_code ?? prev.exit_code,

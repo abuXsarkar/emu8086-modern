@@ -151,8 +151,7 @@ In priority order if I were continuing:
 
 ### Known minor gaps / nits
 
-- The `traffic.asm` and `seven_seg.asm` example tests are smoke (they don't currently capture port state via the CLI). They run cleanly but the integration test only asserts they assemble + halt cleanly. To actually verify device state via the CLI, expose `out_log` from the wasm-api to the CLI, or add a `--port-snapshot` JSON dump.
-- `step_back`'s stdout truncation is "best-effort" in the IDE — the wasm-api strips bytes correctly on the core side, but the React state's accumulated `result.stdout` doesn't get re-synced after every back-step (a step that printed a byte will visually leave the byte until you Reset). Easy fix: have `step_back` return the post-step stdout directly so the IDE can replace, not append.
+- The `traffic.asm` and `seven_seg.asm` example tests are smoke (they don't currently capture port state via the CLI). They run cleanly but the integration test only asserts they assemble + halt cleanly. To actually verify device state via the CLI, expose `out_log` from the wasm-api to the CLI, or add a `--port-snapshot` JSON dump. (The new `led_matrix.asm` does have a wasm-api unit test that covers row state, so it's a step ahead of the other two.)
 - The `compat-report` walks `examples/` recursively, which means `examples/lib/stdlib.asm` gets included in the corpus. It currently passes (assembles to 0 bytes — all macros, no instructions) but it's a slightly weird signal. Either add a `.compat-ignore` mechanism or have compat-report skip files that match `lib/*.asm`.
 - The README claims "200+ tests" — actual is around 200, but the precise count creeps up commit-to-commit. If you care about tightness, parameterize via a small `cargo xtask count-tests` script.
 
