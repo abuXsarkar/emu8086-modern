@@ -1,3 +1,4 @@
+import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor as MonacoEditor } from "monaco-editor";
@@ -15,7 +16,10 @@ import { Screen } from "./Screen";
 import { Keyboard } from "./Keyboard";
 import { Printer } from "./Printer";
 import { Robot } from "./Robot";
+import { DebuggerListPanel } from "./DebuggerListPanel";
 import { LOCALES, useLocaleId, useStrings } from "./i18n";
+import type { RunRegisters } from "./registers";
+import { formatValue, evaluate } from "./debugExpr";
 
 const STORAGE_KEY = "emu8086-modern.source";
 
@@ -70,23 +74,6 @@ function initialSource(): string {
     // localStorage may be unavailable (private browsing, sandboxed iframe).
   }
   return EXAMPLES[0].source;
-}
-
-interface RunRegisters {
-  ax: number;
-  bx: number;
-  cx: number;
-  dx: number;
-  si: number;
-  di: number;
-  bp: number;
-  sp: number;
-  ip: number;
-  cs: number;
-  ds: number;
-  es: number;
-  ss: number;
-  flags: number;
 }
 
 interface RunErrorJson {
@@ -179,6 +166,14 @@ function flagBadge(name: string, on: boolean) {
 export function App() {
   const t = useStrings();
   const [localeId, setLocaleIdValue] = useLocaleId();
+  const [editorTheme, setEditorTheme] = useState<"vs-dark" | "vs">(() => {
+    try {
+      const v = localStorage.getItem("emu8086.editor-theme");
+      return v === "vs" ? "vs" : "vs-dark";
+    } catch {
+      return "vs-dark";
+    }
+  });
   const [coreState, setCoreState] = useState<CoreState>({ kind: "loading" });
   const [source, setSource] = useState<string>(() => initialSource());
   const [result, setResult] = useState<RunResultJson | null>(null);
@@ -186,6 +181,10 @@ export function App() {
   const [stepLog, setStepLog] = useState<string>("");
   const [stepLoaded, setStepLoaded] = useState<boolean>(false);
   const [memHex, setMemHex] = useState<string>("");
+  // Snapshot of memHex *before* the latest refresh, so the panel can
+  // highlight cells that changed since the last step. Stored in a ref
+  // (not state) so it doesn't trigger an extra render.
+  const memHexPrevRef = useRef<string>("");
   const [port199, setPort199] = useState<number>(0);
   const [port4, setPort4] = useState<number>(0);
   const [ledRows, setLedRows] = useState<Uint8Array>(() => new Uint8Array(8));
@@ -198,6 +197,41 @@ export function App() {
   const [robotY, setRobotY] = useState<number>(0);
   const [robotHeading, setRobotHeading] = useState<number>(0);
   const [robotCommands, setRobotCommands] = useState<number>(0);
+  // Debugger watches + breakpoints. Both persisted via localStorage so
+  // they survive a page reload alongside the source buffer.
+  const [watches, setWatches] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("emu8086.watches");
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.filter((s) => typeof s === "string") : [];
+    } catch {
+      return [];
+    }
+  });
+  const [breakpoints, setBreakpoints] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("emu8086.breakpoints");
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.filter((s) => typeof s === "string") : [];
+    } catch {
+      return [];
+    }
+  });
+  const [breakpointHit, setBreakpointHit] = useState<string>("");
+  useEffect(() => {
+    try {
+      localStorage.setItem("emu8086.watches", JSON.stringify(watches));
+    } catch {
+      /* ignore */
+    }
+  }, [watches]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("emu8086.breakpoints", JSON.stringify(breakpoints));
+    } catch {
+      /* ignore */
+    }
+  }, [breakpoints]);
   const [shareToast, setShareToast] = useState<string>("");
   const emuRef = useRef<Emulator | null>(null);
   const lineMapRef = useRef<Array<[number, number]>>([]);
@@ -210,7 +244,10 @@ export function App() {
     if (!emuRef.current || !regs) return;
     const ds = regs.ds ?? 0;
     const hex = emuRef.current.memory_hex(ds, 0x0100, 256);
-    setMemHex(hex);
+    setMemHex((prev) => {
+      memHexPrevRef.current = prev;
+      return hex;
+    });
   }
 
   function refreshDevices() {
@@ -374,17 +411,102 @@ export function App() {
   const onRun = () => {
     if (coreState.kind !== "ready") return;
     setRunning(true);
+    setBreakpointHit("");
     try {
-      const json = compile_and_run(source, 1_000_000);
-      const parsed = JSON.parse(json) as RunResultJson;
-      setResult(parsed);
-      applyDiagnostic(parsed.error);
-      // Run-to-completion clears the per-step highlight: there's no
-      // single "current" instruction left.
-      lineMapRef.current = parsed.line_map ?? [];
-      highlightLine(0);
+      // Fast path when no breakpoints are set: run all the way through
+      // in wasm with no JS round-trips per instruction.
+      if (breakpoints.length === 0) {
+        const json = compile_and_run(source, 1_000_000);
+        const parsed = JSON.parse(json) as RunResultJson;
+        setResult(parsed);
+        applyDiagnostic(parsed.error);
+        lineMapRef.current = parsed.line_map ?? [];
+        highlightLine(0);
+        setStepLog("");
+        setStepLoaded(false);
+        refreshDevices();
+        refreshMemHex(parsed.registers);
+        return;
+      }
+      // Breakpoint path: load the source into the stateful Emulator
+      // and step one instruction at a time, checking every predicate
+      // after each step. Slower per-step but unlocks "stop when AX==5".
+      if (!emuRef.current) return;
+      const loadJson = emuRef.current.load_source(source);
+      const loadParsed = JSON.parse(loadJson) as RunResultJson;
+      if (!loadParsed.ok || loadParsed.error) {
+        setResult(loadParsed);
+        applyDiagnostic(loadParsed.error);
+        lineMapRef.current = [];
+        return;
+      }
+      lineMapRef.current = loadParsed.line_map ?? [];
+      let stepsTaken = 0;
+      let halted = false;
+      let exit_code: number | null = null;
+      let stdoutAcc = "";
+      let lastRegs: RunRegisters = loadParsed.registers;
+      let hit: { expr: string; index: number } | null = null;
+      const cap = 1_000_000;
+      for (let n = 0; n < cap; n++) {
+        const stepRes = JSON.parse(emuRef.current.step()) as StepResult;
+        stepsTaken += 1;
+        stdoutAcc += stepRes.stdout;
+        lastRegs = stepRes.registers;
+        if (stepRes.halted) {
+          halted = true;
+          exit_code = stepRes.exit_code ?? null;
+          break;
+        }
+        // Predicate evaluation: stop the run as soon as ANY breakpoint
+        // expression evaluates truthy. Index used so the toast can
+        // point at the offending row in the breakpoint list.
+        for (let i = 0; i < breakpoints.length; i++) {
+          const r = evaluate(breakpoints[i], stepRes.registers);
+          if (r.ok && r.truthy) {
+            hit = { expr: breakpoints[i], index: i };
+            break;
+          }
+        }
+        if (hit) break;
+      }
+      const synthesized: RunResultJson = {
+        ok: true,
+        stdout: stdoutAcc,
+        stdout_lossy: false,
+        exit_code,
+        steps: stepsTaken,
+        halted,
+        error: null,
+        registers: lastRegs,
+        bytes: loadParsed.bytes,
+        origin: loadParsed.origin,
+        line_map: loadParsed.line_map,
+      };
+      setResult(synthesized);
+      applyDiagnostic(null);
       setStepLog("");
-      setStepLoaded(false);
+      setStepLoaded(true);
+      refreshDevices();
+      refreshMemHex(lastRegs);
+      if (hit) {
+        setBreakpointHit(`paused at \`${hit.expr}\` (#${hit.index + 1})`);
+        // Highlight the source line of the *current* instruction so
+        // the student can see where execution stopped.
+        const ip = lastRegs.ip;
+        const lm = lineMapRef.current;
+        for (let i = lm.length - 1; i >= 0; i--) {
+          if (ip >= lm[i][0]) {
+            const sourceOff = lm[i][1];
+            const lineNum = byteOffsetToLine(source, sourceOff);
+            highlightLine(lineNum);
+            break;
+          }
+        }
+      } else {
+        highlightLine(0);
+      }
+      return;
     } catch (e) {
       const err: RunErrorJson = {
         stage: "host",
@@ -554,27 +676,53 @@ export function App() {
             {".  "}
           </p>
         </div>
-        <select
-          aria-label={t.languageLabel}
-          value={localeId}
-          onChange={(e) =>
-            setLocaleIdValue(e.target.value as typeof localeId)
-          }
-          style={{
-            padding: "0.25rem 0.5rem",
-            border: "1px solid #ccc",
-            borderRadius: 4,
-            background: "#fff",
-            fontSize: 12,
-          }}
-          title={t.languageLabel}
-        >
-          {LOCALES.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.name}
-            </option>
-          ))}
-        </select>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select
+            aria-label="Editor theme"
+            value={editorTheme}
+            onChange={(e) => {
+              const v = e.target.value === "vs" ? "vs" : "vs-dark";
+              setEditorTheme(v);
+              try {
+                localStorage.setItem("emu8086.editor-theme", v);
+              } catch {
+                /* ignore */
+              }
+            }}
+            style={{
+              padding: "0.25rem 0.5rem",
+              border: "1px solid #ccc",
+              borderRadius: 4,
+              background: "#fff",
+              fontSize: 12,
+            }}
+            title="Editor theme"
+          >
+            <option value="vs-dark">Dark</option>
+            <option value="vs">Light</option>
+          </select>
+          <select
+            aria-label={t.languageLabel}
+            value={localeId}
+            onChange={(e) =>
+              setLocaleIdValue(e.target.value as typeof localeId)
+            }
+            style={{
+              padding: "0.25rem 0.5rem",
+              border: "1px solid #ccc",
+              borderRadius: 4,
+              background: "#fff",
+              fontSize: 12,
+            }}
+            title={t.languageLabel}
+          >
+            {LOCALES.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </header>
 
       {coreState.kind === "loading" && <p>{t.loadingWasm}</p>}
@@ -721,6 +869,40 @@ export function App() {
             </div>
 
             <div
+              onDragOver={(e) => {
+                // Only accept text-file drops; suppress the browser's
+                // default "open as page" behavior.
+                if (
+                  e.dataTransfer.types.includes("Files") ||
+                  e.dataTransfer.types.includes("text/plain")
+                ) {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "copy";
+                }
+              }}
+              onDrop={(e) => {
+                const file = e.dataTransfer.files?.[0];
+                if (!file) return;
+                e.preventDefault();
+                // Hard-cap at 1 MiB so a stray binary drop doesn't OOM
+                // the editor; lab .asm files are tens of KB at most.
+                if (file.size > 1024 * 1024) {
+                  setShareToast("file too large (>1 MiB)");
+                  setTimeout(() => setShareToast(""), 2500);
+                  return;
+                }
+                file
+                  .text()
+                  .then((text) => {
+                    setSource(text);
+                    setShareToast(`loaded ${file.name}`);
+                    setTimeout(() => setShareToast(""), 2500);
+                  })
+                  .catch(() => {
+                    setShareToast("couldn't read file");
+                    setTimeout(() => setShareToast(""), 2500);
+                  });
+              }}
               style={{
                 border: "1px solid #2a2a2a",
                 borderRadius: 4,
@@ -732,7 +914,7 @@ export function App() {
                 height="100%"
                 defaultLanguage={ASM_LANG_ID}
                 language={ASM_LANG_ID}
-                theme="vs-dark"
+                theme={editorTheme}
                 value={source}
                 onChange={(v) => setSource(v ?? "")}
                 onMount={onEditorMount}
@@ -933,18 +1115,78 @@ export function App() {
                 >
                   {(() => {
                     const tokens = memHex.split(" ");
-                    const rows: string[] = [];
+                    const prev = memHexPrevRef.current.split(" ");
+                    const rowJSX: React.ReactNode[] = [];
                     for (let i = 0; i < tokens.length; i += 16) {
                       const off = (0x100 + i)
                         .toString(16)
                         .toUpperCase()
                         .padStart(4, "0");
-                      rows.push(`${off}: ${tokens.slice(i, i + 16).join(" ")}`);
+                      const cells: React.ReactNode[] = [];
+                      for (let j = 0; j < 16 && i + j < tokens.length; j++) {
+                        const tok = tokens[i + j];
+                        const changed =
+                          prev.length > i + j && prev[i + j] !== tok;
+                        cells.push(
+                          <span
+                            key={j}
+                            style={{
+                              color: changed ? "#fc3" : undefined,
+                              fontWeight: changed ? 700 : undefined,
+                            }}
+                          >
+                            {j > 0 ? " " : ""}
+                            {tok}
+                          </span>,
+                        );
+                      }
+                      rowJSX.push(
+                        <div key={i}>
+                          <span style={{ color: "#888" }}>{off}: </span>
+                          {cells}
+                        </div>,
+                      );
                     }
-                    return rows.join("\n");
+                    return rowJSX;
                   })()}
                 </pre>
               </div>
+            )}
+
+            <DebuggerListPanel
+              title="watches"
+              placeholder="AX, ZF, IP — register or flag"
+              entries={watches}
+              setEntries={setWatches}
+              renderValue={(expr) =>
+                result?.registers ? formatValue(expr, result.registers) : "—"
+              }
+            />
+
+            <DebuggerListPanel
+              title="breakpoints"
+              placeholder="AX == 5 — pauses Run when truthy"
+              entries={breakpoints}
+              setEntries={setBreakpoints}
+              renderValue={(expr) =>
+                result?.registers
+                  ? evaluate(expr, result.registers).ok
+                    ? formatValue(expr, result.registers)
+                    : "?"
+                  : "—"
+              }
+            />
+            {breakpointHit && (
+              <p
+                style={{
+                  marginTop: 6,
+                  color: "#fc3",
+                  fontSize: 12,
+                  fontFamily: "ui-monospace, Menlo, monospace",
+                }}
+              >
+                {breakpointHit}
+              </p>
             )}
           </aside>
         </div>

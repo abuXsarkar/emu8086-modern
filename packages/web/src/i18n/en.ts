@@ -53,7 +53,7 @@ export const en: Locale = {
     footerLink: "github",
     footerSeparator: " · ",
     footerNote:
-      "time-travel debugger and virtual peripherals arrive in M4 — see ROADMAP.md.",
+      "M0–M5 shipped at alpha; eight live peripherals + time-travel debugger + breakpoints + watches.",
 
     languageLabel: "Language",
   },
