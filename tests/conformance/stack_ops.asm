@@ -8,9 +8,7 @@
 ;   PUSHF / POPF       — flag word push/pop
 ;
 ; The program restores SP to its starting value at the end so a
-; conformance run finishes with a clean stack frame. Memory-form
-; PUSH/POP (`push word ptr [bx+si]`, FF /6 / 8F /0) is not yet wired
-; in the encoder — see HANDOFF "known gaps".
+; conformance run finishes with a clean stack frame.
 
 org 100h
 
@@ -39,6 +37,13 @@ org 100h
     ; CS is push-only; balance with one extra pop into AX.
     push cs
     pop  ax
+
+    ; --- memory-form r/m16 push / pop (FF /6 and 8F /0) ---
+    mov bx, 0x300
+    mov si, 0x10
+    mov word ptr [bx+si], 0x55AA
+    push word ptr [bx+si]
+    pop  word ptr [bx+si]
 
     ; --- flag word round trip ---
     pushf
