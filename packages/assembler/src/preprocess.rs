@@ -131,6 +131,66 @@ fn expand_into(toks: &[Spanned], state: &mut ExpandState) -> Result<Vec<Spanned>
                     }
                 }
             }
+
+            // `INVOKE name` → rewrite to `call name`. We only support the
+            // zero-argument form for now: `INVOKE name, args...` raises a
+            // clear error rather than silently dropping the args, which
+            // would miscompile programs that expect a real argument push
+            // sequence. The intent is to make the trivial cases (e.g.
+            // `INVOKE init_screen`) just work without papering over the
+            // harder cases.
+            if let Some(t) = toks.get(i) {
+                if let Token::Ident(name) = &t.tok {
+                    if name.eq_ignore_ascii_case("invoke") {
+                        let invoke_span = t.span;
+                        // Expect: invoke <name> [, <args>]
+                        let target = match toks.get(i + 1) {
+                            Some(
+                                tt @ Spanned {
+                                    tok: Token::Ident(_),
+                                    ..
+                                },
+                            ) => tt.clone(),
+                            _ => {
+                                return Err(PreprocessError {
+                                    span: invoke_span,
+                                    message: "INVOKE expects a procedure name".into(),
+                                });
+                            }
+                        };
+                        // After the name, the rest of the line must be empty
+                        // (just a Newline / Eof).
+                        match toks.get(i + 2).map(|t| &t.tok) {
+                            Some(Token::Newline | Token::Eof) | None => {}
+                            Some(Token::Comma) => {
+                                return Err(PreprocessError {
+                                    span: invoke_span,
+                                    message: "INVOKE with arguments is not supported in this assembler — pass args via PUSH or registers and use CALL directly".into(),
+                                });
+                            }
+                            Some(other) => {
+                                return Err(PreprocessError {
+                                    span: invoke_span,
+                                    message: format!("unexpected `{other}` after INVOKE target"),
+                                });
+                            }
+                        }
+                        // Emit `call <name>` followed by a newline (to close
+                        // out the statement).
+                        out.push(Spanned {
+                            tok: Token::Ident("call".into()),
+                            span: invoke_span,
+                        });
+                        out.push(target);
+                        out.push(Spanned {
+                            tok: Token::Newline,
+                            span: invoke_span,
+                        });
+                        i = consume_line(toks, i + 2);
+                        continue;
+                    }
+                }
+            }
         }
 
         // Detect a macro definition: Ident NAME, Ident("MACRO"), then params
@@ -441,6 +501,28 @@ mod tests {
         let expanded = expand_macros(&toks).unwrap();
         let s = tokens_to_strings(&expanded).join(" ");
         assert!(s.contains("identifier `proc_count`"));
+    }
+
+    #[test]
+    fn invoke_rewrites_to_call_for_zero_arg_form() {
+        let src = "    invoke greet\n";
+        let toks = tokenize(src).unwrap();
+        let expanded = expand_macros(&toks).unwrap();
+        let s = tokens_to_strings(&expanded).join(" ");
+        assert!(s.contains("identifier `call`"), "got: {s}");
+        assert!(s.contains("identifier `greet`"), "got: {s}");
+        assert!(!s.to_ascii_lowercase().contains("invoke"), "got: {s}");
+    }
+
+    #[test]
+    fn invoke_with_args_emits_clear_error() {
+        let src = "    invoke greet, ax, 1\n";
+        let toks = tokenize(src).unwrap();
+        let err = expand_macros(&toks).unwrap_err();
+        assert!(
+            err.message.contains("INVOKE with arguments"),
+            "got: {err:?}"
+        );
     }
 
     #[test]

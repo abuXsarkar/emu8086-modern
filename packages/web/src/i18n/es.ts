@@ -58,7 +58,7 @@ export const es: Locale = {
     footerLink: "github",
     footerSeparator: " · ",
     footerNote:
-      "el depurador de viaje en el tiempo y los periféricos virtuales llegan en M4 — consulta ROADMAP.md.",
+      "M0–M5 listos en versión alfa; ocho periféricos en vivo + depurador de viaje en el tiempo + puntos de interrupción + observadores.",
 
     languageLabel: "Idioma",
   },
