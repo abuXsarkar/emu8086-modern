@@ -2,12 +2,20 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+// Public path the bundle will be served from. Defaults to "/" for the
+// dev server and self-host setups; the GitHub Pages workflow sets it
+// to "/emu8086-modern/" so the wasm fetch + PWA scope land at the
+// right URL when the site is served from a sub-path. Custom-domain
+// deployments leave it at "/".
+const BASE = process.env.VITE_BASE ?? "/";
+
 // PWA configuration: installs a service worker that pre-caches the app
 // shell + the wasm core so the IDE works offline (e.g. for Chromebook
 // labs in airplane mode). `registerType: "autoUpdate"` keeps the SW
 // fresh across visits without prompting the user, which is the right
 // default for a single-user pedagogical tool.
 export default defineConfig({
+  base: BASE,
   plugins: [
     react(),
     VitePWA({
@@ -31,8 +39,8 @@ export default defineConfig({
         theme_color: "#0a7",
         background_color: "#ffffff",
         display: "standalone",
-        start_url: "/",
-        scope: "/",
+        start_url: BASE,
+        scope: BASE,
         icons: [
           {
             src: "icon.svg",
