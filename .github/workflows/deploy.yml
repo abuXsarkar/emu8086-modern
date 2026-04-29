@@ -66,6 +66,14 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          # Self-bootstrap: create the Pages site on first run instead
+          # of failing with "Not Found" when the repo doesn't have one
+          # yet. After this lands, the only thing the maintainer has
+          # to do is *select* "GitHub Actions" as the source under
+          # Settings → Pages — which the second deploy attempt will
+          # have already auto-set if Pages was previously off.
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
