@@ -114,7 +114,8 @@ emu8086-modern/
 │   ├── screen.asm              → writes "HELLO" to text-mode video memory (B800:0000)
 │   ├── proc_hello.asm          → ".MODEL SMALL"/PROC/ENDP/END idiom, prints "Hello from PROC!"
 │   └── assignments/sum10/      → autograder sample (spec.yml + submission.asm)
-├── tests/            # cross-package conformance harnesses (not yet populated)
+├── tests/
+│   └── conformance/  # 8 feature-grouped 8086 programs — regression net for the assembler
 └── .github/
     ├── workflows/ci.yml          # Rust + web + markdownlint matrix
     ├── actions/grade/action.yml  # composite Action for GH Classroom
@@ -144,8 +145,8 @@ Total tests: **22 test groups, ~200+ tests workspace-wide, all passing.**
 
 In priority order if I were continuing:
 
-1. **Stepper motor + screen + keyboard peripherals** (M4.2 long tail). Same shape as the existing devices.
-2. **Conformance corpus** (M1 exit criterion). Walk legacy emu8086 sample programs (the public-domain ones), assemble them via `emu8086 compat-report` (use `--exclude lib/` to drop include-only macro packs), fix any divergences, commit them under `tests/conformance/`.
+1. **Keyboard peripheral** (M4.2 long tail — the only device left from the original list). Polled INT 16h handler in core + a small UI text input in the IDE that pushes scancodes / ASCII bytes into a buffer the program reads. Trickier than the output devices because it needs DOM event plumbing, not just polled state.
+2. **Expand the conformance corpus** with public-domain programs from real-world sources (lab manuals, community repos). The current 8 programs are synthesized to cover the assembler's surface; they're a regression net for what we already encode, not an external compatibility check.
 3. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
 
 ### Known minor gaps / nits
