@@ -65,6 +65,17 @@ jobs:
           VITE_BASE: /${{ github.event.repository.name }}/
 
       - name: Configure Pages
+        # Requires Pages to be enabled on the repo with `Source:
+        # GitHub Actions` *before* the first run. The default
+        # GITHUB_TOKEN can deploy to an existing Pages site but
+        # cannot create one — Pages creation needs repo-Administration
+        # scope, which only a PAT carries. One-time setup:
+        #
+        #   Settings → Pages → Build and deployment →
+        #     Source: GitHub Actions
+        #
+        # After that single click this step is a no-op and the
+        # deploy succeeds on every push.
         uses: actions/configure-pages@v5
 
       - name: Upload artifact

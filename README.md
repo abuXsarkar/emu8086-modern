@@ -112,9 +112,14 @@ the browser via wasm), so any static host works. The repo ships a
 `.github/workflows/deploy.yml` that publishes to GitHub Pages on every
 push to `main`:
 
-1. In the repo's **Settings → Pages**, set **Source = GitHub Actions**.
-2. Push to `main` (or run the workflow manually from the Actions tab).
-3. The deploy step prints the live URL — typically `https://<owner>.github.io/<repo>/`.
+1. **One-time setup**: in the repo on GitHub, go to **Settings →
+   Pages → Build and deployment → Source** and select **GitHub
+   Actions**. Save. (The default `GITHUB_TOKEN` can deploy to Pages
+   but cannot *create* the Pages site — Pages creation requires
+   repo-Administration scope. One UI click here, never again.)
+2. Push to `main` (or run the workflow manually from the Actions
+   tab). The deploy step prints the live URL when it finishes —
+   typically `https://<owner>.github.io/<repo>/`.
 
 For a custom domain (or self-host via the bundled `Dockerfile`), the
 build also accepts `VITE_BASE=/` (the default), so any deployment
