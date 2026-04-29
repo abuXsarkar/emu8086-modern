@@ -215,6 +215,35 @@ no_tens:
 `,
   },
   {
+    id: "proc_hello",
+    label: "proc_hello — `.MODEL SMALL` + PROC/ENDP lab-manual idiom",
+    hint: 'Prints "Hello from PROC!" through the standard MASM-style scaffold',
+    source: `; proc_hello.asm — the lab-manual idiom: .MODEL SMALL header, work
+; in a main PROC ... main ENDP block, END main footer. The assembler
+; treats the segment / model directives as no-ops on our flat .com
+; image, and PROC/ENDP collapse into a plain labeled block.
+
+.MODEL SMALL
+.STACK 100h
+.CODE
+
+org 100h
+
+main PROC NEAR
+    mov dx, msg
+    mov ah, 9
+    int 21h
+
+    mov ax, 4C00h
+    int 21h
+main ENDP
+
+msg: db "Hello from PROC!$"
+
+END main
+`,
+  },
+  {
     id: "led_matrix",
     label: "led_matrix — paint a smiley on the 8x8 LED matrix (ports 9, 10)",
     hint: "Renders an 8x8 sprite via the row-address / row-data port pattern",

@@ -50,11 +50,96 @@ struct ExpandState {
     local_counter: u32,
 }
 
+/// Skip from `start` forward through `toks` until (and including) the
+/// next `Newline` or `Eof`. Returns the index past the consumed line.
+fn consume_line(toks: &[Spanned], start: usize) -> usize {
+    let mut k = start;
+    while let Some(t) = toks.get(k) {
+        match t.tok {
+            Token::Newline => return k + 1,
+            Token::Eof => return k,
+            _ => k += 1,
+        }
+    }
+    k
+}
+
+/// True for MASM-style top-level segment / model directives that we
+/// treat as no-ops in `.com` programs (we already assume tiny model and
+/// a flat code segment). The whole directive line is dropped.
+fn is_dropped_directive(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    matches!(
+        lower.as_str(),
+        ".model"
+            | ".stack"
+            | ".data"
+            | ".code"
+            | ".startup"
+            | ".exit"
+            | "assume"
+            | "end"
+    )
+}
+
 fn expand_into(toks: &[Spanned], state: &mut ExpandState) -> Result<Vec<Spanned>, PreprocessError> {
     let mut out: Vec<Spanned> = Vec::with_capacity(toks.len());
     let mut i = 0;
 
     while i < toks.len() {
+        // Statement start = beginning of input or just after a newline.
+        // We use this guard for directive recognition so an identifier
+        // that happens to share a directive name in operand position
+        // doesn't get rewritten.
+        let at_statement_start = out
+            .last()
+            .is_none_or(|last| matches!(last.tok, Token::Newline));
+
+        if at_statement_start {
+            if let Some(t) = toks.get(i) {
+                if let Token::Ident(name) = &t.tok {
+                    // `.MODEL SMALL`, `.STACK 100h`, `.DATA`, `.CODE`,
+                    // `.STARTUP`, `.EXIT`, `END start`, `ASSUME ...` —
+                    // none of these have meaning for our flat .com
+                    // image. Drop the whole line.
+                    if is_dropped_directive(name) {
+                        i = consume_line(toks, i);
+                        continue;
+                    }
+                }
+            }
+
+            // `name PROC [NEAR|FAR]` → emit `name :` and drop the rest
+            // of the line. The matching `name ENDP` line is dropped by
+            // the next branch. Procedure bodies for our purposes are
+            // just labeled blocks; the program still has to RET out
+            // (which is what every PROC ends with anyway).
+            if let (Some(name_tok), Some(kw_tok)) = (toks.get(i), toks.get(i + 1)) {
+                if let (Token::Ident(name), Token::Ident(kw)) = (&name_tok.tok, &kw_tok.tok) {
+                    if kw.eq_ignore_ascii_case("proc") {
+                        out.push(Spanned {
+                            tok: Token::Ident(name.clone()),
+                            span: name_tok.span,
+                        });
+                        out.push(Spanned {
+                            tok: Token::Colon,
+                            span: name_tok.span,
+                        });
+                        out.push(Spanned {
+                            tok: Token::Newline,
+                            span: name_tok.span,
+                        });
+                        i = consume_line(toks, i + 2);
+                        continue;
+                    }
+                    if kw.eq_ignore_ascii_case("endp") {
+                        i = consume_line(toks, i + 2);
+                        continue;
+                    }
+                }
+            }
+        }
+
         // Detect a macro definition: Ident NAME, Ident("MACRO"), then params
         // and body up to a matching Ident("ENDM").
         if let (Some(name_tok), Some(kw_tok)) = (toks.get(i), toks.get(i + 1)) {
@@ -142,10 +227,9 @@ fn expand_into(toks: &[Spanned], state: &mut ExpandState) -> Result<Vec<Spanned>
         // i.e. either at the very beginning of the program, or
         // immediately after a Newline token. This avoids replacing an
         // identifier that happens to share a macro's name when it
-        // appears in operand position.
-        let at_statement_start = out
-            .last()
-            .is_none_or(|last| matches!(last.tok, Token::Newline));
+        // appears in operand position. (`at_statement_start` was
+        // computed at the top of this loop iteration; `out` hasn't
+        // been touched since.)
         if at_statement_start {
             if let Some(t) = toks.get(i) {
                 if let Token::Ident(name) = &t.tok {
@@ -303,6 +387,64 @@ mod tests {
         let toks = tokenize(src).unwrap();
         let err = expand_macros(&toks).unwrap_err();
         assert!(err.message.contains("missing a closing ENDM"));
+    }
+
+    #[test]
+    fn model_stack_data_code_directives_are_dropped() {
+        // The MASM-style segment / model boilerplate is no-op for our
+        // tiny .com programs. After preprocessing only the `mov ax, bx`
+        // statement should remain.
+        let src = "\
+            .MODEL SMALL\n\
+            .STACK 100h\n\
+            .DATA\n\
+            .CODE\n\
+            ASSUME CS:CODE, DS:DATA\n\
+            mov ax, bx\n\
+            END start\n\
+        ";
+        let toks = tokenize(src).unwrap();
+        let expanded = expand_macros(&toks).unwrap();
+        let s = tokens_to_strings(&expanded).join(" ");
+        assert!(s.contains("identifier `mov`"));
+        assert!(!s.to_ascii_lowercase().contains(".model"), "got: {s}");
+        assert!(!s.to_ascii_lowercase().contains(".stack"), "got: {s}");
+        assert!(!s.to_ascii_lowercase().contains("assume"), "got: {s}");
+        assert!(!s.contains("identifier `END`"), "got: {s}");
+    }
+
+    #[test]
+    fn proc_endp_become_label_then_block() {
+        // `name PROC ... name ENDP` should reduce to `name:` followed
+        // by the body. The RET inside is preserved (it's the procedure
+        // exit). The trailing `name ENDP` is dropped entirely.
+        let src = "\
+            main PROC NEAR\n\
+                mov ax, 1\n\
+                ret\n\
+            main ENDP\n\
+        ";
+        let toks = tokenize(src).unwrap();
+        let expanded = expand_macros(&toks).unwrap();
+        let s = tokens_to_strings(&expanded).join(" ");
+        // A colon should appear right after `main` (the label form).
+        assert!(s.contains("identifier `main` :"), "got: {s}");
+        assert!(s.contains("identifier `ret`"));
+        // ENDP should not have leaked through.
+        assert!(!s.to_ascii_lowercase().contains("endp"), "got: {s}");
+        // PROC keyword itself should also have been consumed.
+        assert!(!s.to_ascii_lowercase().contains("identifier `proc`"), "got: {s}");
+    }
+
+    #[test]
+    fn proc_does_not_match_in_operand_position() {
+        // `proc` mid-line (e.g. as a label argument) shouldn't trigger
+        // the rewrite — the directive only fires at statement start.
+        let src = "    mov ax, proc_count\n";
+        let toks = tokenize(src).unwrap();
+        let expanded = expand_macros(&toks).unwrap();
+        let s = tokens_to_strings(&expanded).join(" ");
+        assert!(s.contains("identifier `proc_count`"));
     }
 
     #[test]

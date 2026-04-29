@@ -110,6 +110,7 @@ emu8086-modern/
 │   ├── seven_seg.asm           → lights all 7 segments of port 199
 │   ├── traffic.asm             → N/S green, E/W red on port 4
 │   ├── led_matrix.asm          → smiley on the 8×8 LED matrix (ports 9 + 10)
+│   ├── proc_hello.asm          → ".MODEL SMALL"/PROC/ENDP/END idiom, prints "Hello from PROC!"
 │   └── assignments/sum10/      → autograder sample (spec.yml + submission.asm)
 ├── tests/            # cross-package conformance harnesses (not yet populated)
 └── .github/
@@ -128,7 +129,7 @@ emu8086-modern/
 | Layer | What works |
 |---|---|
 | **emu8086-core** | Mainline 8086 ISA: registers (with high/low aliasing), 1 MiB segmented memory + mod-r/m, MOV family (incl. LEA, XCHG, segregs, accumulator moffs, LDS/LES), arithmetic with full flag math (CF/OF/SF/ZF/AF/PF), logical, shifts/rotates, stack, control flow (all 16 Jcc + LOOP family + JCXZ + near *and* far CALL/RET/JMP), string ops with REP/REPE/REPNE, MUL/IMUL/DIV/IDIV with DivideError trap, port I/O, software interrupts including DOS INT 21h subset (01h/02h/06h/09h/4Ch), BCD adjusts (DAA/DAS/AAA/AAS/AAM/AAD). **Time-travel debugger** via diff-snapshot `step_back`. ~110 unit tests. |
-| **emu8086-assembler** | Lex + macro preprocess + 2-pass parse + encode for nearly every M1 mnemonic. Directives: `org`, `db`, `dw`, `equ`, `dup`, `BYTE PTR`/`WORD PTR`. User-defined `MACRO`/`ENDM` with positional args, pre-expansion at definition site, `@@`-label uniquing per call. Mod-r/m memory operands like `[bx+si+disp]`. Labels with forward references. ~52 unit tests. |
+| **emu8086-assembler** | Lex + macro preprocess + 2-pass parse + encode for nearly every M1 mnemonic. Directives: `org`, `db`, `dw`, `equ`, `dup`, `BYTE PTR`/`WORD PTR`, plus the MASM-style scaffold (`.MODEL`, `.STACK`, `.DATA`, `.CODE`, `.STARTUP`, `.EXIT`, `ASSUME`, `END`) which is dropped as a no-op, and `name PROC [NEAR\|FAR] ... name ENDP` blocks which collapse into labeled blocks. User-defined `MACRO`/`ENDM` with positional args, pre-expansion at definition site, `@@`-label uniquing per call. Mod-r/m memory operands like `[bx+si+disp]`. Labels with forward references. ~55 unit tests. |
 | **emu8086-cli** | `assemble`, `run`, `run-asm`, `trace` (JSON), `grade` (YAML spec → JUnit XML), `compat-report`, `version`. File-level `include "..."` resolution. ~10 e2e tests. |
 | **emu8086-wasm-api** | `compile_and_run`, stateful `Emulator` class with `load_source`/`step`/`step_back`/`run`, `port_byte`, `memory_hex`. |
 | **Web IDE (@emu8086/web)** | Monaco editor with 8086-asm syntax highlighting, snippets (8 idioms), hover docs (~80 mnemonics), red-squiggle error markers, example loader, localStorage autosave, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, **Reset / ◀ Back / Step ▶ / Run** debug controls, current-IP line highlight that follows source, register/flag/memory hex panels, **7-segment display** + **traffic-light** + **8×8 LED matrix** peripherals updating live as you step. |
@@ -142,12 +143,11 @@ Total tests: **22 test groups, ~200+ tests workspace-wide, all passing.**
 In priority order if I were continuing:
 
 1. **Stepper motor + screen + keyboard peripherals** (M4.2 long tail). Same shape as the existing devices.
-2. **`.MODEL` / `PROC` / `ENDP` directives**. Most lab manuals open with `.MODEL SMALL` and define procedures. The assembler can roughly ignore `.MODEL` (treat as a no-op for `.com` programs) and parse `name PROC ... name ENDP` as a labeled block. Look at `parser.rs` for the place to plug it in (right next to `MACRO`/`ENDM` recognition).
-3. **Conformance corpus** (M1 exit criterion). Walk legacy emu8086 sample programs (the public-domain ones), assemble them via `emu8086 compat-report`, fix any divergences, commit them under `tests/conformance/`.
-4. **Self-host Docker image** (M6.x). A multi-stage `Dockerfile`: stage 1 builds the wasm-api + web; stage 2 is `nginx:alpine` serving `packages/web/dist/`. ~30 lines.
-5. **PWA / service worker**. Vite has a plugin (`vite-plugin-pwa`) that adds offline caching with one config line. Useful for "Chromebook in airplane mode" labs.
-6. **i18n extraction** (M6 deliverable). All UI strings in `packages/web/src/App.tsx` go through a key/value lookup table; baseline English file plus one or two translations.
-7. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
+2. **Conformance corpus** (M1 exit criterion). Walk legacy emu8086 sample programs (the public-domain ones), assemble them via `emu8086 compat-report`, fix any divergences, commit them under `tests/conformance/`.
+3. **Self-host Docker image** (M6.x). A multi-stage `Dockerfile`: stage 1 builds the wasm-api + web; stage 2 is `nginx:alpine` serving `packages/web/dist/`. ~30 lines.
+4. **PWA / service worker**. Vite has a plugin (`vite-plugin-pwa`) that adds offline caching with one config line. Useful for "Chromebook in airplane mode" labs.
+5. **i18n extraction** (M6 deliverable). All UI strings in `packages/web/src/App.tsx` go through a key/value lookup table; baseline English file plus one or two translations.
+6. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
 
 ### Known minor gaps / nits
 
