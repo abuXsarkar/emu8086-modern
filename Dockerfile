@@ -11,8 +11,9 @@
 #   docker run --rm -p 8080:80 emu8086-modern
 # then open http://localhost:8080
 #
-# Image size lands around 25-30 MB (nginx:alpine base + the bundle +
-# the ~170 KB wasm payload).
+# Final image lands around 74 MB (nginx:alpine base + the built web
+# bundle + the ~170 KB wasm payload). The base image accounts for the
+# bulk; the app payload itself is roughly 370 KB JS+wasm.
 
 # ---------- stage 1: wasm ----------
 # Use the latest stable rust slim; the workspace's rust-toolchain.toml

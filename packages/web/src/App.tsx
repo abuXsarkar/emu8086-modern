@@ -12,6 +12,7 @@ import { TrafficLight } from "./TrafficLight";
 import { LedMatrix } from "./LedMatrix";
 import { Stepper } from "./Stepper";
 import { Screen } from "./Screen";
+import { Keyboard } from "./Keyboard";
 import { LOCALES, useLocaleId, useStrings } from "./i18n";
 
 const STORAGE_KEY = "emu8086-modern.source";
@@ -189,6 +190,7 @@ export function App() {
   const [port7, setPort7] = useState<number>(0);
   const [stepperSteps, setStepperSteps] = useState<number>(0);
   const [videoText, setVideoText] = useState<string>("");
+  const [pendingKeys, setPendingKeys] = useState<number>(0);
   const [shareToast, setShareToast] = useState<string>("");
   const emuRef = useRef<Emulator | null>(null);
   const lineMapRef = useRef<Array<[number, number]>>([]);
@@ -212,6 +214,13 @@ export function App() {
     setPort7(emuRef.current.port_byte(7));
     setStepperSteps(emuRef.current.stepper_steps());
     setVideoText(emuRef.current.video_text());
+    setPendingKeys(emuRef.current.key_buffer_len());
+  }
+
+  function pushKey(byte: number) {
+    if (!emuRef.current) return;
+    emuRef.current.push_key(byte);
+    setPendingKeys(emuRef.current.key_buffer_len());
   }
 
   function onShare() {
@@ -873,6 +882,7 @@ export function App() {
                 <TrafficLight value={port4} />
                 <LedMatrix rows={ledRows} />
                 <Stepper value={port7} steps={stepperSteps} />
+                <Keyboard pendingKeys={pendingKeys} onKey={pushKey} />
               </div>
               <div style={{ marginTop: 8 }}>
                 <Screen text={videoText} />

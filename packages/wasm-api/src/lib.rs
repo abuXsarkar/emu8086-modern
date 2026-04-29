@@ -311,6 +311,22 @@ impl Emulator {
         self.cpu.out_log.len() as u32
     }
 
+    /// Push one byte into the keyboard FIFO, simulating a keystroke
+    /// from the host. The program drains it via `IN AL, 0x60`, INT 16h
+    /// AH=00h, INT 21h AH=01h, or INT 21h AH=06h with DL=0xFF. The IDE
+    /// translates DOM `keydown` events into ASCII bytes and feeds them
+    /// here.
+    pub fn push_key(&mut self, byte: u8) {
+        self.cpu.push_key(byte);
+    }
+
+    /// Number of keystrokes still waiting in the FIFO. The IDE renders
+    /// this as a "pending keys" counter.
+    #[must_use]
+    pub fn key_buffer_len(&self) -> u32 {
+        self.cpu.key_buffer.len() as u32
+    }
+
     /// Snapshot of the 80×25 text-mode video buffer at linear address
     /// 0xB8000 as a string of 25 newline-separated rows of 80
     /// characters. Non-printable bytes are rendered as spaces; the
@@ -573,6 +589,37 @@ mod tests {
         );
     }
 
+    #[test]
+    fn push_key_then_in_al_60_round_trip() {
+        // mov al, 0 ; in al, 0x60 ; hlt — pre-push 'k' so the program
+        // reads it back from the keyboard data port. Also verifies the
+        // key_buffer_len counter drops back to 0.
+        let mut e = Emulator::new();
+        let load = e.load_source("in al, 0x60\nhlt\n");
+        assert!(load.contains("\"ok\":true"), "load failed: {load}");
+        e.push_key(b'k');
+        assert_eq!(e.key_buffer_len(), 1);
+        let _ = e.run(100);
+        assert_eq!(e.key_buffer_len(), 0);
+    }
+
+    #[test]
+    fn keyboard_example_echoes_pushed_keys_until_ctrl_c() {
+        // Loads examples/keyboard.asm verbatim, pre-pushes "hi" + 0x03
+        // (Ctrl+C, the program's exit sentinel), runs, and asserts the
+        // echoed stdout. End-to-end coverage from .asm through the
+        // assembler, the keyboard FIFO, the polling loop, and INT 21h
+        // fn 02h echo.
+        let src = include_str!("../../../examples/keyboard.asm");
+        let mut e = Emulator::new();
+        let load = e.load_source(src);
+        assert!(load.contains("\"ok\":true"), "load failed: {load}");
+        e.push_key(b'h');
+        e.push_key(b'i');
+        e.push_key(0x03);
+        let out = e.run(10_000);
+        assert!(out.contains("\"stdout\":\"hi\""), "got: {out}");
+    }
     #[test]
     fn parse_error_carries_line_column() {
         // First line is fine; the comma right after `mov` on line 2 is
