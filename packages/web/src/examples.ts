@@ -244,6 +244,38 @@ END main
 `,
   },
   {
+    id: "stepper",
+    label: "stepper — drive a 4-coil stepper motor in wave-drive sequence (port 7)",
+    hint: "Steps the rotor through 16 positions (4 full rotations)",
+    source: `; stepper.asm — 4-coil stepper at port 7. Bits 0..3 = coils N/E/S/W.
+; Wave drive: 1, 2, 4, 8 cycles the rotor 90° per step.
+
+org 100h
+
+    mov dx, 7
+    xor bx, bx
+    mov cx, 16
+
+step_loop:
+    mov si, pattern
+    add si, bx
+    lodsb
+    out dx, al
+
+    inc bx
+    cmp bx, 4
+    jl  no_wrap
+    xor bx, bx
+no_wrap:
+    loop step_loop
+
+    mov ax, 4C00h
+    int 21h
+
+pattern: db 1, 2, 4, 8
+`,
+  },
+  {
     id: "led_matrix",
     label: "led_matrix — paint a smiley on the 8x8 LED matrix (ports 9, 10)",
     hint: "Renders an 8x8 sprite via the row-address / row-data port pattern",

@@ -311,6 +311,21 @@ impl Emulator {
         self.cpu.out_log.len() as u32
     }
 
+    /// Number of writes the program has issued to port 7 — the
+    /// stepper-motor coil drive byte. Used by the IDE to render a
+    /// motion / step-count badge alongside the coil indicators.
+    /// Walks `out_log` so `step_back` rolls the count back too.
+    #[must_use]
+    pub fn stepper_steps(&self) -> u32 {
+        self.cpu
+            .out_log
+            .iter()
+            .filter(|w| w.port == 7)
+            .count()
+            .try_into()
+            .unwrap_or(u32::MAX)
+    }
+
     /// Reconstruct the 8×8 LED-matrix display by walking `out_log`.
     /// Convention: writes to port 10 (0x0A) select the row index (0..7,
     /// taken modulo 8), writes to port 9 (0x09) latch the row's 8-bit
@@ -424,6 +439,39 @@ mod tests {
         let out = compile_and_run(src, 10_000);
         assert!(out.contains("\"stdout\":\"Hi\""), "got: {out}");
         assert!(out.contains("\"ok\":true"));
+    }
+
+    #[test]
+    fn stepper_steps_counts_port_7_writes() {
+        // Drive the 4-coil wave pattern 16 times and assert that the
+        // stepper-step count matches the OUT count exactly.
+        let src = "\
+            org 100h\n\
+            mov dx, 7\n\
+            xor bx, bx\n\
+            mov cx, 16\n\
+            step_loop:\n\
+            mov si, pattern\n\
+            add si, bx\n\
+            lodsb\n\
+            out dx, al\n\
+            inc bx\n\
+            cmp bx, 4\n\
+            jl  no_wrap\n\
+            xor bx, bx\n\
+            no_wrap:\n\
+            loop step_loop\n\
+            mov ax, 0x4C00\n\
+            int 21h\n\
+            pattern: db 1, 2, 4, 8\n\
+        ";
+        let mut e = Emulator::new();
+        let load = e.load_source(src);
+        assert!(load.contains("\"ok\":true"), "load failed: {load}");
+        let _ = e.run(100_000);
+        assert_eq!(e.stepper_steps(), 16);
+        // The final OUT was for index 15 → bx=3 → pattern[3]=8.
+        assert_eq!(e.port_byte(7), 8);
     }
 
     #[test]
