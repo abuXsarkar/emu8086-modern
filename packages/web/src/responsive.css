@@ -1,0 +1,69 @@
+/* Responsive overrides. The IDE's main + aside grid is 1fr / 320px on
+   desktop; narrow viewports stack the two columns instead so the source
+   editor and the device panels don't overlap. The header dropdowns
+   (theme + language) wrap below the title on narrow screens too.
+
+   Inline styles in App.tsx can't carry media queries, so we attach
+   className hooks here and override only what changes between layouts.
+*/
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  /* Avoid horizontal scrollbars on phones when a peripheral SVG
+     overflows by a couple of pixels — the layout itself never wants
+     horizontal scroll. */
+  overflow-x: hidden;
+  /* Mobile Safari adds 100vh ≠ visible-height jank; fall back to the
+     default body height which respects the address bar. */
+  min-height: 100%;
+}
+
+/* Two-column desktop layout. */
+.app-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1rem;
+}
+
+/* Phones / narrow tablets: stack the columns. The aside panels sit
+   below the source / output / registers so a student can scroll
+   linearly: code, run, results, devices. */
+@media (max-width: 760px) {
+  .app-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Header: title block first, dropdowns on a wrapped second row,
+     full width so the labels line up cleanly. */
+  .app-header {
+    flex-wrap: wrap;
+  }
+  .app-header > div:first-child {
+    flex-basis: 100%;
+  }
+
+  /* Outer page padding eats too much screen real estate on phones;
+     drop it to give the device panels every pixel they can use. */
+  .app-root {
+    padding: 1rem 0.75rem !important;
+  }
+
+  /* Source editor at 420px tall is 2/3 of a phone screen; clamp it
+     so the run / output sections aren't always below the fold. */
+  .source-editor-frame {
+    height: 280px !important;
+  }
+}
+
+/* Device-row wrapping: on desktop the peripherals tile across the
+   width of the source column; on narrow viewports they wrap with a
+   small gap so two LED-matrix-sized cards still fit per row. */
+.device-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
