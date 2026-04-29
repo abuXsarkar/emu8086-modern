@@ -11,6 +11,7 @@ import { SevenSegment } from "./SevenSegment";
 import { TrafficLight } from "./TrafficLight";
 import { LedMatrix } from "./LedMatrix";
 import { Stepper } from "./Stepper";
+import { Screen } from "./Screen";
 
 const STORAGE_KEY = "emu8086-modern.source";
 
@@ -184,6 +185,7 @@ export function App() {
   const [ledRows, setLedRows] = useState<Uint8Array>(() => new Uint8Array(8));
   const [port7, setPort7] = useState<number>(0);
   const [stepperSteps, setStepperSteps] = useState<number>(0);
+  const [videoText, setVideoText] = useState<string>("");
   const [shareToast, setShareToast] = useState<string>("");
   const emuRef = useRef<Emulator | null>(null);
   const lineMapRef = useRef<Array<[number, number]>>([]);
@@ -206,6 +208,7 @@ export function App() {
     setLedRows(emuRef.current.led_matrix_rows());
     setPort7(emuRef.current.port_byte(7));
     setStepperSteps(emuRef.current.stepper_steps());
+    setVideoText(emuRef.current.video_text());
   }
 
   function onShare() {
@@ -829,6 +832,9 @@ export function App() {
                 <TrafficLight value={port4} />
                 <LedMatrix rows={ledRows} />
                 <Stepper value={port7} steps={stepperSteps} />
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <Screen text={videoText} />
               </div>
             </div>
 

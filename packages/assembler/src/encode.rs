@@ -279,6 +279,18 @@ impl Reg16 {
     }
 }
 
+/// Segment register in modrm.reg encoding: ES=0, CS=1, SS=2, DS=3.
+/// `MOV Sreg, r/m16` is 8E /r and `MOV r/m16, Sreg` is 8C /r.
+fn segreg_code(name: &str) -> Option<u8> {
+    Some(match name.to_ascii_lowercase().as_str() {
+        "es" => 0,
+        "cs" => 1,
+        "ss" => 2,
+        "ds" => 3,
+        _ => return None,
+    })
+}
+
 #[derive(Debug, thiserror::Error)]
 pub struct EncodeError {
     pub span: Span,
@@ -730,6 +742,18 @@ fn mov_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
             _ => {}
         }
     }
+    // mov segreg, reg16  →  8E /r        (2 bytes)
+    // mov reg16, segreg  →  8C /r        (2 bytes)
+    if let (Some(d), Some(s)) = (ident_name(dst), ident_name(src)) {
+        let dl = d.to_ascii_lowercase();
+        let sl = s.to_ascii_lowercase();
+        if (segreg_code(&dl).is_some() && Reg16::from_name(&sl).is_some())
+            || (segreg_code(&sl).is_some() && Reg16::from_name(&dl).is_some())
+        {
+            return Ok(2);
+        }
+    }
+
     Err(EncodeError {
         span: combined_span(dst, src),
         message: "unsupported mov form in this assembler slice".into(),
@@ -1325,6 +1349,30 @@ fn emit_mov(
                 return Ok(());
             }
             _ => {}
+        }
+    }
+
+    // mov segreg, reg16   → 8E /r  (reg field = segreg code)
+    // mov reg16, segreg   → 8C /r  (reg field = segreg code)
+    // CS as a destination is encodable but the 8086 ignores the load
+    // and instead halts at the boundary; we still emit it so faithful
+    // disassemblies round-trip.
+    if let (Some(dn), Some(sn)) = (ident_name(dst), ident_name(src)) {
+        let dl = dn.to_ascii_lowercase();
+        let sl = sn.to_ascii_lowercase();
+        if let Some(sreg) = segreg_code(&dl) {
+            if let Some(r) = Reg16::from_name(&sl) {
+                out.push(0x8E);
+                out.push(0xC0 | (sreg << 3) | r.code());
+                return Ok(());
+            }
+        }
+        if let Some(sreg) = segreg_code(&sl) {
+            if let Some(r) = Reg16::from_name(&dl) {
+                out.push(0x8C);
+                out.push(0xC0 | (sreg << 3) | r.code());
+                return Ok(());
+            }
         }
     }
 

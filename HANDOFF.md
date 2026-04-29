@@ -111,6 +111,7 @@ emu8086-modern/
 │   ├── traffic.asm             → N/S green, E/W red on port 4
 │   ├── led_matrix.asm          → smiley on the 8×8 LED matrix (ports 9 + 10)
 │   ├── stepper.asm             → 16-step wave drive on the 4-coil stepper (port 7)
+│   ├── screen.asm              → writes "HELLO" to text-mode video memory (B800:0000)
 │   ├── proc_hello.asm          → ".MODEL SMALL"/PROC/ENDP/END idiom, prints "Hello from PROC!"
 │   └── assignments/sum10/      → autograder sample (spec.yml + submission.asm)
 ├── tests/            # cross-package conformance harnesses (not yet populated)
@@ -133,7 +134,7 @@ emu8086-modern/
 | **emu8086-assembler** | Lex + macro preprocess + 2-pass parse + encode for nearly every M1 mnemonic. Directives: `org`, `db`, `dw`, `equ`, `dup`, `BYTE PTR`/`WORD PTR`, plus the MASM-style scaffold (`.MODEL`, `.STACK`, `.DATA`, `.CODE`, `.STARTUP`, `.EXIT`, `ASSUME`, `END`) which is dropped as a no-op, and `name PROC [NEAR\|FAR] ... name ENDP` blocks which collapse into labeled blocks. User-defined `MACRO`/`ENDM` with positional args, pre-expansion at definition site, `@@`-label uniquing per call. Mod-r/m memory operands like `[bx+si+disp]`. Labels with forward references. ~55 unit tests. |
 | **emu8086-cli** | `assemble`, `run`, `run-asm`, `trace` (JSON), `grade` (YAML spec → JUnit XML), `compat-report`, `version`. File-level `include "..."` resolution. ~10 e2e tests. |
 | **emu8086-wasm-api** | `compile_and_run`, stateful `Emulator` class with `load_source`/`step`/`step_back`/`run`, `port_byte`, `memory_hex`. |
-| **Web IDE (@emu8086/web)** | Monaco editor with 8086-asm syntax highlighting, snippets (8 idioms), hover docs (~80 mnemonics), red-squiggle error markers, example loader, localStorage autosave, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, **Reset / ◀ Back / Step ▶ / Run** debug controls, current-IP line highlight that follows source, register/flag/memory hex panels, **7-segment display** + **traffic-light** + **8×8 LED matrix** + **stepper motor** peripherals updating live as you step. |
+| **Web IDE (@emu8086/web)** | Monaco editor with 8086-asm syntax highlighting, snippets (8 idioms), hover docs (~80 mnemonics), red-squiggle error markers, example loader, localStorage autosave, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, **Reset / ◀ Back / Step ▶ / Run** debug controls, current-IP line highlight that follows source, register/flag/memory hex panels, **7-segment display** + **traffic-light** + **8×8 LED matrix** + **stepper motor** + **text-mode screen** (B800:0000, 80×25, monochrome) peripherals updating live as you step. |
 | **CI** | Rust on Linux/macOS/Windows × fmt + clippy + tests + wasm32 build; web typecheck/build/test; markdownlint. All green at the time of writing. |
 | **Composite GitHub Action** | `.github/actions/grade/action.yml` — drop-in for GitHub Classroom assignments. |
 

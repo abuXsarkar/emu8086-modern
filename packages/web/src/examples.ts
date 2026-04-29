@@ -244,6 +244,42 @@ END main
 `,
   },
   {
+    id: "screen",
+    label: "screen — write to text-mode video memory at B800:0000",
+    hint: 'Renders "HELLO" near the top-left of the IDE\'s screen panel',
+    source: `; screen.asm — DOS text mode at B800:0000. Each cell is 2 bytes
+; (low=char, high=attribute). We swap DS to 0xB800 so plain [di]
+; addresses the video buffer; segment overrides aren't yet supported
+; by the assembler, so we encode each (char, attr) pair as a single
+; 16-bit immediate (AH=attr, AL=char) — attr 0x07 is light grey on
+; black, the default DOS text colour.
+
+org 100h
+
+    mov ax, 0B800h
+    mov ds, ax
+    mov di, 0
+
+    mov ax, 0748h           ; 'H'
+    mov [di], ax
+    add di, 2
+    mov ax, 0745h           ; 'E'
+    mov [di], ax
+    add di, 2
+    mov ax, 074Ch           ; 'L'
+    mov [di], ax
+    add di, 2
+    mov ax, 074Ch           ; 'L'
+    mov [di], ax
+    add di, 2
+    mov ax, 074Fh           ; 'O'
+    mov [di], ax
+
+    mov ax, 4C00h
+    int 21h
+`,
+  },
+  {
     id: "stepper",
     label: "stepper — drive a 4-coil stepper motor in wave-drive sequence (port 7)",
     hint: "Steps the rotor through 16 positions (4 full rotations)",
