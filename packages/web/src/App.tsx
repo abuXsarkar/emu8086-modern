@@ -680,7 +680,7 @@ export function App() {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select
-            aria-label="Editor theme"
+            aria-label={t.themeLabel}
             value={editorTheme}
             onChange={(e) => {
               const v = e.target.value === "vs" ? "vs" : "vs-dark";
@@ -698,10 +698,10 @@ export function App() {
               background: "#fff",
               fontSize: 12,
             }}
-            title="Editor theme"
+            title={t.themeLabel}
           >
-            <option value="vs-dark">Dark</option>
-            <option value="vs">Light</option>
+            <option value="vs-dark">{t.themeDark}</option>
+            <option value="vs">{t.themeLight}</option>
           </select>
           <select
             aria-label={t.languageLabel}
@@ -746,6 +746,7 @@ export function App() {
               <strong>{t.source}</strong>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <select
+                  aria-label={t.loadExample}
                   defaultValue=""
                   onChange={(e) => {
                     const ex = EXAMPLES.find((x) => x.id === e.target.value);
@@ -856,11 +857,13 @@ export function App() {
                 >
                   {t.share}
                 </button>
-                {shareToast && (
-                  <span style={{ color: "#0a7", fontSize: 13, marginLeft: 4 }}>
-                    {shareToast}
-                  </span>
-                )}
+                <span
+                  role="status"
+                  aria-live="polite"
+                  style={{ color: "#0a7", fontSize: 13, marginLeft: 4 }}
+                >
+                  {shareToast}
+                </span>
               </div>
             </div>
 
@@ -995,6 +998,7 @@ export function App() {
               })()}
               {result?.error && (
                 <div
+                  role="alert"
                   style={{
                     background: "#fee",
                     border: "1px solid #c66",

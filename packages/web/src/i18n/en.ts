@@ -65,5 +65,9 @@ export const en: Locale = {
       "M0–M5 shipped at alpha; eight live peripherals + time-travel debugger + breakpoints + watches.",
 
     languageLabel: "Language",
+
+    themeLabel: "Editor theme",
+    themeDark: "Dark",
+    themeLight: "Light",
   },
 };
