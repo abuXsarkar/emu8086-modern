@@ -38,3 +38,6 @@ hand.
 | `bcd_adjusts.asm` | DAA, DAS, AAA, AAS, AAM, AAD |
 | `call_ret.asm` | Near CALL/RET with arguments via registers and via the stack |
 | `string_ops_full.asm` | MOVSB/MOVSW, STOSB/STOSW, LODSB/LODSW, CMPSB/SCASB with REP/REPE/REPNE |
+| `stack_ops.asm` | PUSH/POP reg16 + segreg (CS push-only) + PUSHF/POPF |
+| `flag_ops.asm` | CLC/STC/CMC, CLD/STD, CLI/STI, LAHF/SAHF |
+| `mov_forms.asm` | reg/imm 8 + 16, reg/reg, mem/reg, reg/mem, mem/imm 8 + 16, accumulator moffs (A0-A3), `mov segreg, r16` |

@@ -379,6 +379,61 @@ done:
 `,
   },
   {
+    id: "printer",
+    label: "printer — print two lines through an LPT1-style port (0x378)",
+    hint: 'Renders "HELLO" / "PRINTER" on the printer paper',
+    source: `; printer.asm — drive an LPT1-style printer at port 0x378.
+; LF (0x0A) starts a new line; FF (0x0C) clears the page.
+
+org 100h
+
+    mov si, msg
+    mov dx, 0x378
+print_loop:
+    lodsb
+    cmp al, 0
+    je  done
+    out dx, al
+    jmp print_loop
+
+done:
+    mov ax, 4C00h
+    int 21h
+
+msg: db "HELLO", 0Ah, "PRINTER", 0Ah, 0
+`,
+  },
+  {
+    id: "robot",
+    label: "robot — walk a closed square via motion commands (port 0x12)",
+    hint: "Forward/Forward/Right four times → robot returns to origin",
+    source: `; robot.asm — drive a virtual robot through a square path.
+;
+;   port 0x12 = motion command:
+;     0 = stop, 1 = forward, 2 = backward,
+;     3 = turn left (CCW 90°), 4 = turn right (CW 90°)
+
+org 100h
+
+    mov dx, 0x12
+    mov cx, 4
+
+side_loop:
+    mov al, 1
+    out dx, al
+    out dx, al
+    mov al, 4
+    out dx, al
+    loop side_loop
+
+    mov al, 0
+    out dx, al
+
+    mov ax, 4C00h
+    int 21h
+`,
+  },
+  {
     id: "stackdemo",
     label: "stackdemo — simplest LIFO push/pop demo",
     hint: 'Prints "321"',

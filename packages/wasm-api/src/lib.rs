@@ -398,6 +398,83 @@ impl Emulator {
         String::from_utf8_lossy(&self.cpu.stdout).into_owned()
     }
 
+    /// Reconstruct the printer paper buffer by walking `out_log` for
+    /// writes to the LPT1 data port (0x378). Bytes accumulate as the
+    /// printout; LF (0x0A) advances a line, FF (0x0C) clears the page,
+    /// CR (0x0D) is dropped, other non-printables are rendered as `·`.
+    /// Replaying from the start of the log means `step_back` rolls the
+    /// printer back too — same time-travel guarantee as the LED matrix.
+    #[must_use]
+    pub fn printer_paper(&self) -> String {
+        let mut paper = String::new();
+        for w in &self.cpu.out_log {
+            if w.port != 0x0378 {
+                continue;
+            }
+            let b = w.value as u8;
+            match b {
+                0x0C => paper.clear(),
+                0x0D => {} // CR — printers traditionally pair with LF.
+                0x0A => paper.push('\n'),
+                0x20..=0x7E => paper.push(b as char),
+                _ => paper.push('·'),
+            }
+        }
+        paper
+    }
+
+    /// Reconstruct the robot state — `(x, y, heading)` — by walking
+    /// `out_log` for command writes to port 0x12. Commands:
+    ///
+    /// - `0` stop (no motion change)
+    /// - `1` forward, `2` backward (one cell in current heading)
+    /// - `3` turn left (CCW 90°), `4` turn right (CW 90°)
+    ///
+    /// Heading 0=N, 1=E, 2=S, 3=W. Returns a 3-element u32 vec
+    /// `[x_i32_as_u32, y_i32_as_u32, heading]`; the JS side reinterprets
+    /// the first two as signed via `| 0`.
+    #[must_use]
+    pub fn robot_state(&self) -> Vec<i32> {
+        let (mut x, mut y, mut h): (i32, i32, i32) = (0, 0, 0);
+        for w in &self.cpu.out_log {
+            if w.port != 0x12 {
+                continue;
+            }
+            match w.value as u8 {
+                1 => match h {
+                    0 => y -= 1,
+                    1 => x += 1,
+                    2 => y += 1,
+                    _ => x -= 1,
+                },
+                2 => match h {
+                    0 => y += 1,
+                    1 => x -= 1,
+                    2 => y -= 1,
+                    _ => x += 1,
+                },
+                3 => h = (h + 3) & 3,
+                4 => h = (h + 1) & 3,
+                _ => {}
+            }
+        }
+        vec![x, y, h]
+    }
+
+    /// Total number of robot motion commands the program has issued
+    /// (stop / move / turn). Walks `out_log` so `step_back` rolls it
+    /// back too. The IDE renders this as a step counter.
+    #[must_use]
+    pub fn robot_commands(&self) -> u32 {
+        self.cpu
+            .out_log
+            .iter()
+            .filter(|w| w.port == 0x12)
+            .count()
+            .try_into()
+            .unwrap_or(u32::MAX)
+    }
+
     #[must_use]
     pub fn memory_hex(&self, seg: u16, off: u16, len: u16) -> String {
         use std::fmt::Write as _;
@@ -620,6 +697,96 @@ mod tests {
         let out = e.run(10_000);
         assert!(out.contains("\"stdout\":\"hi\""), "got: {out}");
     }
+
+    #[test]
+    fn printer_paper_replays_lpt1_writes() {
+        // Drive 'H','I',LF,'!','FF','A' through port 0x378. After FF the
+        // page should be cleared, leaving only "A" on the paper.
+        let mut e = Emulator::new();
+        let src = "
+mov dx, 0x378
+mov al, 'H'
+out dx, al
+mov al, 'I'
+out dx, al
+mov al, 0x0A
+out dx, al
+mov al, '!'
+out dx, al
+mov al, 0x0C
+out dx, al
+mov al, 'A'
+out dx, al
+hlt
+";
+        let load = e.load_source(src);
+        assert!(load.contains("\"ok\":true"), "load failed: {load}");
+        let _ = e.run(1000);
+        assert_eq!(e.printer_paper(), "A");
+    }
+
+    #[test]
+    fn robot_state_walks_command_log() {
+        // Heading starts at 0 (N). Sequence:
+        //   fwd     → (0, -1, N)
+        //   turn-R  → (0, -1, E)
+        //   fwd     → (1, -1, E)
+        //   fwd     → (2, -1, E)
+        //   turn-L  → (2, -1, N)
+        //   back    → (2,  0, N)
+        let mut e = Emulator::new();
+        let src = "
+mov dx, 0x12
+mov al, 1
+out dx, al
+mov al, 4
+out dx, al
+mov al, 1
+out dx, al
+mov al, 1
+out dx, al
+mov al, 3
+out dx, al
+mov al, 2
+out dx, al
+hlt
+";
+        let load = e.load_source(src);
+        assert!(load.contains("\"ok\":true"), "load failed: {load}");
+        let _ = e.run(1000);
+        let state = e.robot_state();
+        assert_eq!(state, vec![2, 0, 0]);
+        assert_eq!(e.robot_commands(), 6);
+    }
+
+    #[test]
+    fn printer_example_prints_two_lines() {
+        // Loads examples/printer.asm and asserts the paper buffer
+        // ends with "HELLO\nPRINTER\n" (the program's null-terminated
+        // template).
+        let src = include_str!("../../../examples/printer.asm");
+        let mut e = Emulator::new();
+        let load = e.load_source(src);
+        assert!(load.contains("\"ok\":true"), "load failed: {load}");
+        let _ = e.run(10_000);
+        assert_eq!(e.printer_paper(), "HELLO\nPRINTER\n");
+    }
+
+    #[test]
+    fn robot_example_walks_a_closed_square() {
+        // Loads examples/robot.asm and asserts the robot lands back at
+        // the origin after four turns. Heading should also be back to
+        // North (0).
+        let src = include_str!("../../../examples/robot.asm");
+        let mut e = Emulator::new();
+        let load = e.load_source(src);
+        assert!(load.contains("\"ok\":true"), "load failed: {load}");
+        let _ = e.run(10_000);
+        assert_eq!(e.robot_state(), vec![0, 0, 0]);
+        // 4 sides × (2 forward + 1 turn) + 1 stop = 13 commands.
+        assert_eq!(e.robot_commands(), 13);
+    }
+
     #[test]
     fn parse_error_carries_line_column() {
         // First line is fine; the comma right after `mov` on line 2 is

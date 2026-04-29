@@ -13,6 +13,8 @@ import { LedMatrix } from "./LedMatrix";
 import { Stepper } from "./Stepper";
 import { Screen } from "./Screen";
 import { Keyboard } from "./Keyboard";
+import { Printer } from "./Printer";
+import { Robot } from "./Robot";
 import { LOCALES, useLocaleId, useStrings } from "./i18n";
 
 const STORAGE_KEY = "emu8086-modern.source";
@@ -191,6 +193,11 @@ export function App() {
   const [stepperSteps, setStepperSteps] = useState<number>(0);
   const [videoText, setVideoText] = useState<string>("");
   const [pendingKeys, setPendingKeys] = useState<number>(0);
+  const [printerPaper, setPrinterPaper] = useState<string>("");
+  const [robotX, setRobotX] = useState<number>(0);
+  const [robotY, setRobotY] = useState<number>(0);
+  const [robotHeading, setRobotHeading] = useState<number>(0);
+  const [robotCommands, setRobotCommands] = useState<number>(0);
   const [shareToast, setShareToast] = useState<string>("");
   const emuRef = useRef<Emulator | null>(null);
   const lineMapRef = useRef<Array<[number, number]>>([]);
@@ -215,6 +222,12 @@ export function App() {
     setStepperSteps(emuRef.current.stepper_steps());
     setVideoText(emuRef.current.video_text());
     setPendingKeys(emuRef.current.key_buffer_len());
+    setPrinterPaper(emuRef.current.printer_paper());
+    const r = emuRef.current.robot_state();
+    setRobotX(r[0] ?? 0);
+    setRobotY(r[1] ?? 0);
+    setRobotHeading(r[2] ?? 0);
+    setRobotCommands(emuRef.current.robot_commands());
   }
 
   function pushKey(byte: number) {
@@ -883,6 +896,13 @@ export function App() {
                 <LedMatrix rows={ledRows} />
                 <Stepper value={port7} steps={stepperSteps} />
                 <Keyboard pendingKeys={pendingKeys} onKey={pushKey} />
+                <Printer paper={printerPaper} />
+                <Robot
+                  x={robotX}
+                  y={robotY}
+                  heading={robotHeading}
+                  commands={robotCommands}
+                />
               </div>
               <div style={{ marginTop: 8 }}>
                 <Screen text={videoText} />
