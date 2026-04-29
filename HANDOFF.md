@@ -143,11 +143,10 @@ Total tests: **22 test groups, ~200+ tests workspace-wide, all passing.**
 In priority order if I were continuing:
 
 1. **Stepper motor + screen + keyboard peripherals** (M4.2 long tail). Same shape as the existing devices.
-2. **Conformance corpus** (M1 exit criterion). Walk legacy emu8086 sample programs (the public-domain ones), assemble them via `emu8086 compat-report`, fix any divergences, commit them under `tests/conformance/`.
-3. **Self-host Docker image** (M6.x). A multi-stage `Dockerfile`: stage 1 builds the wasm-api + web; stage 2 is `nginx:alpine` serving `packages/web/dist/`. ~30 lines.
-4. **PWA / service worker**. Vite has a plugin (`vite-plugin-pwa`) that adds offline caching with one config line. Useful for "Chromebook in airplane mode" labs.
-5. **i18n extraction** (M6 deliverable). All UI strings in `packages/web/src/App.tsx` go through a key/value lookup table; baseline English file plus one or two translations.
-6. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
+2. **Conformance corpus** (M1 exit criterion). Walk legacy emu8086 sample programs (the public-domain ones), assemble them via `emu8086 compat-report` (use `--exclude lib/` to drop include-only macro packs), fix any divergences, commit them under `tests/conformance/`.
+3. **PWA / service worker**. Vite has a plugin (`vite-plugin-pwa`) that adds offline caching with one config line. Useful for "Chromebook in airplane mode" labs.
+4. **i18n extraction** (M6 deliverable). All UI strings in `packages/web/src/App.tsx` go through a key/value lookup table; baseline English file plus one or two translations.
+5. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
 
 ### Known minor gaps / nits
 
@@ -220,6 +219,16 @@ pnpm install
 wasm-pack build packages/wasm-api --target web --out-dir pkg --release
 pnpm --filter @emu8086/web dev
 ```
+
+Or, with no host toolchain at all, ship the production build through Docker:
+
+```bash
+docker build -t emu8086-modern .
+docker run --rm -p 8080:80 emu8086-modern
+# → http://localhost:8080
+```
+
+The Dockerfile is multi-stage (rust → node → nginx) and final image lands ~74 MB.
 
 The dev server defaults to `http://localhost:5173`. To produce a static build for a server: `pnpm --filter @emu8086/web build` → `packages/web/dist/`.
 
