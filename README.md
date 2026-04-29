@@ -107,9 +107,9 @@ pnpm --filter @emu8086/web dev    # opens http://localhost:5173
 
 What is **not** built yet (planned, see [`ROADMAP.md`](ROADMAP.md)):
 
-- `.MODEL` / `PROC` / `ENDP` / `INVOKE` MASM directives.
-- An `emu8086.inc`-equivalent stdlib (PRINT, PRINTN, GOTOXY, etc.) shipped as a header file. The macro mechanism is in place; only the library text is missing.
-- Additional virtual peripherals (LED matrix, stepper motor, printer, screen text mode, keyboard).
+- `INVOKE` MASM directive (`.MODEL` / `PROC` / `ENDP` already drop through cleanly).
+- A printer peripheral.
+- A robot / motorized-platform peripheral with movement primitives.
 - LTI 1.3 launch (Moodle / Canvas).
 - Native desktop builds via Tauri (M7).
 - Plugin SDK 1.0, code-signed release artifacts, external accessibility audit, pilot-course validation — M6/M7 work that needs external infrastructure.
@@ -125,7 +125,7 @@ emu8086-modern/
 │   ├── assembler/    # Rust assembler (emu8086 dialect, more soon)
 │   ├── wasm-api/     # wasm-bindgen surface combining core + assembler
 │   ├── devices/      # Virtual peripherals (traffic light, 7-seg, …)
-│   ├── web/          # React + TS IDE (Monaco arrives in M3)
+│   ├── web/          # React + TS IDE (Monaco editor + live device panels)
 │   └── cli/          # Headless runner / autograder
 ├── examples/         # Sample programs (hello.asm, sum.asm, …)
 ├── tests/            # Conformance test suite (ISA + dialect)

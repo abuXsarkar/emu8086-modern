@@ -7,10 +7,19 @@
 //! a self-contained read that pulls bytes through `fetch_*`, so we can
 //! later snapshot every fetched byte for the trace log.
 
+use std::collections::VecDeque;
+
 use crate::alu;
 use crate::alu::parity_byte;
 use crate::mem::{seg_off, Memory};
 use crate::{Flags, Registers};
+
+/// PS/2-style keyboard data port. `IN AL, 0x60` pops one byte from the
+/// pending-keystroke FIFO (returns 0 if empty).
+pub const KEYBOARD_DATA_PORT: u16 = 0x60;
+/// PS/2-style keyboard status port. `IN AL, 0x64` returns bit 0 = 1 when
+/// a byte is waiting (so polling loops can avoid blocking reads).
+pub const KEYBOARD_STATUS_PORT: u16 = 0x64;
 
 /// 8086 8-bit register codes (REG field of mod-r/m, or low 3 bits of opcode).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -139,6 +148,15 @@ pub struct Cpu {
     /// Hard cap on history depth. Default 0 (recording disabled);
     /// raise via `set_history_capacity` from the host.
     pub history_capacity: usize,
+    /// Pending keystrokes waiting to be consumed by `IN AL, 0x60` (or any
+    /// of the BIOS/DOS keyboard interrupt subfunctions). The host pushes
+    /// bytes via [`Cpu::push_key`]; the program drains them by polling.
+    pub key_buffer: VecDeque<u8>,
+    /// Bytes popped from `key_buffer` during the current step, in pop
+    /// order. Captured into the snapshot on commit so `step_back` can
+    /// re-prepend them, restoring the buffer exactly. Cleared at the
+    /// start of every step.
+    keys_popped_this_step: Vec<u8>,
 }
 
 /// Per-step undo record. Storing only the *changes* (registers before
@@ -154,6 +172,10 @@ pub struct Snapshot {
     pub mem_writes: Vec<(usize, u8)>,
     pub stdout_len: usize,
     pub out_log_len: usize,
+    /// Bytes popped from `key_buffer` during this step, in pop order.
+    /// `step_back` re-prepends them to the buffer so the next step can
+    /// consume them again.
+    pub keys_popped: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,7 +212,23 @@ impl Cpu {
             out_log: Vec::new(),
             history: Vec::new(),
             history_capacity: 0,
+            key_buffer: VecDeque::new(),
+            keys_popped_this_step: Vec::new(),
         }
+    }
+
+    /// Enqueue one byte for the program to read via the keyboard port
+    /// or BIOS/DOS keyboard service. Bytes are consumed in FIFO order.
+    pub fn push_key(&mut self, byte: u8) {
+        self.key_buffer.push_back(byte);
+    }
+
+    /// Pop the next pending keystroke, if any, recording the pop so
+    /// `step_back` can restore it.
+    fn pop_key(&mut self) -> Option<u8> {
+        let b = self.key_buffer.pop_front()?;
+        self.keys_popped_this_step.push(b);
+        Some(b)
     }
 
     /// Enable per-step recording up to `cap` snapshots deep. Raising
@@ -218,6 +256,11 @@ impl Cpu {
         self.mem.restore_writes(&snap.mem_writes);
         self.stdout.truncate(snap.stdout_len);
         self.out_log.truncate(snap.out_log_len);
+        // Re-prepend popped keys in reverse, so the FIFO front matches
+        // the byte that was about to be read at step start.
+        for b in snap.keys_popped.into_iter().rev() {
+            self.key_buffer.push_front(b);
+        }
         true
     }
 
@@ -243,12 +286,23 @@ impl Cpu {
         // program state. Reset by constructing a new Cpu.
     }
 
-    fn port_in_u8(&self, port: u16) -> u8 {
-        self.ports[port as usize]
+    fn port_in_u8(&mut self, port: u16) -> u8 {
+        match port {
+            // Keyboard data port: drain one byte from the FIFO. Returns
+            // 0 if no key is pending — same contract as INT 21h fn 01h
+            // when the buffer is empty, so a polling loop without a
+            // status check still terminates rather than hangs.
+            KEYBOARD_DATA_PORT => self.pop_key().unwrap_or(0),
+            // Keyboard status port: bit 0 reflects "data available". Any
+            // other bit reads as 0 — we don't simulate parity, timeout,
+            // or self-test bits.
+            KEYBOARD_STATUS_PORT => u8::from(!self.key_buffer.is_empty()),
+            _ => self.ports[port as usize],
+        }
     }
-    fn port_in_u16(&self, port: u16) -> u16 {
-        let lo = self.ports[port as usize];
-        let hi = self.ports[port.wrapping_add(1) as usize];
+    fn port_in_u16(&mut self, port: u16) -> u16 {
+        let lo = self.port_in_u8(port);
+        let hi = self.port_in_u8(port.wrapping_add(1));
         u16::from_le_bytes([lo, hi])
     }
     fn port_out_u8(&mut self, port: u16, value: u8) {
@@ -284,6 +338,7 @@ impl Cpu {
                 rec.stopped = Some(StopReason::Halted);
             }
             0x21 => self.dos_int21(rec),
+            0x16 => self.bios_int16(rec),
             other => {
                 rec.stopped = Some(StopReason::Unimplemented {
                     opcode: 0xCD,
@@ -294,14 +349,59 @@ impl Cpu {
         }
     }
 
+    /// BIOS keyboard services. We implement the two subfunctions every
+    /// emu8086 lab manual reaches for:
+    ///
+    /// - `AH=00h` — read a key (blocking on real hardware). On our
+    ///   synchronous emulator we drain one byte from the keyboard FIFO
+    ///   if present, otherwise return AL=AH=0 so polling loops without
+    ///   a peek don't hang the runtime.
+    /// - `AH=01h` — peek. Sets ZF=1 when the buffer is empty, ZF=0 +
+    ///   AL=ASCII when a byte is waiting (the byte is *not* consumed).
+    ///
+    /// The real BIOS returns a (scancode, ASCII) pair in (AH, AL); since
+    /// the host pushes a single byte through `push_key`, we report that
+    /// byte in AL and leave AH=0. Programs using AH for scancodes will
+    /// see 0 — documented in the example program.
+    fn bios_int16(&mut self, rec: &mut StepRecord) {
+        let ah = self.regs.ah();
+        match ah {
+            0x00 => {
+                let b = self.pop_key().unwrap_or(0);
+                self.regs.set_al(b);
+                self.regs.set_ah(0);
+                rec.mnemonic = "int";
+            }
+            0x01 => {
+                if let Some(&b) = self.key_buffer.front() {
+                    self.regs.set_al(b);
+                    self.regs.set_ah(0);
+                    self.regs.flags.set(Flags::ZF, false);
+                } else {
+                    self.regs.flags.set(Flags::ZF, true);
+                }
+                rec.mnemonic = "int";
+            }
+            _ => {
+                rec.mnemonic = "int";
+            }
+        }
+    }
+
     fn dos_int21(&mut self, rec: &mut StepRecord) {
         let ah = self.regs.ah();
         match ah {
-            // 01h: read char with echo. No real input attached yet —
-            // return 0 and keep going so a polling loop terminates rather
-            // than hanging the emulator. Real keyboard arrives in M4.
+            // 01h: read char with echo. Drains the keyboard FIFO if a
+            // byte is pending; echoes it to stdout (as DOS does). When
+            // the buffer is empty we still return 0 (no echo) rather
+            // than blocking, so polling loops terminate cleanly.
             0x01 => {
-                self.regs.set_al(0);
+                if let Some(b) = self.pop_key() {
+                    self.regs.set_al(b);
+                    self.stdout.push(b);
+                } else {
+                    self.regs.set_al(0);
+                }
                 rec.mnemonic = "int";
             }
             // 02h: print char in DL.
@@ -309,12 +409,18 @@ impl Cpu {
                 self.stdout.push(self.regs.dl());
                 rec.mnemonic = "int";
             }
-            // 06h: direct console I/O. If DL == 0xFF this is a non-blocking
-            // read (we treat it as "no key", ZF=1). Else, write DL.
+            // 06h: direct console I/O. If DL == 0xFF this is a
+            // non-blocking read: drain a byte if present (ZF=0, AL=byte),
+            // otherwise signal "no key" with ZF=1. Else, write DL.
             0x06 => {
                 if self.regs.dl() == 0xFF {
-                    self.regs.set_al(0);
-                    self.regs.flags.set(Flags::ZF, true);
+                    if let Some(b) = self.pop_key() {
+                        self.regs.set_al(b);
+                        self.regs.flags.set(Flags::ZF, false);
+                    } else {
+                        self.regs.set_al(0);
+                        self.regs.flags.set(Flags::ZF, true);
+                    }
                 } else {
                     self.stdout.push(self.regs.dl());
                 }
@@ -807,6 +913,10 @@ impl Cpu {
         let exit_code_before = self.exit_code;
         let stdout_len_before = self.stdout.len();
         let out_log_len_before = self.out_log.len();
+        // Reset the per-step keyboard-pop trail. Always cleared (even
+        // when not recording) so a stale tail can never bleed into a
+        // future snapshot if recording is enabled mid-run.
+        self.keys_popped_this_step.clear();
         if recording {
             self.mem.start_tracking();
         }
@@ -1960,7 +2070,8 @@ impl Cpu {
             // OUT imm8, AX — E7 imm8
             0xE4 => {
                 let port = u16::from(self.fetch_u8());
-                self.regs.set_al(self.port_in_u8(port));
+                let v = self.port_in_u8(port);
+                self.regs.set_al(v);
                 rec.mnemonic = "in";
             }
             0xE5 => {
@@ -1980,11 +2091,14 @@ impl Cpu {
             }
             // IN AL, DX (EC) ; IN AX, DX (ED) ; OUT DX, AL (EE) ; OUT DX, AX (EF)
             0xEC => {
-                self.regs.set_al(self.port_in_u8(self.regs.dx));
+                let port = self.regs.dx;
+                let v = self.port_in_u8(port);
+                self.regs.set_al(v);
                 rec.mnemonic = "in";
             }
             0xED => {
-                self.regs.ax = self.port_in_u16(self.regs.dx);
+                let port = self.regs.dx;
+                self.regs.ax = self.port_in_u16(port);
                 rec.mnemonic = "in";
             }
             0xEE => {
@@ -2023,6 +2137,7 @@ impl Cpu {
             if self.history.len() >= self.history_capacity {
                 self.history.remove(0);
             }
+            let keys_popped = std::mem::take(&mut self.keys_popped_this_step);
             self.history.push(Snapshot {
                 regs: regs_before,
                 halted: halted_before,
@@ -2030,6 +2145,7 @@ impl Cpu {
                 mem_writes,
                 stdout_len: stdout_len_before,
                 out_log_len: out_log_len_before,
+                keys_popped,
             });
         }
         rec
@@ -2599,11 +2715,115 @@ mod tests {
 
     #[test]
     fn in_reads_port_bytes() {
+        // Use a generic port (not 0x60/0x64, which are keyboard ports
+        // with FIFO/status semantics).
         let mut c = Cpu::new();
-        c.load_com(&[0xE4, 0x60, 0xF4]); // in al, 0x60 ; hlt
-        c.ports[0x60] = 0x99;
+        c.load_com(&[0xE4, 0x80, 0xF4]); // in al, 0x80 ; hlt
+        c.ports[0x80] = 0x99;
         c.run_until_halt(16);
         assert_eq!(c.regs.al(), 0x99);
+    }
+
+    #[test]
+    fn in_al_60_drains_key_buffer() {
+        // push two keys, IN AL, 0x60 twice should yield them in order.
+        let mut c = Cpu::new();
+        c.push_key(b'A');
+        c.push_key(b'B');
+        c.load_com(&[
+            0xE4, 0x60, // in al, 0x60   → AL='A'
+            0x88, 0xC4, // mov ah, al    (preserve first key in AH)
+            0xE4, 0x60, // in al, 0x60   → AL='B'
+            0xF4, // hlt
+        ]);
+        c.run_until_halt(16);
+        assert_eq!(c.regs.ah(), b'A');
+        assert_eq!(c.regs.al(), b'B');
+        assert!(c.key_buffer.is_empty());
+    }
+
+    #[test]
+    fn in_al_60_returns_zero_when_buffer_empty() {
+        let mut c = Cpu::new();
+        c.load_com(&[0xE4, 0x60, 0xF4]); // in al, 0x60 ; hlt
+        c.run_until_halt(16);
+        assert_eq!(c.regs.al(), 0);
+    }
+
+    #[test]
+    fn in_al_64_reports_keyboard_status_bit() {
+        let mut c = Cpu::new();
+        // First read with empty buffer (status=0), then with one key
+        // pending (status=1). Use BL to capture the empty case.
+        c.load_com(&[
+            0xE4, 0x64, // in al, 0x64   → AL=0
+            0x88, 0xC3, // mov bl, al
+            0xF4, // hlt
+        ]);
+        c.run_until_halt(16);
+        assert_eq!(c.regs.bl(), 0);
+        c.push_key(b'X');
+        c.regs.ip = 0x100; // restart from program top
+        c.halted = false;
+        c.run_until_halt(16);
+        assert_eq!(c.regs.al(), 1);
+        // The status read does NOT consume the byte; it's still pending.
+        assert_eq!(c.key_buffer.front().copied(), Some(b'X'));
+    }
+
+    #[test]
+    fn step_back_restores_consumed_key() {
+        // in al, 0x60 ; hlt — but with history recording enabled, we
+        // step once to consume the key, then step_back, then verify
+        // the key is restored to the FIFO front.
+        let mut c = Cpu::new();
+        c.set_history_capacity(8);
+        c.push_key(b'Z');
+        c.load_com(&[0xE4, 0x60, 0xF4]);
+        c.step();
+        assert_eq!(c.regs.al(), b'Z');
+        assert!(c.key_buffer.is_empty());
+        assert!(c.step_back());
+        assert_eq!(c.key_buffer.front().copied(), Some(b'Z'));
+    }
+
+    #[test]
+    fn int21_fn01_drains_keyboard_fifo_and_echoes() {
+        // mov ah, 1 ; int 21h ; hlt — with 'Q' pre-pushed.
+        let mut c = Cpu::new();
+        c.push_key(b'Q');
+        c.load_com(&[0xB4, 0x01, 0xCD, 0x21, 0xF4]);
+        c.run_until_halt(16);
+        assert_eq!(c.regs.al(), b'Q');
+        assert_eq!(c.stdout, b"Q");
+    }
+
+    #[test]
+    fn int16_fn00_blocking_read_drains_buffer() {
+        // mov ah, 0 ; int 16h ; hlt — pulls AL='K' / AH=0.
+        let mut c = Cpu::new();
+        c.push_key(b'K');
+        c.load_com(&[0xB4, 0x00, 0xCD, 0x16, 0xF4]);
+        c.run_until_halt(16);
+        assert_eq!(c.regs.al(), b'K');
+        assert_eq!(c.regs.ah(), 0);
+    }
+
+    #[test]
+    fn int16_fn01_peek_reports_zf_and_does_not_consume() {
+        // mov ah, 1 ; int 16h ; hlt — twice: empty then with 'p'.
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x01, 0xCD, 0x16, 0xF4]);
+        c.run_until_halt(16);
+        assert!(c.regs.flags.get(Flags::ZF));
+        c.push_key(b'p');
+        c.regs.ip = 0x100;
+        c.halted = false;
+        c.run_until_halt(16);
+        assert!(!c.regs.flags.get(Flags::ZF));
+        assert_eq!(c.regs.al(), b'p');
+        // peek does not pop.
+        assert_eq!(c.key_buffer.front().copied(), Some(b'p'));
     }
 
     #[test]

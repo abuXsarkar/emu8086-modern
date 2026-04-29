@@ -2,7 +2,7 @@
 
 This document is for the maintainer (you) coming back to the project on a different machine. It captures **everything you need to get a working WSL dev environment, run the project, understand what shipped, and decide what to do next.** Read it top to bottom once; after that, the per-section anchors are reasonable navigation.
 
-Last commit at handoff: `837efc9` on `main` (CHANGELOG highlights). Repo: <https://github.com/abuXsarkar/emu8086-modern>.
+Last commit at handoff: `52bce97` on `main` (squash-merge of PR #1 — LED matrix, .MODEL/PROC/ENDP, Docker, IDE polish, conformance corpus). Repo: <https://github.com/abuXsarkar/emu8086-modern>.
 
 ---
 
@@ -112,6 +112,7 @@ emu8086-modern/
 │   ├── led_matrix.asm          → smiley on the 8×8 LED matrix (ports 9 + 10)
 │   ├── stepper.asm             → 16-step wave drive on the 4-coil stepper (port 7)
 │   ├── screen.asm              → writes "HELLO" to text-mode video memory (B800:0000)
+│   ├── keyboard.asm            → polls ports 0x60/0x64 and echoes each pushed key
 │   ├── proc_hello.asm          → ".MODEL SMALL"/PROC/ENDP/END idiom, prints "Hello from PROC!"
 │   └── assignments/sum10/      → autograder sample (spec.yml + submission.asm)
 ├── tests/
@@ -135,18 +136,18 @@ emu8086-modern/
 | **emu8086-assembler** | Lex + macro preprocess + 2-pass parse + encode for nearly every M1 mnemonic. Directives: `org`, `db`, `dw`, `equ`, `dup`, `BYTE PTR`/`WORD PTR`, plus the MASM-style scaffold (`.MODEL`, `.STACK`, `.DATA`, `.CODE`, `.STARTUP`, `.EXIT`, `ASSUME`, `END`) which is dropped as a no-op, and `name PROC [NEAR\|FAR] ... name ENDP` blocks which collapse into labeled blocks. User-defined `MACRO`/`ENDM` with positional args, pre-expansion at definition site, `@@`-label uniquing per call. Mod-r/m memory operands like `[bx+si+disp]`. Labels with forward references. ~55 unit tests. |
 | **emu8086-cli** | `assemble`, `run`, `run-asm`, `trace` (JSON), `grade` (YAML spec → JUnit XML), `compat-report`, `version`. File-level `include "..."` resolution. ~10 e2e tests. |
 | **emu8086-wasm-api** | `compile_and_run`, stateful `Emulator` class with `load_source`/`step`/`step_back`/`run`, `port_byte`, `memory_hex`. |
-| **Web IDE (@emu8086/web)** | Monaco editor with 8086-asm syntax highlighting, snippets (8 idioms), hover docs (~80 mnemonics), red-squiggle error markers, example loader, localStorage autosave, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, **Reset / ◀ Back / Step ▶ / Run** debug controls, current-IP line highlight that follows source, register/flag/memory hex panels, **7-segment display** + **traffic-light** + **8×8 LED matrix** + **stepper motor** + **text-mode screen** (B800:0000, 80×25, monochrome) peripherals updating live as you step. |
+| **Web IDE (@emu8086/web)** | Monaco editor with 8086-asm syntax highlighting, snippets (8 idioms), hover docs (~80 mnemonics), red-squiggle error markers, example loader, localStorage autosave, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, **Reset / ◀ Back / Step ▶ / Run** debug controls, current-IP line highlight that follows source, register/flag/memory hex panels, **7-segment display** + **traffic-light** + **8×8 LED matrix** + **stepper motor** + **text-mode screen** (B800:0000, 80×25, monochrome) + **keyboard input** (focused textbox feeds the FIFO at ports 0x60/0x64) peripherals updating live as you step. |
 | **CI** | Rust on Linux/macOS/Windows × fmt + clippy + tests + wasm32 build; web typecheck/build/test; markdownlint. All green at the time of writing. |
 | **Composite GitHub Action** | `.github/actions/grade/action.yml` — drop-in for GitHub Classroom assignments. |
 
-Total tests: **22 test groups, ~200+ tests workspace-wide, all passing.**
+Total tests: **27 test groups, ~200 tests workspace-wide, all passing.**
 
 ### Pending — concrete next chunks
 
 In priority order if I were continuing:
 
-1. **Keyboard peripheral** (M4.2 long tail — the only device left from the original list). Polled INT 16h handler in core + a small UI text input in the IDE that pushes scancodes / ASCII bytes into a buffer the program reads. Trickier than the output devices because it needs DOM event plumbing, not just polled state.
-2. **Expand the conformance corpus** with public-domain programs from real-world sources (lab manuals, community repos). The current 8 programs are synthesized to cover the assembler's surface; they're a regression net for what we already encode, not an external compatibility check.
+1. **Expand the conformance corpus** with public-domain programs from real-world sources (lab manuals, community repos). The current 8 programs are synthesized to cover the assembler's surface; they're a regression net for what we already encode, not an external compatibility check.
+2. **Printer / robot peripherals** — the two devices on the original wishlist that are still missing. Both follow the established port-write + replay-from-`out_log` pattern; the LED matrix is the worked example.
 3. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
 
 ### Known minor gaps / nits
@@ -249,11 +250,15 @@ pnpm -r build
 $EDITOR packages/web/src/SevenSegment.tsx   # one byte → seven segments
 $EDITOR packages/web/src/TrafficLight.tsx   # one byte → 8 lamps in a layout
 $EDITOR packages/web/src/LedMatrix.tsx      # walks out_log for a row buffer
+$EDITOR packages/web/src/Keyboard.tsx       # input device — DOM keys → push_key(byte)
 $EDITOR packages/web/src/App.tsx            # refreshDevices polls each one
 
-# For a stateful device that needs full out_log replay (matrix, screen,
-# keyboard buffer), add a Vec-returning method on Emulator that walks
+# For a stateful output device that needs full out_log replay (matrix,
+# screen), add a Vec-returning method on Emulator that walks
 # self.cpu.out_log; LedMatrix::led_matrix_rows is the worked example.
+# For an input device, add a `push_*` method on Cpu that mutates state;
+# the keyboard FIFO is the worked example (with step_back support via
+# Snapshot::keys_popped).
 ```
 
 ---
@@ -272,22 +277,22 @@ Don't change the global git config — only the per-repo one.
 
 ---
 
-## Last 10 commits at handoff
+## Recent history at handoff
 
-```
-837efc9 docs(CHANGELOG): post-M5 highlights at the top of Unreleased
-d7dcbde docs(ROADMAP): mark M0-M5 shipped, M6-M7 deferred to external infra
-396331e feat(cli,examples): file-level `include "path"` resolution
-fff7f98 feat(assembler,examples): macros pre-expand at definition; emu8086.inc-style stdlib
-7b7e02e feat(cli): compat-report subcommand — institute corpus check
-2e7bcb7 docs(README): post-M5 — covers macros, autograder, GH Action, share-links, devices
-318b7fb feat(web): M5.3 — share-links via URL fragment
-ee089c1 feat(ci,docs): M5.2 — composite GitHub Action for the autograder
-29ef922 feat(cli): M5.1 — autograder subcommand with YAML spec + JUnit XML
-cb89ea6 feat(assembler,examples): M2.6 — macro support (name MACRO/ENDM)
-```
+PR #1 (`Resume handoff: LED matrix, .MODEL/PROC/ENDP, Docker, IDE polish`) was squash-merged into `main` as `52bce97`, bundling the following work:
 
-Run `git log --oneline | head -60` for a fuller picture; every commit since the bootstrap is on `main`, no branches to merge, no stashes.
+- 8×8 LED matrix peripheral (M4.2c).
+- `.MODEL` / `.STACK` / `.DATA` / `.CODE` / `.STARTUP` / `.EXIT` / `ASSUME` / `END` directives + `PROC` / `ENDP` blocks (assembler).
+- `step_back` stdout sync in the IDE.
+- `compat-report --exclude PATTERN`.
+- Self-host Dockerfile (~74 MB final image).
+- Stepper motor peripheral.
+- Text-mode screen peripheral (B800:0000) + `mov segreg/reg16` assembler forms.
+- PWA / offline support via `vite-plugin-pwa`.
+- i18n extraction baseline (English + Spanish).
+- 8-program conformance corpus under `tests/conformance/`.
+
+Run `git log --oneline | head -60` for a fuller picture; every commit since the bootstrap is on `main`, no stashes.
 
 ---
 

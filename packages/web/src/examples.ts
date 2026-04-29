@@ -348,6 +348,37 @@ pattern: db 7Eh, 81h, 0A5h, 81h, 0A5h, 99h, 81h, 7Eh
 `,
   },
   {
+    id: "keyboard",
+    label: "keyboard — poll the FIFO and echo keystrokes (ports 0x60/0x64)",
+    hint: "Type into the Keyboard panel; the program echoes bytes via INT 21h fn 02h",
+    source: `; keyboard.asm — poll the keyboard FIFO and echo each keystroke
+; back to stdout. Click the Keyboard panel and type — Ctrl+C exits.
+;
+;   port 0x64 — status, bit 0 = data available
+;   port 0x60 — data, drains one ASCII byte from the FIFO
+
+org 100h
+
+poll:
+    in  al, 0x64
+    test al, 1
+    jz  poll
+
+    in  al, 0x60
+    cmp al, 0x03           ; Ctrl+C
+    je  done
+
+    mov dl, al
+    mov ah, 02h
+    int 21h
+    jmp poll
+
+done:
+    mov ax, 4C00h
+    int 21h
+`,
+  },
+  {
     id: "stackdemo",
     label: "stackdemo — simplest LIFO push/pop demo",
     hint: 'Prints "321"',
