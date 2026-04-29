@@ -124,6 +124,20 @@ pub fn tokenize(src: &str) -> Result<Vec<Spanned>, LexError> {
             b'+' => Some(Token::Plus),
             b'-' => Some(Token::Minus),
             b'*' => Some(Token::Star),
+            // MASM's "uninitialized" placeholder in `db ?` / `dw ?` /
+            // `dd ?` data declarations. Surfaced as an identifier so
+            // the parser's data-item branch (which already special-
+            // cases the name "?") can pick it up and emit a zero
+            // value. Outside a data context the parser will reject
+            // it, same as before.
+            b'?' => {
+                i += 1;
+                out.push(Spanned {
+                    tok: Token::Ident("?".to_string()),
+                    span: Span::new(start, i),
+                });
+                continue;
+            }
             _ => None,
         };
         if let Some(t) = punct {

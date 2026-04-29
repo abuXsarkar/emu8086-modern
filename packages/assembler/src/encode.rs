@@ -323,6 +323,17 @@ pub struct AssembledImage {
 }
 
 pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
+    // MASM-style implicit memory-deref promotion: `MOV AL, NUM` where
+    // NUM was declared `NUM DB 5` should encode as `MOV AL, [NUM]`.
+    // We collect label sizes from `Label`-followed-by-`Db`/`Dw`
+    // patterns, then rewrite matching `MOV` operands in-place before
+    // sizing/encoding. Forward references work because the collection
+    // pass runs ahead of any rewriting.
+    let label_sizes = collect_label_sizes(program);
+    let mut program_owned = program.clone();
+    promote_implicit_memory_refs(&mut program_owned, &label_sizes);
+    let program = &program_owned;
+
     // Pass 1: lay out items and assign label addresses.
     let mut origin: u16 = 0;
     let mut cursor: u16 = 0;
@@ -421,6 +432,126 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
         labels,
         line_map,
     })
+}
+
+/// Walk the program once, recording which labels precede a `db` /
+/// `dw` directive so they can be treated as byte / word memory
+/// variables when referenced unbracketed in MOV operands.
+fn collect_label_sizes(program: &Program) -> HashMap<String, MemSize> {
+    let mut sizes: HashMap<String, MemSize> = HashMap::new();
+    let mut pending: Option<String> = None;
+    for item in &program.items {
+        match item {
+            Item::Label { name, .. } => pending = Some(name.clone()),
+            Item::Directive(Directive::Db { .. }) => {
+                if let Some(n) = pending.take() {
+                    sizes.insert(n, MemSize::Byte);
+                }
+            }
+            Item::Directive(Directive::Dw { .. }) => {
+                if let Some(n) = pending.take() {
+                    sizes.insert(n, MemSize::Word);
+                }
+            }
+            _ => pending = None,
+        }
+    }
+    sizes
+}
+
+/// Rewrite `MOV` operands so a bare reference to a known data label
+/// becomes `[label]` *when the operand widths match*. MASM treats
+/// `MOV AL, NUM` (NUM is `DB`) as a memory load; without this
+/// rewrite the encoder fails with "unsupported mov form" because
+/// the label's address doesn't fit in 8 bits.
+///
+/// We require the *other* operand to be a register / immediate of
+/// the matching width before promoting, so existing programs that
+/// rely on `MOV DX, MSG` to load MSG's *address* (8086-typical idiom
+/// when MSG is a byte string) still work — that pattern intentionally
+/// has mismatched widths and stays as the address-load form.
+///
+/// Skips operands that name a register / segreg so a label literally
+/// called `AX` is still treated as the register, matching MASM.
+fn promote_implicit_memory_refs(program: &mut Program, label_sizes: &HashMap<String, MemSize>) {
+    for item in &mut program.items {
+        let Item::Instr(instr) = item else {
+            continue;
+        };
+        if !instr.mnemonic.eq_ignore_ascii_case("mov") || instr.operands.len() != 2 {
+            continue;
+        }
+        // Pre-classify each operand so we can decide whether width
+        // matches the label's declared size.
+        let classify = |op: &Operand| -> OperandClass {
+            match op {
+                Operand::Ident { name, .. } => {
+                    let lower = name.to_ascii_lowercase();
+                    if Reg8::from_name(&lower).is_some() {
+                        OperandClass::Reg(MemSize::Byte)
+                    } else if Reg16::from_name(&lower).is_some() || segreg_code(&lower).is_some() {
+                        OperandClass::Reg(MemSize::Word)
+                    } else if let Some(&size) = label_sizes.get(name) {
+                        OperandClass::DataLabel(size)
+                    } else {
+                        OperandClass::Other
+                    }
+                }
+                Operand::Number { .. } => OperandClass::Imm,
+                _ => OperandClass::Other,
+            }
+        };
+        let cls0 = classify(&instr.operands[0]);
+        let cls1 = classify(&instr.operands[1]);
+
+        let promote_at = |idx: usize, op: &Operand, label_size: MemSize| -> Option<Operand> {
+            let Operand::Ident { name, span } = op else {
+                return None;
+            };
+            let other = if idx == 0 { &cls1 } else { &cls0 };
+            let widths_match = match other {
+                OperandClass::Reg(w) => *w == label_size,
+                // Immediates have no inherent width — let the encoder
+                // pick BYTE or WORD via the size hint we attach.
+                OperandClass::Imm => true,
+                // Promoting both sides of a label-to-label MOV doesn't
+                // come up in the wild; skip it.
+                _ => false,
+            };
+            if !widths_match {
+                return None;
+            }
+            Some(Operand::Mem(MemRef {
+                terms: vec![MemTerm::Ident {
+                    name: name.clone(),
+                    sign: 1,
+                    span: *span,
+                }],
+                span: *span,
+                size_hint: Some(label_size),
+                seg_override: None,
+            }))
+        };
+
+        if let OperandClass::DataLabel(size) = cls0 {
+            if let Some(new_op) = promote_at(0, &instr.operands[0], size) {
+                instr.operands[0] = new_op;
+            }
+        }
+        if let OperandClass::DataLabel(size) = cls1 {
+            if let Some(new_op) = promote_at(1, &instr.operands[1], size) {
+                instr.operands[1] = new_op;
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum OperandClass {
+    Reg(MemSize),
+    DataLabel(MemSize),
+    Imm,
+    Other,
 }
 
 fn data_size(items: &[DataItem], width: u16) -> u16 {
@@ -2265,6 +2396,56 @@ mod tests {
         // mov word ptr es:[bx], 0x0748  →  26 C7 07 48 07
         let bytes = asm("mov word ptr es:[bx], 0x0748\n");
         assert_eq!(bytes, vec![0x26, 0xC7, 0x07, 0x48, 0x07]);
+    }
+
+    #[test]
+    fn masm_inline_label_db_and_question_placeholder() {
+        // The classic lab-program pattern:
+        //   NUM    DB 5
+        //   RESULT DW ?
+        //   MOV AL, NUM
+        //   MOV RESULT, AX
+        //
+        // The lexer must accept `?` (uninitialized = zero in MASM,
+        // we surface it as a zero data item), the parser must accept
+        // `NAME DB|DW <items>` as `NAME: db|dw <items>`, and the
+        // encoder must implicitly promote `MOV AL, NUM` to
+        // `MOV AL, [NUM]` (and `MOV RESULT, AX` likewise) since
+        // their widths match the labels' declared sizes.
+        let src = "\
+            org 100h\n\
+            num db 5\n\
+            result dw ?\n\
+            mov al, num\n\
+            mov result, ax\n\
+            hlt\n\
+        ";
+        let bytes = asm(src);
+        // 03 bytes for the data, then:
+        //   8A 06 ll hh   ; mov al, [num]   (4 bytes)
+        //   89 06 ll hh   ; mov [result], ax  (4 bytes)
+        //   F4            ; hlt
+        // Total program after the 3 data bytes = 9 instr bytes.
+        assert_eq!(bytes.len(), 12, "bytes = {bytes:x?}");
+        // The two instruction opcodes:
+        assert_eq!(bytes[3], 0x8A, "bytes = {bytes:x?}"); // mov r8, r/m8
+        assert_eq!(bytes[7], 0x89, "bytes = {bytes:x?}"); // mov r/m16, r16
+    }
+
+    #[test]
+    fn mov_dx_label_still_loads_address_when_widths_mismatch() {
+        // Regression guard: `mov dx, msg` where `msg` is a byte
+        // string (DB) should still load msg's *address* — the
+        // implicit-deref rewrite must NOT fire because DX is 16-bit
+        // and msg is byte-sized. Hello-world depends on this.
+        let src = "\
+            org 100h\n\
+            mov dx, msg\n\
+            hlt\n\
+            msg: db \"Hi\"\n\
+        ";
+        let bytes = asm(src);
+        assert_eq!(bytes[0], 0xBA, "expected `mov dx, imm16`, got {bytes:x?}");
     }
 
     #[test]
