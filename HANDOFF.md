@@ -109,8 +109,13 @@ emu8086-modern/
 │   ├── hello_include.asm       → "Hello via include!" (uses `include`)
 │   ├── seven_seg.asm           → lights all 7 segments of port 199
 │   ├── traffic.asm             → N/S green, E/W red on port 4
+│   ├── led_matrix.asm          → smiley on the 8×8 LED matrix (ports 9 + 10)
+│   ├── stepper.asm             → 16-step wave drive on the 4-coil stepper (port 7)
+│   ├── screen.asm              → writes "HELLO" to text-mode video memory (B800:0000)
+│   ├── proc_hello.asm          → ".MODEL SMALL"/PROC/ENDP/END idiom, prints "Hello from PROC!"
 │   └── assignments/sum10/      → autograder sample (spec.yml + submission.asm)
-├── tests/            # cross-package conformance harnesses (not yet populated)
+├── tests/
+│   └── conformance/  # 8 feature-grouped 8086 programs — regression net for the assembler
 └── .github/
     ├── workflows/ci.yml          # Rust + web + markdownlint matrix
     ├── actions/grade/action.yml  # composite Action for GH Classroom
@@ -127,10 +132,10 @@ emu8086-modern/
 | Layer | What works |
 |---|---|
 | **emu8086-core** | Mainline 8086 ISA: registers (with high/low aliasing), 1 MiB segmented memory + mod-r/m, MOV family (incl. LEA, XCHG, segregs, accumulator moffs, LDS/LES), arithmetic with full flag math (CF/OF/SF/ZF/AF/PF), logical, shifts/rotates, stack, control flow (all 16 Jcc + LOOP family + JCXZ + near *and* far CALL/RET/JMP), string ops with REP/REPE/REPNE, MUL/IMUL/DIV/IDIV with DivideError trap, port I/O, software interrupts including DOS INT 21h subset (01h/02h/06h/09h/4Ch), BCD adjusts (DAA/DAS/AAA/AAS/AAM/AAD). **Time-travel debugger** via diff-snapshot `step_back`. ~110 unit tests. |
-| **emu8086-assembler** | Lex + macro preprocess + 2-pass parse + encode for nearly every M1 mnemonic. Directives: `org`, `db`, `dw`, `equ`, `dup`, `BYTE PTR`/`WORD PTR`. User-defined `MACRO`/`ENDM` with positional args, pre-expansion at definition site, `@@`-label uniquing per call. Mod-r/m memory operands like `[bx+si+disp]`. Labels with forward references. ~52 unit tests. |
+| **emu8086-assembler** | Lex + macro preprocess + 2-pass parse + encode for nearly every M1 mnemonic. Directives: `org`, `db`, `dw`, `equ`, `dup`, `BYTE PTR`/`WORD PTR`, plus the MASM-style scaffold (`.MODEL`, `.STACK`, `.DATA`, `.CODE`, `.STARTUP`, `.EXIT`, `ASSUME`, `END`) which is dropped as a no-op, and `name PROC [NEAR\|FAR] ... name ENDP` blocks which collapse into labeled blocks. User-defined `MACRO`/`ENDM` with positional args, pre-expansion at definition site, `@@`-label uniquing per call. Mod-r/m memory operands like `[bx+si+disp]`. Labels with forward references. ~55 unit tests. |
 | **emu8086-cli** | `assemble`, `run`, `run-asm`, `trace` (JSON), `grade` (YAML spec → JUnit XML), `compat-report`, `version`. File-level `include "..."` resolution. ~10 e2e tests. |
 | **emu8086-wasm-api** | `compile_and_run`, stateful `Emulator` class with `load_source`/`step`/`step_back`/`run`, `port_byte`, `memory_hex`. |
-| **Web IDE (@emu8086/web)** | Monaco editor with 8086-asm syntax highlighting, snippets (8 idioms), hover docs (~80 mnemonics), red-squiggle error markers, example loader, localStorage autosave, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, **Reset / ◀ Back / Step ▶ / Run** debug controls, current-IP line highlight that follows source, register/flag/memory hex panels, **7-segment display** + **traffic-light** peripherals updating live as you step. |
+| **Web IDE (@emu8086/web)** | Monaco editor with 8086-asm syntax highlighting, snippets (8 idioms), hover docs (~80 mnemonics), red-squiggle error markers, example loader, localStorage autosave, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, **Reset / ◀ Back / Step ▶ / Run** debug controls, current-IP line highlight that follows source, register/flag/memory hex panels, **7-segment display** + **traffic-light** + **8×8 LED matrix** + **stepper motor** + **text-mode screen** (B800:0000, 80×25, monochrome) peripherals updating live as you step. |
 | **CI** | Rust on Linux/macOS/Windows × fmt + clippy + tests + wasm32 build; web typecheck/build/test; markdownlint. All green at the time of writing. |
 | **Composite GitHub Action** | `.github/actions/grade/action.yml` — drop-in for GitHub Classroom assignments. |
 
@@ -140,20 +145,14 @@ Total tests: **22 test groups, ~200+ tests workspace-wide, all passing.**
 
 In priority order if I were continuing:
 
-1. **LED matrix peripheral** (M4.2c). I'd already created the task and started thinking about it. Standard layout: port 9 = row data, port 10 = row address (0..7). Component is an 8×8 grid of `<circle>` SVG elements. The pattern is the same as `SevenSegment.tsx` and `TrafficLight.tsx` — copy one of those, change the geometry and the bit-to-lamp mapping. Wire `port_byte(9)` and `port_byte(10)` plus a small `Vec<u8>; 8>` of "last seen row data" via `out_log` walking. Easy ~1 hour task.
-2. **Stepper motor + screen + keyboard peripherals** (M4.2 long tail). Same shape as the existing devices.
-3. **`.MODEL` / `PROC` / `ENDP` directives**. Most lab manuals open with `.MODEL SMALL` and define procedures. The assembler can roughly ignore `.MODEL` (treat as a no-op for `.com` programs) and parse `name PROC ... name ENDP` as a labeled block. Look at `parser.rs` for the place to plug it in (right next to `MACRO`/`ENDM` recognition).
-4. **Conformance corpus** (M1 exit criterion). Walk legacy emu8086 sample programs (the public-domain ones), assemble them via `emu8086 compat-report`, fix any divergences, commit them under `tests/conformance/`.
-5. **Self-host Docker image** (M6.x). A multi-stage `Dockerfile`: stage 1 builds the wasm-api + web; stage 2 is `nginx:alpine` serving `packages/web/dist/`. ~30 lines.
-6. **PWA / service worker**. Vite has a plugin (`vite-plugin-pwa`) that adds offline caching with one config line. Useful for "Chromebook in airplane mode" labs.
-7. **i18n extraction** (M6 deliverable). All UI strings in `packages/web/src/App.tsx` go through a key/value lookup table; baseline English file plus one or two translations.
-8. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
+1. **Keyboard peripheral** (M4.2 long tail — the only device left from the original list). Polled INT 16h handler in core + a small UI text input in the IDE that pushes scancodes / ASCII bytes into a buffer the program reads. Trickier than the output devices because it needs DOM event plumbing, not just polled state.
+2. **Expand the conformance corpus** with public-domain programs from real-world sources (lab manuals, community repos). The current 8 programs are synthesized to cover the assembler's surface; they're a regression net for what we already encode, not an external compatibility check.
+3. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
 
 ### Known minor gaps / nits
 
-- The `traffic.asm` and `seven_seg.asm` example tests are smoke (they don't currently capture port state via the CLI). They run cleanly but the integration test only asserts they assemble + halt cleanly. To actually verify device state via the CLI, expose `out_log` from the wasm-api to the CLI, or add a `--port-snapshot` JSON dump.
-- `step_back`'s stdout truncation is "best-effort" in the IDE — the wasm-api strips bytes correctly on the core side, but the React state's accumulated `result.stdout` doesn't get re-synced after every back-step (a step that printed a byte will visually leave the byte until you Reset). Easy fix: have `step_back` return the post-step stdout directly so the IDE can replace, not append.
-- The `compat-report` walks `examples/` recursively, which means `examples/lib/stdlib.asm` gets included in the corpus. It currently passes (assembles to 0 bytes — all macros, no instructions) but it's a slightly weird signal. Either add a `.compat-ignore` mechanism or have compat-report skip files that match `lib/*.asm`.
+- The `traffic.asm` and `seven_seg.asm` example tests are smoke (they don't currently capture port state via the CLI). They run cleanly but the integration test only asserts they assemble + halt cleanly. To actually verify device state via the CLI, expose `out_log` from the wasm-api to the CLI, or add a `--port-snapshot` JSON dump. (The new `led_matrix.asm` does have a wasm-api unit test that covers row state, so it's a step ahead of the other two.)
+- `compat-report` now accepts repeatable `--exclude PATTERN` (substring match against the relative path), so the standard `--exclude lib/` invocation drops include-only macro packs from the corpus. The default walk still pulls them in — that was deliberate, since hard-coding "skip lib/" would surprise anyone using the dir for something else.
 - The README claims "200+ tests" — actual is around 200, but the precise count creeps up commit-to-commit. If you care about tightness, parameterize via a small `cargo xtask count-tests` script.
 
 ---
@@ -222,6 +221,16 @@ wasm-pack build packages/wasm-api --target web --out-dir pkg --release
 pnpm --filter @emu8086/web dev
 ```
 
+Or, with no host toolchain at all, ship the production build through Docker:
+
+```bash
+docker build -t emu8086-modern .
+docker run --rm -p 8080:80 emu8086-modern
+# → http://localhost:8080
+```
+
+The Dockerfile is multi-stage (rust → node → nginx) and final image lands ~74 MB.
+
 The dev server defaults to `http://localhost:5173`. To produce a static build for a server: `pnpm --filter @emu8086/web build` → `packages/web/dist/`.
 
 ### Run all tests
@@ -233,16 +242,18 @@ pnpm typecheck
 pnpm -r build
 ```
 
-### Pick up the LED matrix task
+### Pick up a new peripheral
 
 ```bash
-# Look at how 7-seg is wired to learn the pattern:
-$EDITOR packages/web/src/SevenSegment.tsx
-$EDITOR packages/web/src/App.tsx           # search for `port199` to see refresh
-# Then create:
-#   packages/web/src/LedMatrix.tsx (8×8 SVG grid)
-#   examples/led_matrix.asm
-# Add port 9 + port 10 polls in App.tsx::refreshDevices.
+# All three current peripherals share the same shape — read one to learn it:
+$EDITOR packages/web/src/SevenSegment.tsx   # one byte → seven segments
+$EDITOR packages/web/src/TrafficLight.tsx   # one byte → 8 lamps in a layout
+$EDITOR packages/web/src/LedMatrix.tsx      # walks out_log for a row buffer
+$EDITOR packages/web/src/App.tsx            # refreshDevices polls each one
+
+# For a stateful device that needs full out_log replay (matrix, screen,
+# keyboard buffer), add a Vec-returning method on Emulator that walks
+# self.cpu.out_log; LedMatrix::led_matrix_rows is the worked example.
 ```
 
 ---

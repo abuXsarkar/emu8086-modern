@@ -1,0 +1,26 @@
+# Anything we don't want in the build context. Keeps `docker build` fast
+# by not shipping target/, node_modules/, or pkg/ over the wire.
+
+target/
+**/target/
+**/Cargo.lock.bak
+
+node_modules/
+**/node_modules/
+.pnpm-store/
+.cache/
+.vite/
+.turbo/
+
+packages/wasm-api/pkg/
+packages/web/dist/
+packages/devices/ts/dist/
+
+.git/
+.github/
+.idea/
+.vscode/
+*.log
+
+.env
+.env.*

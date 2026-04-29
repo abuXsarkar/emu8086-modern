@@ -11,10 +11,27 @@ use emu8086_assembler::{assemble, Dialect};
 
 use crate::include;
 
-pub fn run(root: &Path) -> anyhow::Result<u8> {
+pub fn run(root: &Path, excludes: &[String]) -> anyhow::Result<u8> {
     let mut files: Vec<PathBuf> = Vec::new();
     walk(root, &mut files)?;
     files.sort();
+
+    // Honor `--exclude PATTERN`: skip files whose path-relative-to-root
+    // contains the pattern as a substring (after normalizing separators
+    // to '/'). This is a cheap stand-in for full glob matching that
+    // covers the common "skip lib/" case without dragging in a glob
+    // crate.
+    if !excludes.is_empty() {
+        files.retain(|f| {
+            let rel = f
+                .strip_prefix(root)
+                .unwrap_or(f)
+                .to_string_lossy()
+                .replace('\\', "/");
+            !excludes.iter().any(|pat| rel.contains(pat))
+        });
+    }
+
     if files.is_empty() {
         eprintln!(
             "compat-report: no .asm files found under {}",
