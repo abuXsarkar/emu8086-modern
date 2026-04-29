@@ -1534,6 +1534,14 @@ fn emit_mov(
                         out.push(0xC0 | (other.code() << 3) | r.code());
                         return Ok(());
                     }
+                    // mov r16, segreg → 8C /r (reg field = segreg code).
+                    // Match before label resolution so an identifier like
+                    // `es` isn't mistaken for an undefined symbol.
+                    if let Some(sreg) = segreg_code(&name.to_ascii_lowercase()) {
+                        out.push(0x8C);
+                        out.push(0xC0 | (sreg << 3) | r.code());
+                        return Ok(());
+                    }
                     let v = labels.get(name).copied().ok_or(EncodeError {
                         span: *span,
                         message: format!("undefined label `{name}`"),
@@ -2257,5 +2265,21 @@ mod tests {
         // mov word ptr es:[bx], 0x0748  →  26 C7 07 48 07
         let bytes = asm("mov word ptr es:[bx], 0x0748\n");
         assert_eq!(bytes, vec![0x26, 0xC7, 0x07, 0x48, 0x07]);
+    }
+
+    #[test]
+    fn mov_r16_segreg_emits_8c_with_reg_field() {
+        // mov bx, es  →  8C /r  reg=ES(0)  r/m=BX(3)  →  0xC0 | (0<<3) | 3 = 0xC3
+        let bytes = asm("mov bx, es\n");
+        assert_eq!(bytes, vec![0x8C, 0xC3]);
+        // mov cx, ds  →  reg=DS(3)  r/m=CX(1)  → 0xD9
+        let bytes = asm("mov cx, ds\n");
+        assert_eq!(bytes, vec![0x8C, 0xD9]);
+        // mov dx, ss  →  reg=SS(2)  r/m=DX(2)  → 0xD2
+        let bytes = asm("mov dx, ss\n");
+        assert_eq!(bytes, vec![0x8C, 0xD2]);
+        // mov si, cs  →  reg=CS(1)  r/m=SI(6)  → 0xCE
+        let bytes = asm("mov si, cs\n");
+        assert_eq!(bytes, vec![0x8C, 0xCE]);
     }
 }
