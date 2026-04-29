@@ -71,14 +71,7 @@ fn is_dropped_directive(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
     matches!(
         lower.as_str(),
-        ".model"
-            | ".stack"
-            | ".data"
-            | ".code"
-            | ".startup"
-            | ".exit"
-            | "assume"
-            | "end"
+        ".model" | ".stack" | ".data" | ".code" | ".startup" | ".exit" | "assume" | "end"
     )
 }
 
@@ -433,7 +426,10 @@ mod tests {
         // ENDP should not have leaked through.
         assert!(!s.to_ascii_lowercase().contains("endp"), "got: {s}");
         // PROC keyword itself should also have been consumed.
-        assert!(!s.to_ascii_lowercase().contains("identifier `proc`"), "got: {s}");
+        assert!(
+            !s.to_ascii_lowercase().contains("identifier `proc`"),
+            "got: {s}"
+        );
     }
 
     #[test]

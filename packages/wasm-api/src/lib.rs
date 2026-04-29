@@ -491,11 +491,17 @@ mod tests {
         assert!(load.contains("\"ok\":true"), "load failed: {load}");
         let _ = e.run(100_000);
         let screen = e.video_text();
-        assert!(screen.starts_with("HI"), "expected `HI` at top-left, got: {screen:?}");
+        assert!(
+            screen.starts_with("HI"),
+            "expected `HI` at top-left, got: {screen:?}"
+        );
         // The rest of row 0 should be blank.
         let row0 = screen.lines().next().unwrap_or("");
         assert_eq!(row0.len(), 80, "row 0 must be 80 columns, got {row0:?}");
-        assert!(row0[2..].chars().all(|c| c == ' '), "tail of row 0 not blank: {row0:?}");
+        assert!(
+            row0[2..].chars().all(|c| c == ' '),
+            "tail of row 0 not blank: {row0:?}"
+        );
     }
 
     #[test]
