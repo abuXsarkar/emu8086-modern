@@ -108,7 +108,6 @@ pnpm --filter @emu8086/web dev    # opens http://localhost:5173
 What is **not** built yet (planned, see [`ROADMAP.md`](ROADMAP.md)):
 
 - `INVOKE` MASM directive (`.MODEL` / `PROC` / `ENDP` already drop through cleanly).
-- `mov r16, segreg` (the matching reverse direction of the already-supported `mov segreg, r16`).
 - LTI 1.3 launch (Moodle / Canvas).
 - Native desktop builds via Tauri (M7).
 - Plugin SDK 1.0, code-signed release artifacts, external accessibility audit, pilot-course validation — M6/M7 work that needs external infrastructure.
