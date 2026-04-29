@@ -38,6 +38,15 @@ export const en: Locale = {
     noOutputYet: "(no output yet — click Run)",
     noRegistersYet: "run a program to see registers",
 
+    statusHalted: "Program halted",
+    statusHaltedHint: (steps) =>
+      `Reached HLT / INT 21h exit after ${steps.toLocaleString("en-US")} step${steps === 1 ? "" : "s"}.`,
+    statusOutOfSteps: "Stopped at step limit",
+    statusOutOfStepsHint: (steps) =>
+      `Ran ${steps.toLocaleString("en-US")} instructions without halting — usually means an infinite loop, or a missing HLT / INT 21h fn 4Ch at the end.`,
+    statusNoStdoutHint:
+      "No output was printed. If you were expecting digits, the program needs INT 21h AH=02h calls. Computed values may still be in memory — check the memory hex panel.",
+
     errorAt: (stage, line, column, message) =>
       `${stage} error at line ${line}, column ${column}: ${message}`,
 

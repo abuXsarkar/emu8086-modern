@@ -43,6 +43,15 @@ export const es: Locale = {
     noOutputYet: "(sin salida todavía — pulsa Ejecutar)",
     noRegistersYet: "ejecuta un programa para ver los registros",
 
+    statusHalted: "Programa detenido",
+    statusHaltedHint: (steps) =>
+      `Llegó a HLT / INT 21h tras ${steps.toLocaleString("es-ES")} instrucción${steps === 1 ? "" : "es"}.`,
+    statusOutOfSteps: "Se detuvo en el límite de pasos",
+    statusOutOfStepsHint: (steps) =>
+      `Se ejecutaron ${steps.toLocaleString("es-ES")} instrucciones sin detenerse — suele significar un bucle infinito o falta de HLT / INT 21h fn 4Ch al final.`,
+    statusNoStdoutHint:
+      "No se imprimió ninguna salida. Si esperabas ver dígitos, el programa necesita llamadas a INT 21h AH=02h. Los valores calculados pueden estar en memoria — revisa el panel hexadecimal.",
+
     errorAt: (stage, line, column, message) =>
       `error de ${stage} en la línea ${line}, columna ${column}: ${message}`,
 
