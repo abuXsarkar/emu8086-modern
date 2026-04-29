@@ -468,6 +468,21 @@ fn emit_data(items: &[DataItem], width: u16, out: &mut Vec<u8>) {
     }
 }
 
+/// Number of segment-override prefix bytes the instruction's memory
+/// operands will contribute. We support at most one override per
+/// memory operand, and at most one memory operand per instruction in
+/// our encoders, so this is normally 0 or 1.
+fn seg_prefix_count(instr: &Instr) -> u16 {
+    instr
+        .operands
+        .iter()
+        .filter_map(|op| match op {
+            Operand::Mem(m) => m.seg_override,
+            _ => None,
+        })
+        .count() as u16
+}
+
 fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
     let m = instr.mnemonic.to_ascii_lowercase();
     let zero = instr.operands.is_empty();
@@ -509,15 +524,27 @@ fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
                         message: format!("unknown push/pop operand `{name}`"),
                     });
                 }
+            } else if let Operand::Mem(mref) = &instr.operands[0] {
+                // Memory-form push/pop is 16-bit only on the 8086.
+                if matches!(mref.size_hint, Some(MemSize::Byte)) {
+                    return Err(EncodeError {
+                        span: instr.span,
+                        message: "push/pop on the 8086 is 16-bit only — drop the BYTE PTR".into(),
+                    });
+                }
+                let enc = classify_mem(mref, None)?;
+                2 + enc.extra_bytes()
             } else {
                 return Err(EncodeError {
                     span: instr.span,
-                    message: "push/pop accepts a register operand only in this slice".into(),
+                    message: "push/pop accepts a register or memory operand".into(),
                 });
             }
         }
         "inc" | "dec" if one => 1, // r16 form
         "mov" if two => mov_size(&instr.operands[0], &instr.operands[1])?,
+        "lea" if two => lea_size(&instr.operands[0], &instr.operands[1])?,
+        "xchg" if two => xchg_size(&instr.operands[0], &instr.operands[1])?,
         "add" | "sub" | "cmp" | "and" | "or" | "xor" | "adc" | "sbb" if two => {
             arith_size(&instr.operands[0], &instr.operands[1])?
         }
@@ -548,7 +575,7 @@ fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
                 message: format!("unsupported mnemonic `{m}` in this assembler slice"),
             });
         }
-    })
+    } + seg_prefix_count(instr))
 }
 
 fn io_size(a: &Operand, b: &Operand) -> Result<u16, EncodeError> {
@@ -676,6 +703,85 @@ fn shift_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
         span: combined_span(dst, src),
         message: "unsupported shift/rotate operand".into(),
     })
+}
+
+fn lea_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
+    // LEA reg16, mem  →  8D /r [+ disp]
+    let dname = ident_name(dst).ok_or(EncodeError {
+        span: combined_span(dst, src),
+        message: "lea destination must be a 16-bit register".into(),
+    })?;
+    if Reg16::from_name(&dname.to_ascii_lowercase()).is_none() {
+        return Err(EncodeError {
+            span: dst.span(),
+            message: format!("lea destination must be a 16-bit register (got `{dname}`)"),
+        });
+    }
+    let m = match src {
+        Operand::Mem(m) => m,
+        _ => {
+            return Err(EncodeError {
+                span: src.span(),
+                message: "lea source must be a memory operand `[…]`".into(),
+            });
+        }
+    };
+    let enc = classify_mem(m, None)?;
+    Ok(2 + enc.extra_bytes())
+}
+
+fn xchg_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
+    // Order-independent: pick whichever side is the register / memory.
+    // - xchg ax, r16 / r16, ax  →  90+rw                (1 byte)
+    // - xchg r16, r16          →  87 /r                 (2 bytes)
+    // - xchg r8, r8            →  86 /r                 (2 bytes)
+    // - xchg r, mem / mem, r   →  86/87 /r [+ disp]
+    let names = (
+        ident_name(dst).map(|n| n.to_ascii_lowercase()),
+        ident_name(src).map(|n| n.to_ascii_lowercase()),
+    );
+    if let (Some(a), Some(b)) = &names {
+        let ax_pair = (a == "ax" && Reg16::from_name(b).is_some())
+            || (b == "ax" && Reg16::from_name(a).is_some());
+        if ax_pair {
+            return Ok(1);
+        }
+        if Reg16::from_name(a).is_some() && Reg16::from_name(b).is_some() {
+            return Ok(2);
+        }
+        if Reg8::from_name(a).is_some() && Reg8::from_name(b).is_some() {
+            return Ok(2);
+        }
+    }
+    let (reg_op, mem_op) = match (dst, src) {
+        (Operand::Mem(_), _) => (src, dst),
+        (_, Operand::Mem(_)) => (dst, src),
+        _ => {
+            return Err(EncodeError {
+                span: combined_span(dst, src),
+                message: "xchg requires register/register or register/memory".into(),
+            });
+        }
+    };
+    let rname = ident_name(reg_op).ok_or(EncodeError {
+        span: reg_op.span(),
+        message: "xchg memory form requires a register on the other side".into(),
+    })?;
+    if Reg8::from_name(&rname.to_ascii_lowercase()).is_none()
+        && Reg16::from_name(&rname.to_ascii_lowercase()).is_none()
+    {
+        return Err(EncodeError {
+            span: reg_op.span(),
+            message: format!("xchg expects a register, got `{rname}`"),
+        });
+    }
+    let m = if let Operand::Mem(m) = mem_op {
+        m
+    } else {
+        unreachable!("checked above")
+    };
+    let enc = classify_mem(m, None)?;
+    Ok(2 + enc.extra_bytes())
 }
 
 fn mov_size(dst: &Operand, src: &Operand) -> Result<u16, EncodeError> {
@@ -846,6 +952,17 @@ fn emit_instr(
     labels: &HashMap<String, u16>,
     out: &mut Vec<u8>,
 ) -> Result<(), EncodeError> {
+    // Segment-override prefix lands before the instruction body. The
+    // prefix-aware here pointer is unchanged because all the relative
+    // offsets we compute (jcc / call / jmp) are measured from the
+    // instruction's *first* byte, which is the prefix.
+    for op in &instr.operands {
+        if let Operand::Mem(m) = op {
+            if let Some(seg) = m.seg_override {
+                out.push(seg.prefix_byte());
+            }
+        }
+    }
     let m = instr.mnemonic.to_ascii_lowercase();
     let one_byte = match m.as_str() {
         "nop" => Some(0x90u8),
@@ -911,53 +1028,73 @@ fn emit_instr(
             Ok(())
         }
         "push" => {
-            let name = ident_name(&instr.operands[0]).ok_or(EncodeError {
-                span: instr.span,
-                message: "expected register operand".into(),
-            })?;
-            let lname = name.to_ascii_lowercase();
-            if let Some(r) = Reg16::from_name(&lname) {
-                out.push(0x50 + r.code());
+            if let Some(name) = ident_name(&instr.operands[0]) {
+                let lname = name.to_ascii_lowercase();
+                if let Some(r) = Reg16::from_name(&lname) {
+                    out.push(0x50 + r.code());
+                } else {
+                    let op = match lname.as_str() {
+                        "es" => 0x06,
+                        "cs" => 0x0E,
+                        "ss" => 0x16,
+                        "ds" => 0x1E,
+                        _ => {
+                            return Err(EncodeError {
+                                span: instr.span,
+                                message: format!("cannot push `{name}`"),
+                            });
+                        }
+                    };
+                    out.push(op);
+                }
+                Ok(())
+            } else if let Operand::Mem(mref) = &instr.operands[0] {
+                // FF /6 — push r/m16
+                let enc = classify_mem(mref, Some(labels))?;
+                out.push(0xFF);
+                out.push(enc.modrm_byte(6));
+                emit_disp(out, enc);
+                Ok(())
             } else {
-                let op = match lname.as_str() {
-                    "es" => 0x06,
-                    "cs" => 0x0E,
-                    "ss" => 0x16,
-                    "ds" => 0x1E,
-                    _ => {
-                        return Err(EncodeError {
-                            span: instr.span,
-                            message: format!("cannot push `{name}`"),
-                        });
-                    }
-                };
-                out.push(op);
+                Err(EncodeError {
+                    span: instr.span,
+                    message: "push accepts a register or memory operand".into(),
+                })
             }
-            Ok(())
         }
         "pop" => {
-            let name = ident_name(&instr.operands[0]).ok_or(EncodeError {
-                span: instr.span,
-                message: "expected register operand".into(),
-            })?;
-            let lname = name.to_ascii_lowercase();
-            if let Some(r) = Reg16::from_name(&lname) {
-                out.push(0x58 + r.code());
+            if let Some(name) = ident_name(&instr.operands[0]) {
+                let lname = name.to_ascii_lowercase();
+                if let Some(r) = Reg16::from_name(&lname) {
+                    out.push(0x58 + r.code());
+                } else {
+                    let op = match lname.as_str() {
+                        "es" => 0x07,
+                        "ss" => 0x17,
+                        "ds" => 0x1F,
+                        _ => {
+                            return Err(EncodeError {
+                                span: instr.span,
+                                message: format!("cannot pop `{name}`"),
+                            });
+                        }
+                    };
+                    out.push(op);
+                }
+                Ok(())
+            } else if let Operand::Mem(mref) = &instr.operands[0] {
+                // 8F /0 — pop r/m16
+                let enc = classify_mem(mref, Some(labels))?;
+                out.push(0x8F);
+                out.push(enc.modrm_byte(0));
+                emit_disp(out, enc);
+                Ok(())
             } else {
-                let op = match lname.as_str() {
-                    "es" => 0x07,
-                    "ss" => 0x17,
-                    "ds" => 0x1F,
-                    _ => {
-                        return Err(EncodeError {
-                            span: instr.span,
-                            message: format!("cannot pop `{name}`"),
-                        });
-                    }
-                };
-                out.push(op);
+                Err(EncodeError {
+                    span: instr.span,
+                    message: "pop accepts a register or memory operand".into(),
+                })
             }
-            Ok(())
         }
         "inc" | "dec" => {
             let name = ident_name(&instr.operands[0]).ok_or(EncodeError {
@@ -975,6 +1112,20 @@ fn emit_instr(
             Ok(())
         }
         "mov" => emit_mov(
+            &instr.operands[0],
+            &instr.operands[1],
+            labels,
+            out,
+            instr.span,
+        ),
+        "lea" => emit_lea(
+            &instr.operands[0],
+            &instr.operands[1],
+            labels,
+            out,
+            instr.span,
+        ),
+        "xchg" => emit_xchg(
             &instr.operands[0],
             &instr.operands[1],
             labels,
@@ -1242,6 +1393,120 @@ fn emit_shift(
     Err(EncodeError {
         span,
         message: "unsupported shift/rotate destination".into(),
+    })
+}
+
+fn emit_lea(
+    dst: &Operand,
+    src: &Operand,
+    labels: &HashMap<String, u16>,
+    out: &mut Vec<u8>,
+    span: Span,
+) -> Result<(), EncodeError> {
+    let dname = ident_name(dst).ok_or(EncodeError {
+        span,
+        message: "lea destination must be a 16-bit register".into(),
+    })?;
+    let r = Reg16::from_name(&dname.to_ascii_lowercase()).ok_or(EncodeError {
+        span: dst.span(),
+        message: format!("lea destination must be a 16-bit register (got `{dname}`)"),
+    })?;
+    let m = match src {
+        Operand::Mem(m) => m,
+        _ => {
+            return Err(EncodeError {
+                span: src.span(),
+                message: "lea source must be a memory operand `[…]`".into(),
+            });
+        }
+    };
+    let enc = classify_mem(m, Some(labels))?;
+    out.push(0x8D);
+    out.push(enc.modrm_byte(r.code()));
+    emit_disp(out, enc);
+    Ok(())
+}
+
+fn emit_xchg(
+    dst: &Operand,
+    src: &Operand,
+    labels: &HashMap<String, u16>,
+    out: &mut Vec<u8>,
+    span: Span,
+) -> Result<(), EncodeError> {
+    let dn = ident_name(dst).map(|s| s.to_ascii_lowercase());
+    let sn = ident_name(src).map(|s| s.to_ascii_lowercase());
+
+    // 1-byte accumulator form: xchg ax, r16  /  xchg r16, ax  →  90+rw
+    if let (Some(a), Some(b)) = (&dn, &sn) {
+        let other = if a == "ax" {
+            Some(b.as_str())
+        } else if b == "ax" {
+            Some(a.as_str())
+        } else {
+            None
+        };
+        if let Some(other_name) = other {
+            if let Some(r) = Reg16::from_name(other_name) {
+                out.push(0x90 + r.code());
+                return Ok(());
+            }
+        }
+    }
+
+    // reg/reg via 86 (8-bit) / 87 (16-bit). The 8086 lacks a "swap"
+    // direction bit on XCHG, so we always pick one operand as the
+    // mod-r/m reg and the other as the r/m field.
+    if let (Some(a), Some(b)) = (&dn, &sn) {
+        if let (Some(r1), Some(r2)) = (Reg16::from_name(a), Reg16::from_name(b)) {
+            out.push(0x87);
+            out.push(0xC0 | (r1.code() << 3) | r2.code());
+            return Ok(());
+        }
+        if let (Some(r1), Some(r2)) = (Reg8::from_name(a), Reg8::from_name(b)) {
+            out.push(0x86);
+            out.push(0xC0 | (r1.code() << 3) | r2.code());
+            return Ok(());
+        }
+    }
+
+    // reg/mem and mem/reg both reach the same encoding.
+    let (reg_op, mem_op) = match (dst, src) {
+        (Operand::Mem(_), _) => (src, dst),
+        (_, Operand::Mem(_)) => (dst, src),
+        _ => {
+            return Err(EncodeError {
+                span,
+                message: "xchg requires register/register or register/memory".into(),
+            });
+        }
+    };
+    let rname = ident_name(reg_op).ok_or(EncodeError {
+        span: reg_op.span(),
+        message: "xchg memory form requires a register on the other side".into(),
+    })?;
+    let lr = rname.to_ascii_lowercase();
+    let m = if let Operand::Mem(m) = mem_op {
+        m
+    } else {
+        unreachable!("checked above")
+    };
+    let enc = classify_mem(m, Some(labels))?;
+    if let Some(r) = Reg16::from_name(&lr) {
+        out.push(0x87);
+        out.push(enc.modrm_byte(r.code()));
+        emit_disp(out, enc);
+        return Ok(());
+    }
+    if let Some(r) = Reg8::from_name(&lr) {
+        out.push(0x86);
+        out.push(enc.modrm_byte(r.code()));
+        emit_disp(out, enc);
+        return Ok(());
+    }
+    Err(EncodeError {
+        span: reg_op.span(),
+        message: format!("xchg expects a register on the other side (got `{rname}`)"),
     })
 }
 
@@ -1915,5 +2180,82 @@ mod tests {
         let prog = crate::parser::parse(&toks).unwrap();
         let err = encode(&prog).unwrap_err();
         assert!(err.message.contains("two base registers"), "got: {err}");
+    }
+
+    // ---- LEA / XCHG / push-mem / pop-mem / segment overrides ----
+
+    #[test]
+    fn lea_reg_via_bx_disp() {
+        // lea si, [bx+2]  →  8D /r mod=01 reg=SI(6) rm=[BX](7) disp8=2 → 8D 77 02
+        let bytes = asm("lea si, [bx+2]\n");
+        assert_eq!(bytes, vec![0x8D, 0x77, 0x02]);
+    }
+
+    #[test]
+    fn lea_reg_direct() {
+        // lea di, [0x400]  →  8D /r mod=00 reg=DI(7) rm=110(direct) disp16=0x0400
+        let bytes = asm("lea di, [0x400]\n");
+        assert_eq!(bytes, vec![0x8D, 0x3E, 0x00, 0x04]);
+    }
+
+    #[test]
+    fn xchg_ax_reg_uses_one_byte_form() {
+        // xchg ax, bx  →  90+rw  with reg=BX(3)  →  93
+        let bytes = asm("xchg ax, bx\n");
+        assert_eq!(bytes, vec![0x93]);
+        // Order independence.
+        let bytes2 = asm("xchg bx, ax\n");
+        assert_eq!(bytes2, vec![0x93]);
+    }
+
+    #[test]
+    fn xchg_reg_reg_uses_modrm_form() {
+        // xchg cx, dx  →  87 /r mod=11 reg=CX(1) rm=DX(2) → 87 CA
+        let bytes = asm("xchg cx, dx\n");
+        assert_eq!(bytes, vec![0x87, 0xCA]);
+    }
+
+    #[test]
+    fn xchg_reg_mem_8bit() {
+        // xchg al, [bx]  →  86 /r mod=00 reg=AL(0) rm=[BX](7) → 86 07
+        let bytes = asm("xchg al, [bx]\n");
+        assert_eq!(bytes, vec![0x86, 0x07]);
+    }
+
+    #[test]
+    fn push_word_mem_emits_ff_subop_6() {
+        // push word ptr [bx+si]  →  FF /6  mod=00 rm=[BX+SI](0)  →  FF 30
+        let bytes = asm("push word ptr [bx+si]\n");
+        assert_eq!(bytes, vec![0xFF, 0x30]);
+    }
+
+    #[test]
+    fn pop_word_mem_emits_8f_subop_0() {
+        // pop word ptr [bx+si]  →  8F /0  mod=00 rm=[BX+SI](0)  →  8F 00
+        let bytes = asm("pop word ptr [bx+si]\n");
+        assert_eq!(bytes, vec![0x8F, 0x00]);
+    }
+
+    #[test]
+    fn segment_override_es_emits_26_prefix() {
+        // mov ax, es:[bx]  →  26 8B 07
+        let bytes = asm("mov ax, es:[bx]\n");
+        assert_eq!(bytes, vec![0x26, 0x8B, 0x07]);
+    }
+
+    #[test]
+    fn segment_override_ds_es_cs_ss_emit_each_prefix() {
+        // Each prefix in turn — covers the full byte mapping.
+        assert_eq!(asm("mov ax, ds:[bx]\n"), vec![0x3E, 0x8B, 0x07]);
+        assert_eq!(asm("mov ax, es:[bx]\n"), vec![0x26, 0x8B, 0x07]);
+        assert_eq!(asm("mov ax, cs:[bx]\n"), vec![0x2E, 0x8B, 0x07]);
+        assert_eq!(asm("mov ax, ss:[bx]\n"), vec![0x36, 0x8B, 0x07]);
+    }
+
+    #[test]
+    fn segment_override_with_size_hint_round_trip() {
+        // mov word ptr es:[bx], 0x0748  →  26 C7 07 48 07
+        let bytes = asm("mov word ptr es:[bx], 0x0748\n");
+        assert_eq!(bytes, vec![0x26, 0xC7, 0x07, 0x48, 0x07]);
     }
 }

@@ -6,9 +6,9 @@
 ;   accumulator moffs — A0/A1 (load), A2/A3 (store)
 ;   segreg     — 8C /r (mov r/m16, segreg), 8E /r (mov segreg, r/m16)
 ;
-; LEA / XCHG are in the core but not yet wired in the assembler
-; encoder — see HANDOFF "known gaps". XLAT (D7) appears in
-; examples/array_sum.asm.
+; LEA (8D /r) and XCHG (86/87 plus the 90+rw accumulator form) live
+; in dedicated programs in this corpus (see end of file). XLAT (D7)
+; appears in examples/array_sum.asm.
 
 org 100h
 
@@ -45,6 +45,15 @@ org 100h
     mov es, ax                    ; mov segreg, r16  (8E /r)
     ; The matching `mov r16, segreg` (8C /r reg16 dest) is not yet
     ; wired in the parser — see HANDOFF "known gaps".
+
+    ; --- LEA (8D /r) — load effective address without reading mem ---
+    lea si, [bx+2]
+    lea di, [0x400]
+
+    ; --- XCHG (86/87 plus accumulator 90+rw) ---
+    xchg ax, bx                   ; 90+rw form, 1 byte
+    xchg cx, dx                   ; mod-r/m form, 2 bytes
+    xchg al, [bx]                 ; reg/mem byte form
 
     mov ax, 4C00h
     int 21h

@@ -85,6 +85,27 @@ pub enum MemSize {
     Word,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SegOverride {
+    Cs,
+    Ds,
+    Es,
+    Ss,
+}
+
+impl SegOverride {
+    /// Map the override to its 8086 prefix byte.
+    #[must_use]
+    pub fn prefix_byte(self) -> u8 {
+        match self {
+            Self::Es => 0x26,
+            Self::Cs => 0x2E,
+            Self::Ss => 0x36,
+            Self::Ds => 0x3E,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemRef {
     pub terms: Vec<MemTerm>,
@@ -92,6 +113,10 @@ pub struct MemRef {
     /// `BYTE PTR` / `WORD PTR` size override. `None` lets the encoder
     /// choose based on the other operand (or default to word).
     pub size_hint: Option<MemSize>,
+    /// `CS:` / `DS:` / `ES:` / `SS:` prefix in front of the bracketed
+    /// memory operand. `None` means use the default segment for the
+    /// chosen base register (DS for [bx]/[si]/[di]/[disp], SS for [bp]).
+    pub seg_override: Option<SegOverride>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -397,12 +422,12 @@ impl Parser<'_> {
                         // require a `[` next.
                         self.bump(); // size keyword
                         self.bump(); // PTR
-                        if !matches!(self.peek().tok, Token::LBracket) {
+                        if !matches!(self.peek().tok, Token::LBracket | Token::Ident(_)) {
                             let s = self.peek().clone();
                             return Err(ParseError {
                                 span: s.span,
                                 message: format!(
-                                    "expected `[` after `{lname} ptr`, found {}",
+                                    "expected `[` or segment override after `{lname} ptr`, found {}",
                                     s.tok
                                 ),
                             });
@@ -416,10 +441,39 @@ impl Parser<'_> {
                             });
                             return Ok(Operand::Mem(m));
                         }
-                        // parse_operand on `[` always returns a Mem.
-                        unreachable!("parse_operand on `[` should yield Operand::Mem");
+                        return Err(ParseError {
+                            span: inner.span(),
+                            message: format!("expected `[…]` after `{lname} ptr`"),
+                        });
                     }
                 }
+            }
+        }
+
+        // Optional `CS:` / `DS:` / `ES:` / `SS:` segment override on a
+        // bracketed memory operand.
+        if let Token::Ident(name) = &self.peek().tok.clone() {
+            let lname = name.to_ascii_lowercase();
+            if matches!(lname.as_str(), "cs" | "ds" | "es" | "ss")
+                && self.toks.len() > self.pos + 1
+                && matches!(self.toks[self.pos + 1].tok, Token::Colon)
+            {
+                self.bump(); // segreg name
+                self.bump(); // ':'
+                let inner = self.parse_operand()?;
+                if let Operand::Mem(mut m) = inner {
+                    m.seg_override = Some(match lname.as_str() {
+                        "cs" => SegOverride::Cs,
+                        "ds" => SegOverride::Ds,
+                        "es" => SegOverride::Es,
+                        _ => SegOverride::Ss,
+                    });
+                    return Ok(Operand::Mem(m));
+                }
+                return Err(ParseError {
+                    span: inner.span(),
+                    message: format!("expected `[…]` after `{lname}:`"),
+                });
             }
         }
 
@@ -506,6 +560,7 @@ impl Parser<'_> {
                 let r = self.expect(&Token::RBracket)?;
                 Ok(Operand::Mem(MemRef {
                     size_hint: None,
+                    seg_override: None,
                     terms,
                     span: Span::new(l.span.start, r.span.end),
                 }))
