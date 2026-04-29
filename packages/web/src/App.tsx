@@ -12,6 +12,7 @@ import { TrafficLight } from "./TrafficLight";
 import { LedMatrix } from "./LedMatrix";
 import { Stepper } from "./Stepper";
 import { Screen } from "./Screen";
+import { LOCALES, useLocaleId, useStrings } from "./i18n";
 
 const STORAGE_KEY = "emu8086-modern.source";
 
@@ -173,6 +174,8 @@ function flagBadge(name: string, on: boolean) {
 }
 
 export function App() {
+  const t = useStrings();
+  const [localeId, setLocaleIdValue] = useLocaleId();
   const [coreState, setCoreState] = useState<CoreState>({ kind: "loading" });
   const [source, setSource] = useState<string>(() => initialSource());
   const [result, setResult] = useState<RunResultJson | null>(null);
@@ -218,17 +221,17 @@ export function App() {
       navigator.clipboard
         .writeText(url)
         .then(() => {
-          setShareToast("link copied to clipboard");
+          setShareToast(t.shareCopied);
           window.setTimeout(() => setShareToast(""), 1800);
         })
         .catch(() => {
           window.location.hash = `code=${fragment}`;
-          setShareToast("link is in the URL bar");
+          setShareToast(t.shareInUrl);
           window.setTimeout(() => setShareToast(""), 1800);
         });
     } else {
       window.location.hash = `code=${fragment}`;
-      setShareToast("link is in the URL bar");
+      setShareToast(t.shareInUrl);
       window.setTimeout(() => setShareToast(""), 1800);
     }
   }
@@ -512,17 +515,49 @@ export function App() {
         lineHeight: 1.45,
       }}
     >
-      <header style={{ marginBottom: "1rem" }}>
-        <h1 style={{ marginBottom: 0 }}>emu8086-modern</h1>
-        <p style={{ color: "#666", marginTop: "0.25rem" }}>
-          A modern, open-source 8086 emulator and assembly IDE for students.
-          Edit, click <strong>Run</strong>, see the result.
-        </p>
+      <header
+        style={{
+          marginBottom: "1rem",
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div>
+          <h1 style={{ marginBottom: 0 }}>{t.appTitle}</h1>
+          <p style={{ color: "#666", marginTop: "0.25rem" }}>
+            {t.appLead}
+            <strong>{t.appLeadRunVerb}</strong>
+            {".  "}
+          </p>
+        </div>
+        <select
+          aria-label={t.languageLabel}
+          value={localeId}
+          onChange={(e) =>
+            setLocaleIdValue(e.target.value as typeof localeId)
+          }
+          style={{
+            padding: "0.25rem 0.5rem",
+            border: "1px solid #ccc",
+            borderRadius: 4,
+            background: "#fff",
+            fontSize: 12,
+          }}
+          title={t.languageLabel}
+        >
+          {LOCALES.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
+            </option>
+          ))}
+        </select>
       </header>
 
-      {coreState.kind === "loading" && <p>Loading wasm core…</p>}
+      {coreState.kind === "loading" && <p>{t.loadingWasm}</p>}
       {coreState.kind === "error" && (
-        <p style={{ color: "#c00" }}>Failed to load wasm: {coreState.message}</p>
+        <p style={{ color: "#c00" }}>{t.loadWasmFailed(coreState.message)}</p>
       )}
 
       {coreState.kind === "ready" && (
@@ -542,7 +577,7 @@ export function App() {
                 marginBottom: 6,
               }}
             >
-              <strong>source</strong>
+              <strong>{t.source}</strong>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <select
                   defaultValue=""
@@ -560,10 +595,10 @@ export function App() {
                     background: "#fff",
                     fontSize: 13,
                   }}
-                  title="Replace the editor with one of the bundled examples"
+                  title={t.loadExampleTooltip}
                 >
                   <option value="" disabled>
-                    Load example…
+                    {t.loadExample}
                   </option>
                   {EXAMPLES.map((ex) => (
                     <option key={ex.id} value={ex.id}>
@@ -584,9 +619,9 @@ export function App() {
                     cursor: "pointer",
                     fontWeight: 600,
                   }}
-                  title="Re-assemble and point the stepper at instruction 0"
+                  title={t.resetTooltip}
                 >
-                  Reset
+                  {t.reset}
                 </button>
                 <button
                   type="button"
@@ -602,9 +637,9 @@ export function App() {
                     fontWeight: 600,
                     opacity: stepLoaded ? 1 : 0.5,
                   }}
-                  title="Undo the last step (time-travel debug)"
+                  title={t.backTooltip}
                 >
-                  ◀ Back
+                  {t.back}
                 </button>
                 <button
                   type="button"
@@ -619,9 +654,9 @@ export function App() {
                     cursor: "pointer",
                     fontWeight: 600,
                   }}
-                  title="Execute one instruction (or assemble + step from start)"
+                  title={t.stepTooltip}
                 >
-                  Step ▶
+                  {t.step}
                 </button>
                 <button
                   type="button"
@@ -637,7 +672,7 @@ export function App() {
                     fontWeight: 600,
                   }}
                 >
-                  {running ? "running…" : "Run (Ctrl+Enter)"}
+                  {running ? t.running : t.run}
                 </button>
                 <button
                   type="button"
@@ -651,9 +686,9 @@ export function App() {
                     cursor: "pointer",
                     fontWeight: 600,
                   }}
-                  title="Copy a URL that re-opens this program in the IDE"
+                  title={t.shareTooltip}
                 >
-                  ↗ Share
+                  {t.share}
                 </button>
                 {shareToast && (
                   <span style={{ color: "#0a7", fontSize: 13, marginLeft: 4 }}>
@@ -694,7 +729,7 @@ export function App() {
             </div>
 
             <div style={{ marginTop: "1rem" }}>
-              <strong>output</strong>
+              <strong>{t.output}</strong>
               <pre
                 style={{
                   background: "#111",
@@ -707,7 +742,7 @@ export function App() {
                     "ui-monospace, SFMono-Regular, Menlo, monospace",
                 }}
               >
-                {result?.stdout || (running ? "running…" : "(no output yet — click Run)")}
+                {result?.stdout || (running ? t.running : t.noOutputYet)}
               </pre>
               {result?.error && (
                 <div
@@ -724,8 +759,12 @@ export function App() {
                   }}
                 >
                   <div>
-                    <strong>{result.error.stage} error</strong> at line{" "}
-                    {result.error.line}, column {result.error.column}: {result.error.message}
+                    {t.errorAt(
+                      result.error.stage,
+                      result.error.line,
+                      result.error.column,
+                      result.error.message,
+                    )}
                   </div>
                   {errorLine > 0 && errorLine <= sourceLines.length && (
                     <pre
@@ -745,16 +784,18 @@ export function App() {
               )}
               {result?.ok && (
                 <div style={{ color: "#666", fontSize: 12, marginTop: 4 }}>
-                  {result.bytes > 0 && <>{result.bytes} bytes assembled (origin = 0x{hex(result.origin)}); </>}
-                  {result.steps > 0 && <>{result.steps.toLocaleString()} steps; </>}
-                  exit code{" "}
+                  {result.bytes > 0 && (
+                    <>{t.bytesAssembled(result.bytes, hex(result.origin))} </>
+                  )}
+                  {result.steps > 0 && <>{t.stepsCount(result.steps)} </>}
+                  {t.exitCodeLabel}{" "}
                   <code>{result.exit_code === null ? "—" : result.exit_code}</code>
                 </div>
               )}
               {stepLog && (
                 <details style={{ marginTop: "1rem" }}>
                   <summary style={{ cursor: "pointer", color: "#666", fontSize: 13 }}>
-                    step log ({stepLog.split("\n").filter(Boolean).length} steps)
+                    {t.stepLogSummary(stepLog.split("\n").filter(Boolean).length)}
                   </summary>
                   <pre
                     style={{
@@ -776,7 +817,7 @@ export function App() {
           </section>
 
           <aside>
-            <strong>registers</strong>
+            <strong>{t.registers}</strong>
             {result?.registers ? (
               <table
                 style={{
@@ -810,12 +851,12 @@ export function App() {
               </table>
             ) : (
               <div style={{ color: "#888", fontSize: 13, marginTop: 4 }}>
-                run a program to see registers
+                {t.noRegistersYet}
               </div>
             )}
 
             <div style={{ marginTop: "1rem" }}>
-              <strong>flags</strong>
+              <strong>{t.flags}</strong>
               <div style={{ marginTop: 4 }}>
                 {result?.registers
                   ? FLAG_BITS.map(([name, mask]) =>
@@ -826,7 +867,7 @@ export function App() {
             </div>
 
             <div style={{ marginTop: "1rem" }}>
-              <strong style={{ display: "block", marginBottom: 4 }}>devices</strong>
+              <strong style={{ display: "block", marginBottom: 4 }}>{t.devices}</strong>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
                 <SevenSegment value={port199} />
                 <TrafficLight value={port4} />
@@ -841,9 +882,9 @@ export function App() {
             {memHex && (
               <div style={{ marginTop: "1rem" }}>
                 <strong style={{ display: "block", marginBottom: 4 }}>
-                  memory{" "}
+                  {t.memory}{" "}
                   <span style={{ color: "#888", fontWeight: 400, fontSize: 12 }}>
-                    DS:0x100..1FF
+                    {t.memoryRangeLabel}
                   </span>
                 </strong>
                 <pre
@@ -880,8 +921,9 @@ export function App() {
       )}
 
       <footer style={{ marginTop: "2rem", color: "#666", fontSize: 13 }}>
-        <a href="https://github.com/abuXsarkar/emu8086-modern">github</a> ·{" "}
-        time-travel debugger and virtual peripherals arrive in M4 — see ROADMAP.md.
+        <a href="https://github.com/abuXsarkar/emu8086-modern">{t.footerLink}</a>
+        {t.footerSeparator}
+        {t.footerNote}
       </footer>
     </main>
   );

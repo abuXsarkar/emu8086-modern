@@ -146,8 +146,7 @@ In priority order if I were continuing:
 
 1. **Stepper motor + screen + keyboard peripherals** (M4.2 long tail). Same shape as the existing devices.
 2. **Conformance corpus** (M1 exit criterion). Walk legacy emu8086 sample programs (the public-domain ones), assemble them via `emu8086 compat-report` (use `--exclude lib/` to drop include-only macro packs), fix any divergences, commit them under `tests/conformance/`.
-3. **i18n extraction** (M6 deliverable). All UI strings in `packages/web/src/App.tsx` go through a key/value lookup table; baseline English file plus one or two translations.
-4. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
+3. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
 
 ### Known minor gaps / nits
 
