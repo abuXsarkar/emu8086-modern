@@ -109,6 +109,7 @@ emu8086-modern/
 │   ├── hello_include.asm       → "Hello via include!" (uses `include`)
 │   ├── seven_seg.asm           → lights all 7 segments of port 199
 │   ├── traffic.asm             → N/S green, E/W red on port 4
+│   ├── led_matrix.asm          → smiley on the 8×8 LED matrix (ports 9 + 10)
 │   └── assignments/sum10/      → autograder sample (spec.yml + submission.asm)
 ├── tests/            # cross-package conformance harnesses (not yet populated)
 └── .github/
@@ -130,7 +131,7 @@ emu8086-modern/
 | **emu8086-assembler** | Lex + macro preprocess + 2-pass parse + encode for nearly every M1 mnemonic. Directives: `org`, `db`, `dw`, `equ`, `dup`, `BYTE PTR`/`WORD PTR`. User-defined `MACRO`/`ENDM` with positional args, pre-expansion at definition site, `@@`-label uniquing per call. Mod-r/m memory operands like `[bx+si+disp]`. Labels with forward references. ~52 unit tests. |
 | **emu8086-cli** | `assemble`, `run`, `run-asm`, `trace` (JSON), `grade` (YAML spec → JUnit XML), `compat-report`, `version`. File-level `include "..."` resolution. ~10 e2e tests. |
 | **emu8086-wasm-api** | `compile_and_run`, stateful `Emulator` class with `load_source`/`step`/`step_back`/`run`, `port_byte`, `memory_hex`. |
-| **Web IDE (@emu8086/web)** | Monaco editor with 8086-asm syntax highlighting, snippets (8 idioms), hover docs (~80 mnemonics), red-squiggle error markers, example loader, localStorage autosave, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, **Reset / ◀ Back / Step ▶ / Run** debug controls, current-IP line highlight that follows source, register/flag/memory hex panels, **7-segment display** + **traffic-light** peripherals updating live as you step. |
+| **Web IDE (@emu8086/web)** | Monaco editor with 8086-asm syntax highlighting, snippets (8 idioms), hover docs (~80 mnemonics), red-squiggle error markers, example loader, localStorage autosave, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, **Reset / ◀ Back / Step ▶ / Run** debug controls, current-IP line highlight that follows source, register/flag/memory hex panels, **7-segment display** + **traffic-light** + **8×8 LED matrix** peripherals updating live as you step. |
 | **CI** | Rust on Linux/macOS/Windows × fmt + clippy + tests + wasm32 build; web typecheck/build/test; markdownlint. All green at the time of writing. |
 | **Composite GitHub Action** | `.github/actions/grade/action.yml` — drop-in for GitHub Classroom assignments. |
 
@@ -140,14 +141,13 @@ Total tests: **22 test groups, ~200+ tests workspace-wide, all passing.**
 
 In priority order if I were continuing:
 
-1. **LED matrix peripheral** (M4.2c). I'd already created the task and started thinking about it. Standard layout: port 9 = row data, port 10 = row address (0..7). Component is an 8×8 grid of `<circle>` SVG elements. The pattern is the same as `SevenSegment.tsx` and `TrafficLight.tsx` — copy one of those, change the geometry and the bit-to-lamp mapping. Wire `port_byte(9)` and `port_byte(10)` plus a small `Vec<u8>; 8>` of "last seen row data" via `out_log` walking. Easy ~1 hour task.
-2. **Stepper motor + screen + keyboard peripherals** (M4.2 long tail). Same shape as the existing devices.
-3. **`.MODEL` / `PROC` / `ENDP` directives**. Most lab manuals open with `.MODEL SMALL` and define procedures. The assembler can roughly ignore `.MODEL` (treat as a no-op for `.com` programs) and parse `name PROC ... name ENDP` as a labeled block. Look at `parser.rs` for the place to plug it in (right next to `MACRO`/`ENDM` recognition).
-4. **Conformance corpus** (M1 exit criterion). Walk legacy emu8086 sample programs (the public-domain ones), assemble them via `emu8086 compat-report`, fix any divergences, commit them under `tests/conformance/`.
-5. **Self-host Docker image** (M6.x). A multi-stage `Dockerfile`: stage 1 builds the wasm-api + web; stage 2 is `nginx:alpine` serving `packages/web/dist/`. ~30 lines.
-6. **PWA / service worker**. Vite has a plugin (`vite-plugin-pwa`) that adds offline caching with one config line. Useful for "Chromebook in airplane mode" labs.
-7. **i18n extraction** (M6 deliverable). All UI strings in `packages/web/src/App.tsx` go through a key/value lookup table; baseline English file plus one or two translations.
-8. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
+1. **Stepper motor + screen + keyboard peripherals** (M4.2 long tail). Same shape as the existing devices.
+2. **`.MODEL` / `PROC` / `ENDP` directives**. Most lab manuals open with `.MODEL SMALL` and define procedures. The assembler can roughly ignore `.MODEL` (treat as a no-op for `.com` programs) and parse `name PROC ... name ENDP` as a labeled block. Look at `parser.rs` for the place to plug it in (right next to `MACRO`/`ENDM` recognition).
+3. **Conformance corpus** (M1 exit criterion). Walk legacy emu8086 sample programs (the public-domain ones), assemble them via `emu8086 compat-report`, fix any divergences, commit them under `tests/conformance/`.
+4. **Self-host Docker image** (M6.x). A multi-stage `Dockerfile`: stage 1 builds the wasm-api + web; stage 2 is `nginx:alpine` serving `packages/web/dist/`. ~30 lines.
+5. **PWA / service worker**. Vite has a plugin (`vite-plugin-pwa`) that adds offline caching with one config line. Useful for "Chromebook in airplane mode" labs.
+6. **i18n extraction** (M6 deliverable). All UI strings in `packages/web/src/App.tsx` go through a key/value lookup table; baseline English file plus one or two translations.
+7. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
 
 ### Known minor gaps / nits
 
@@ -233,16 +233,18 @@ pnpm typecheck
 pnpm -r build
 ```
 
-### Pick up the LED matrix task
+### Pick up a new peripheral
 
 ```bash
-# Look at how 7-seg is wired to learn the pattern:
-$EDITOR packages/web/src/SevenSegment.tsx
-$EDITOR packages/web/src/App.tsx           # search for `port199` to see refresh
-# Then create:
-#   packages/web/src/LedMatrix.tsx (8×8 SVG grid)
-#   examples/led_matrix.asm
-# Add port 9 + port 10 polls in App.tsx::refreshDevices.
+# All three current peripherals share the same shape — read one to learn it:
+$EDITOR packages/web/src/SevenSegment.tsx   # one byte → seven segments
+$EDITOR packages/web/src/TrafficLight.tsx   # one byte → 8 lamps in a layout
+$EDITOR packages/web/src/LedMatrix.tsx      # walks out_log for a row buffer
+$EDITOR packages/web/src/App.tsx            # refreshDevices polls each one
+
+# For a stateful device that needs full out_log replay (matrix, screen,
+# keyboard buffer), add a Vec-returning method on Emulator that walks
+# self.cpu.out_log; LedMatrix::led_matrix_rows is the worked example.
 ```
 
 ---

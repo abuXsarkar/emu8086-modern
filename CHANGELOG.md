@@ -6,11 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added (post-handoff)
+
+- **8×8 LED matrix peripheral** (M4.2c). Standard port layout: port 10 (`0x0A`) selects the row index (0..7), port 9 (`0x09`) latches the row's 8-bit pixel data. New `Emulator::led_matrix_rows()` walks `out_log` to reconstruct the full 8-byte row buffer, automatically honoring `step_back` truncation. New React `LedMatrix` component renders an 8×8 SVG circle grid in the IDE's devices panel, plus an `examples/led_matrix.asm` smiley-face program and a wasm-api unit test that verifies row reconstruction byte-for-byte.
+
 ### Highlights since the project bootstrap
 
 - **M0 → M5 milestones** all shipped at alpha quality. M6/M7 require external infrastructure (institute pilot, code-signing, external a11y audit) and are tracked but not started.
 - **`emu8086`** CLI: `assemble`, `run`, `run-asm`, `trace` (JSON), `grade` (YAML spec → JUnit XML), `compat-report` (corpus check), `version`. File-level `include "..."` resolution before assembly.
-- **Web IDE**: Monaco editor with full 8086-asm syntax highlighting, snippets, hover docs, red-squiggle error markers, **Reset / ◀ Back / Step ▶ / Run** debugger backed by the stateful `Emulator` class (with diff-snapshot time travel), live register/flag/memory panels, **7-segment display** and **traffic-light** peripherals, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, localStorage autosave, example loader.
+- **Web IDE**: Monaco editor with full 8086-asm syntax highlighting, snippets, hover docs, red-squiggle error markers, **Reset / ◀ Back / Step ▶ / Run** debugger backed by the stateful `Emulator` class (with diff-snapshot time travel), live register/flag/memory panels, **7-segment display**, **traffic-light**, and **8×8 LED matrix** peripherals, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, localStorage autosave, example loader.
 - **Composite GitHub Action** at `.github/actions/grade/` for drop-in GitHub Classroom integration.
 - **emu8086.inc-style stdlib** (`examples/lib/stdlib.asm`) shipping `PUTC`, `NEWLINE`, `PRINT`, `PRINTN`, `GOTOXY`, `CLEAR_SCREEN` — all built on the assembler's `MACRO`/`ENDM` mechanism with pre-expansion at definition time so nested macros resolve cleanly.
 - **11 working example programs** in `examples/`, each with an integration test asserting byte-for-byte output through the CLI: hello, sum, array_sum, streq, countdown, stackdemo, macro_putc, hello_macros, hello_include, seven_seg, traffic.

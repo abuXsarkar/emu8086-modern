@@ -311,6 +311,26 @@ impl Emulator {
         self.cpu.out_log.len() as u32
     }
 
+    /// Reconstruct the 8×8 LED-matrix display by walking `out_log`.
+    /// Convention: writes to port 10 (0x0A) select the row index (0..7,
+    /// taken modulo 8), writes to port 9 (0x09) latch the row's 8-bit
+    /// pixel data into that index. We replay the log from the start so
+    /// `step_back`'s truncation of `out_log` is honored automatically.
+    /// Returns 8 bytes, row 0 first.
+    #[must_use]
+    pub fn led_matrix_rows(&self) -> Vec<u8> {
+        let mut rows = vec![0u8; 8];
+        let mut current: usize = 0;
+        for w in &self.cpu.out_log {
+            match w.port {
+                10 => current = (w.value as usize) & 0x07,
+                9 => rows[current] = w.value as u8,
+                _ => {}
+            }
+        }
+        rows
+    }
+
     #[must_use]
     pub fn memory_hex(&self, seg: u16, off: u16, len: u16) -> String {
         use std::fmt::Write as _;
@@ -395,6 +415,42 @@ mod tests {
         let out = compile_and_run(src, 10_000);
         assert!(out.contains("\"stdout\":\"Hi\""), "got: {out}");
         assert!(out.contains("\"ok\":true"));
+    }
+
+    #[test]
+    fn led_matrix_rows_reconstructs_from_out_log() {
+        // Run the bundled LED-matrix smiley example via the stateful
+        // Emulator, then ask for the reconstructed rows. The pattern
+        // bytes are the constants from examples/led_matrix.asm.
+        let src = "\
+            org 100h\n\
+            mov si, pattern\n\
+            xor cx, cx\n\
+            next_row:\n\
+            cmp cx, 8\n\
+            je  done\n\
+            mov al, cl\n\
+            mov dx, 10\n\
+            out dx, al\n\
+            mov al, [si]\n\
+            mov dx, 9\n\
+            out dx, al\n\
+            inc si\n\
+            inc cx\n\
+            jmp next_row\n\
+            done:\n\
+            mov ax, 0x4C00\n\
+            int 21h\n\
+            pattern: db 0x7E, 0x81, 0xA5, 0x81, 0xA5, 0x99, 0x81, 0x7E\n\
+        ";
+        let mut e = Emulator::new();
+        let load = e.load_source(src);
+        assert!(load.contains("\"ok\":true"), "load failed: {load}");
+        let _ = e.run(100_000);
+        assert_eq!(
+            e.led_matrix_rows(),
+            vec![0x7E, 0x81, 0xA5, 0x81, 0xA5, 0x99, 0x81, 0x7E],
+        );
     }
 
     #[test]

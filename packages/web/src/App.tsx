@@ -9,6 +9,7 @@ import { ASM_LANG_ID, registerAsm8086 } from "./asm8086";
 import { EXAMPLES } from "./examples";
 import { SevenSegment } from "./SevenSegment";
 import { TrafficLight } from "./TrafficLight";
+import { LedMatrix } from "./LedMatrix";
 
 const STORAGE_KEY = "emu8086-modern.source";
 
@@ -179,6 +180,7 @@ export function App() {
   const [memHex, setMemHex] = useState<string>("");
   const [port199, setPort199] = useState<number>(0);
   const [port4, setPort4] = useState<number>(0);
+  const [ledRows, setLedRows] = useState<Uint8Array>(() => new Uint8Array(8));
   const [shareToast, setShareToast] = useState<string>("");
   const emuRef = useRef<Emulator | null>(null);
   const lineMapRef = useRef<Array<[number, number]>>([]);
@@ -198,6 +200,7 @@ export function App() {
     if (!emuRef.current) return;
     setPort199(emuRef.current.port_byte(199));
     setPort4(emuRef.current.port_byte(4));
+    setLedRows(emuRef.current.led_matrix_rows());
   }
 
   function onShare() {
@@ -822,6 +825,7 @@ export function App() {
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
                 <SevenSegment value={port199} />
                 <TrafficLight value={port4} />
+                <LedMatrix rows={ledRows} />
               </div>
             </div>
 

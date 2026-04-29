@@ -215,6 +215,42 @@ no_tens:
 `,
   },
   {
+    id: "led_matrix",
+    label: "led_matrix — paint a smiley on the 8x8 LED matrix (ports 9, 10)",
+    hint: "Renders an 8x8 sprite via the row-address / row-data port pattern",
+    source: `; led_matrix.asm — paint a smiley face on the 8x8 LED matrix.
+;
+;   port 10 (0x0A) = row address (0..7)
+;   port  9 (0x09) = row data; bit 0 = leftmost lamp
+
+org 100h
+
+    mov si, pattern
+    xor cx, cx
+next_row:
+    cmp cx, 8
+    je  done
+
+    mov al, cl
+    mov dx, 10
+    out dx, al
+
+    mov al, [si]
+    mov dx, 9
+    out dx, al
+
+    inc si
+    inc cx
+    jmp next_row
+
+done:
+    mov ax, 4C00h
+    int 21h
+
+pattern: db 7Eh, 81h, 0A5h, 81h, 0A5h, 99h, 81h, 7Eh
+`,
+  },
+  {
     id: "stackdemo",
     label: "stackdemo — simplest LIFO push/pop demo",
     hint: 'Prints "321"',
