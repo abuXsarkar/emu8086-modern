@@ -651,6 +651,7 @@ export function App() {
 
   return (
     <main
+      className="app-root"
       style={{
         fontFamily: "system-ui, -apple-system, sans-serif",
         padding: "1.5rem 2rem",
@@ -660,6 +661,7 @@ export function App() {
       }}
     >
       <header
+        className="app-header"
         style={{
           marginBottom: "1rem",
           display: "flex",
@@ -731,13 +733,7 @@ export function App() {
       )}
 
       {coreState.kind === "ready" && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) 320px",
-            gap: "1rem",
-          }}
-        >
+        <div className="app-layout">
           <section>
             <div
               style={{
@@ -903,6 +899,7 @@ export function App() {
                     setTimeout(() => setShareToast(""), 2500);
                   });
               }}
+              className="source-editor-frame"
               style={{
                 border: "1px solid #2a2a2a",
                 borderRadius: 4,
@@ -1072,7 +1069,7 @@ export function App() {
 
             <div style={{ marginTop: "1rem" }}>
               <strong style={{ display: "block", marginBottom: 4 }}>{t.devices}</strong>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
+              <div className="device-row">
                 <SevenSegment value={port199} />
                 <TrafficLight value={port4} />
                 <LedMatrix rows={ledRows} />
