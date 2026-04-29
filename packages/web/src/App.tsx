@@ -945,6 +945,54 @@ export function App() {
               >
                 {result?.stdout || (running ? t.running : t.noOutputYet)}
               </pre>
+              {result?.ok && !running && !result.error && (() => {
+                // Pick one of three states. The banner addresses the
+                // legacy emu8086 "did my program actually run?" UX
+                // gap — students used to a modal "Program completed"
+                // dialog get a clearly-styled inline equivalent here.
+                const ranOut = !result.halted && result.steps > 0;
+                const halted = result.halted;
+                const noStdout = (result.stdout ?? "").length === 0;
+                if (!ranOut && !halted) return null;
+                const isHalted = halted;
+                const bg = isHalted ? "#0a3a22" : "#3a2a0a";
+                const border = isHalted ? "#0a8" : "#fc3";
+                const fg = isHalted ? "#9fe" : "#fc3";
+                const icon = isHalted ? "✓" : "⏱";
+                const title = isHalted ? t.statusHalted : t.statusOutOfSteps;
+                const hint = isHalted
+                  ? t.statusHaltedHint(result.steps)
+                  : t.statusOutOfStepsHint(result.steps);
+                return (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    style={{
+                      marginTop: 6,
+                      padding: "0.5rem 0.7rem",
+                      background: bg,
+                      border: `1px solid ${border}`,
+                      borderRadius: 4,
+                      color: fg,
+                      fontFamily: "ui-monospace, Menlo, monospace",
+                      fontSize: 13,
+                    }}
+                  >
+                    <div style={{ fontWeight: 700 }}>
+                      {icon} {title}
+                    </div>
+                    <div style={{ marginTop: 2, fontSize: 12, color: "#cdd" }}>
+                      {hint}
+                      {isHalted && noStdout && (
+                        <>
+                          {" "}
+                          {t.statusNoStdoutHint}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
               {result?.error && (
                 <div
                   style={{

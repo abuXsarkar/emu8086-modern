@@ -46,6 +46,13 @@ export interface Strings {
   noOutputYet: string;
   noRegistersYet: string;
 
+  // Run-completion status banner
+  statusHalted: string;
+  statusHaltedHint: (steps: number) => string;
+  statusOutOfSteps: string;
+  statusOutOfStepsHint: (steps: number) => string;
+  statusNoStdoutHint: string;
+
   // Error block
   errorAt: (stage: string, line: number, column: number, message: string) => string;
 
