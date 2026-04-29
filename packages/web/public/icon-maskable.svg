@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <!-- Maskable icon: artwork is inset by ~10% so platform masks don't
+       crop the glyph. The full 192x192 background colour persists past
+       any rounded-square mask. -->
+  <rect x="0" y="0" width="192" height="192" fill="#0a7"/>
+  <text x="96" y="118" font-family="ui-monospace, Menlo, Consolas, monospace" font-weight="700" font-size="64" fill="#ffffff" text-anchor="middle">86</text>
+</svg>
