@@ -135,22 +135,21 @@ emu8086-modern/
 | Layer | What works |
 |---|---|
 | **emu8086-core** | Mainline 8086 ISA: registers (with high/low aliasing), 1 MiB segmented memory + mod-r/m, MOV family (incl. LEA, XCHG, segregs, accumulator moffs, LDS/LES), arithmetic with full flag math (CF/OF/SF/ZF/AF/PF), logical, shifts/rotates, stack, control flow (all 16 Jcc + LOOP family + JCXZ + near *and* far CALL/RET/JMP), string ops with REP/REPE/REPNE, MUL/IMUL/DIV/IDIV with DivideError trap, port I/O, software interrupts including DOS INT 21h subset (01h/02h/06h/09h/4Ch), BCD adjusts (DAA/DAS/AAA/AAS/AAM/AAD). **Time-travel debugger** via diff-snapshot `step_back`. ~110 unit tests. |
-| **emu8086-assembler** | Lex + macro preprocess + 2-pass parse + encode for nearly every M1 mnemonic — incl. LEA, the three XCHG forms (mod-r/m + 90+rw accumulator), memory-form PUSH/POP, and segment-override prefixes (`CS:` / `DS:` / `ES:` / `SS:`) on bracketed memory operands. Directives: `org`, `db`, `dw`, `equ`, `dup`, `BYTE PTR`/`WORD PTR`, plus the MASM-style scaffold (`.MODEL`, `.STACK`, `.DATA`, `.CODE`, `.STARTUP`, `.EXIT`, `ASSUME`, `END`) which is dropped as a no-op, and `name PROC [NEAR\|FAR] ... name ENDP` blocks which collapse into labeled blocks. User-defined `MACRO`/`ENDM` with positional args, pre-expansion at definition site, `@@`-label uniquing per call. Mod-r/m memory operands like `[bx+si+disp]`. Labels with forward references. ~65 unit tests. |
+| **emu8086-assembler** | Lex + macro preprocess + 2-pass parse + encode for nearly every M1 mnemonic — incl. LEA, the three XCHG forms (mod-r/m + 90+rw accumulator), memory-form PUSH/POP, segment-override prefixes (`CS:` / `DS:` / `ES:` / `SS:`) on bracketed memory operands, and both directions of `mov segreg, r16` / `mov r16, segreg`. Directives: `org`, `db`, `dw`, `equ`, `dup`, `BYTE PTR`/`WORD PTR`, plus the MASM-style scaffold (`.MODEL`, `.STACK`, `.DATA`, `.CODE`, `.STARTUP`, `.EXIT`, `ASSUME`, `END`) which is dropped as a no-op, and `name PROC [NEAR\|FAR] ... name ENDP` blocks which collapse into labeled blocks. User-defined `MACRO`/`ENDM` with positional args, pre-expansion at definition site, `@@`-label uniquing per call. Mod-r/m memory operands like `[bx+si+disp]`. Labels with forward references. ~66 unit tests. |
 | **emu8086-cli** | `assemble`, `run`, `run-asm`, `trace` (JSON), `grade` (YAML spec → JUnit XML), `compat-report`, `version`. File-level `include "..."` resolution. ~10 e2e tests. |
 | **emu8086-wasm-api** | `compile_and_run`, stateful `Emulator` class with `load_source`/`step`/`step_back`/`run`, `port_byte`, `memory_hex`. |
 | **Web IDE (@emu8086/web)** | Monaco editor with 8086-asm syntax highlighting, snippets (8 idioms), hover docs (~80 mnemonics), red-squiggle error markers, example loader, localStorage autosave, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, **Reset / ◀ Back / Step ▶ / Run** debug controls, current-IP line highlight that follows source, register/flag/memory hex panels, **7-segment display** + **traffic-light** + **8×8 LED matrix** + **stepper motor** + **text-mode screen** (B800:0000, 80×25, monochrome) + **keyboard input** (focused textbox feeds the FIFO at ports 0x60/0x64) + **LPT1 printer** (port 0x378) + **robot** (port 0x12, 9×9 grid) peripherals updating live as you step. |
 | **CI** | Rust on Linux/macOS/Windows × fmt + clippy + tests + wasm32 build; web typecheck/build/test; markdownlint. All green at the time of writing. |
 | **Composite GitHub Action** | `.github/actions/grade/action.yml` — drop-in for GitHub Classroom assignments. |
 
-Total tests: **27 test groups, ~214 tests workspace-wide, all passing.**
+Total tests: **27 test groups, ~215 tests workspace-wide, all passing.**
 
 ### Pending — concrete next chunks
 
 In priority order if I were continuing:
 
-1. **Last assembler gap** — `mov r16, segreg` (8C /r with reg16 destination). The matching `mov segreg, r16` direction is already wired; the parser just needs to accept the segment register on the source side. Small change, ~30 lines.
-2. **Expand the conformance corpus with public-domain programs** from real-world sources (lab manuals, community repos). The current 12 programs are synthesized to cover the assembler's surface; they're a regression net for what we already encode, not an external compatibility check.
-3. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
+1. **Expand the conformance corpus with public-domain programs** from real-world sources (lab manuals, community repos). The current 12 programs are synthesized to cover the assembler's surface; they're a regression net for what we already encode, not an external compatibility check — and adding the external corpus would need network access to community repos that's outside what a chat session can do reliably.
+2. **External work that requires real-world infrastructure** (M6/M7): institute pilot, external a11y audit, code-signing for desktop, trademark review. None of these are doable from a chat session — they need a partner.
 
 ### Known minor gaps / nits
 

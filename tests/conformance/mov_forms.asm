@@ -43,8 +43,7 @@ org 100h
     ; --- segment registers ---
     mov ax, 0x0700
     mov es, ax                    ; mov segreg, r16  (8E /r)
-    ; The matching `mov r16, segreg` (8C /r reg16 dest) is not yet
-    ; wired in the parser — see HANDOFF "known gaps".
+    mov bx, es                    ; mov r16, segreg  (8C /r)
 
     ; --- LEA (8D /r) — load effective address without reading mem ---
     lea si, [bx+2]
