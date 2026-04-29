@@ -67,3 +67,16 @@ body,
   flex-wrap: wrap;
   align-items: flex-start;
 }
+
+/* Keyboard focus ring. Browsers' default :focus-visible varies (Safari
+   used to skip outlines on buttons entirely), and inline styles in
+   App.tsx don't carry pseudo-class state. A single explicit rule keeps
+   a high-contrast ring everywhere a keyboard user can land. */
+button:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #0a7;
+  outline-offset: 2px;
+}

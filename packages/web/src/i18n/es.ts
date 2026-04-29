@@ -70,5 +70,9 @@ export const es: Locale = {
       "M0–M5 listos en versión alfa; ocho periféricos en vivo + depurador de viaje en el tiempo + puntos de interrupción + observadores.",
 
     languageLabel: "Idioma",
+
+    themeLabel: "Tema del editor",
+    themeDark: "Oscuro",
+    themeLight: "Claro",
   },
 };

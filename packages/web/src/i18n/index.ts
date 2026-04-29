@@ -12,10 +12,11 @@ import { useEffect, useState } from "react";
 import type { Locale, LocaleId, Strings } from "./types";
 import { en } from "./en";
 import { es } from "./es";
+import { bn } from "./bn";
 
 const STORAGE_KEY = "emu8086-modern.locale";
 
-export const LOCALES: Locale[] = [en, es];
+export const LOCALES: Locale[] = [en, es, bn];
 
 const FALLBACK = en;
 

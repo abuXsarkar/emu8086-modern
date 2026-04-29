@@ -74,9 +74,14 @@ export interface Strings {
 
   // Language picker label
   languageLabel: string;
+
+  // Editor theme picker (header)
+  themeLabel: string;
+  themeDark: string;
+  themeLight: string;
 }
 
-export type LocaleId = "en" | "es";
+export type LocaleId = "en" | "es" | "bn";
 
 export interface Locale {
   id: LocaleId;
