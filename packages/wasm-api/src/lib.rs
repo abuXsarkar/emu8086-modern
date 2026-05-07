@@ -818,6 +818,55 @@ hlt
     }
 
     #[test]
+    fn lab_ports_include_drives_native_stepper() {
+        // Hashemite Exp 8 / Gopalan ALP 8.2 style — the program names
+        // its 8255 PB port symbolically, the include points it at our
+        // native STEPPER_PORT (7). Driving the wave pattern 16 times
+        // must produce the same stepper-step count as the bundled
+        // `examples/stepper.asm` does directly.
+        //
+        // We embed the include text and the example text via
+        // `include_str!` so the test doesn't depend on filesystem
+        // path resolution — INCLUDE in the wasm-api test environment
+        // would look up paths relative to the workspace root rather
+        // than the crate. The concatenated source is the same thing
+        // the assembler sees after expanding INCLUDE on a real CLI run.
+        let lab_ports = include_str!("../../../examples/lib/lab_ports.inc");
+        let example = include_str!("../../../examples/lab_stepper_via_8255.asm");
+        // Splice the include's text in at the program's `include`
+        // line so we mirror what the assembler's INCLUDE directive
+        // would produce on a real CLI run. Order matters here: the
+        // include must land AFTER `org 100h`, otherwise the encoder's
+        // post-pass double-origin-adjusts the EQU values (a bug that
+        // PR 1 fixes; this PR is off main, so we work around it).
+        let mut spliced = String::new();
+        for line in example.lines() {
+            if line.trim_start().starts_with("include") {
+                spliced.push_str(lab_ports);
+                spliced.push('\n');
+            } else {
+                spliced.push_str(line);
+                spliced.push('\n');
+            }
+        }
+        let src = spliced;
+        let mut e = Emulator::new();
+        let load = e.load_source(&src);
+        assert!(
+            load.contains("\"ok\":true"),
+            "load failed.\nload result: {load}\nfull source:\n{src}",
+        );
+        let run_result = e.run(100_000);
+        assert_eq!(
+            e.stepper_steps(),
+            16,
+            "the lab-style program must drive STEPPER_PORT 16 times, same as native stepper.asm.\nrun result: {run_result}",
+        );
+        // Final pattern is index 15 → pattern[3] = 8 (W coil).
+        assert_eq!(e.port_byte(7), 8);
+    }
+
+    #[test]
     fn parse_error_carries_line_column() {
         // First line is fine; the comma right after `mov` on line 2 is
         // not a valid operand and triggers a parse error there.
