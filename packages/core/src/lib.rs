@@ -28,7 +28,7 @@ pub mod alu;
 pub mod cpu;
 pub mod mem;
 
-pub use cpu::{Cpu, Reg16, Reg8, StepRecord, StopReason};
+pub use cpu::{Clock, Cpu, Reg16, Reg8, StepRecord, StopReason};
 pub use mem::{seg_off, Memory, MEM_SIZE};
 
 /// Bootstrap probe used by the M0 hello-wasm path.
