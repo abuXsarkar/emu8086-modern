@@ -242,7 +242,15 @@ impl Emulator {
                 return serde_json::to_string(&r).unwrap_or_default();
             }
         };
+        // Reset the CPU but preserve fields the host has injected
+        // (VFS contents, virtual clock, mouse state) — those are
+        // conceptually "external state" the program should see across
+        // reloads, like a real machine's hard drive and clock would.
+        let preserved_vfs = std::mem::take(&mut self.cpu.vfs);
+        let preserved_clock = self.cpu.clock;
         self.cpu = Cpu::new();
+        self.cpu.vfs = preserved_vfs;
+        self.cpu.clock = preserved_clock;
         // Default history budget for the IDE: the same 1M-step cap that
         // `compile_and_run` uses. Step recording costs ~tens of bytes
         // per step (registers + the few memory writes the step did),
@@ -355,6 +363,36 @@ impl Emulator {
             second,
             hundredths,
         });
+    }
+
+    /// Pre-populate the virtual filesystem with a file the program
+    /// will open via `INT 21h` AH=3Dh. The IDE host reads dropped-in
+    /// `.txt` files (or whatever the lab requires) and pushes their
+    /// bytes here before each run; CLI users wire it from real disk.
+    pub fn vfs_put(&mut self, path: &str, contents: &[u8]) {
+        self.cpu.vfs.put(path, contents.to_vec());
+    }
+
+    /// Read a file out of the virtual filesystem after a run, so the
+    /// IDE can surface anything the program created via AH=3Ch /
+    /// wrote via AH=40h. Returns `None` if the path doesn't exist.
+    #[must_use]
+    pub fn vfs_get(&self, path: &str) -> Option<Vec<u8>> {
+        self.cpu.vfs.get(path).map(<[u8]>::to_vec)
+    }
+
+    /// List every file path currently in the VFS, newline-joined so
+    /// the wasm boundary stays string-typed. Useful when the IDE
+    /// wants to show "files this program created" in a side panel.
+    #[must_use]
+    pub fn vfs_paths(&self) -> String {
+        let mut paths: Vec<&String> = self.cpu.vfs.iter().map(|(k, _)| k).collect();
+        paths.sort();
+        paths
+            .into_iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// Snapshot of the 80×25 text-mode video buffer at linear address
@@ -892,5 +930,45 @@ hlt
         assert_eq!(e.cpu.regs.cl(), 30);
         assert_eq!(e.cpu.regs.dh(), 45);
         assert_eq!(e.cpu.regs.dl(), 50);
+    }
+
+    #[test]
+    fn vfs_put_get_roundtrip_via_emulator() {
+        // The IDE host puts a file into the VFS; a guest program
+        // opens, reads, and exits; the host reads the file back
+        // (untouched in this test, but a write would be observed
+        // the same way). End-to-end exercise of the wasm-bindgen
+        // surface: vfs_put → load_source → run → vfs_get.
+        // OFFSET isn't on this branch (it's PR 1's work) — use the
+        // bare-label-as-immediate form, which encodes identically.
+        let src = "\
+            org 100h\n\
+            mov ah, 3Dh\n\
+            mov al, 0\n\
+            mov dx, path\n\
+            int 21h\n\
+            jc done\n\
+            mov bx, ax\n\
+            mov ah, 3Fh\n\
+            mov dx, buf\n\
+            mov cx, 5\n\
+            int 21h\n\
+            mov ah, 3Eh\n\
+            int 21h\n\
+            done:\n\
+            mov ax, 4C00h\n\
+            int 21h\n\
+            path: db \"in.txt\", 0\n\
+            buf: db 0, 0, 0, 0, 0\n\
+        ";
+        let mut e = Emulator::new();
+        e.vfs_put("in.txt", b"hello");
+        let load = e.load_source(src);
+        assert!(load.contains("\"ok\":true"), "load: {load}");
+        let _ = e.run(10_000);
+        // Host sees the file is still there with its original bytes.
+        assert_eq!(e.vfs_get("in.txt").as_deref(), Some(&b"hello"[..]));
+        // And `vfs_paths` lists it.
+        assert!(e.vfs_paths().contains("in.txt"), "{}", e.vfs_paths());
     }
 }
