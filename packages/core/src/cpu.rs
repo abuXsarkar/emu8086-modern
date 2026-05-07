@@ -164,6 +164,16 @@ pub struct Cpu {
     /// be deterministic); the host refreshes it via `set_clock` if a
     /// real wall-clock value is wanted.
     pub clock: Clock,
+    /// Virtual host mouse state, surfaced through `INT 33h`. The CPU
+    /// never advances it on its own; the IDE host pushes the latest
+    /// position + button mask before each run if a lab program polls
+    /// it. Default state is "no buttons pressed at the screen origin".
+    pub mouse: Mouse,
+    /// Disk Transfer Address — segment:offset pair set by `INT 21h`
+    /// AH=1Ah. We don't model file searches yet, but tracking the
+    /// address keeps a program that round-trips set/get-DTA from
+    /// silently losing it.
+    pub dta: (u16, u16),
 }
 
 /// State of the virtual host clock. Defaults to a fixed deterministic
@@ -205,6 +215,20 @@ impl Default for Clock {
             hundredths: 0,
         }
     }
+}
+
+/// State of the virtual host mouse, surfaced through `INT 33h`
+/// subfunctions 00h..03h. Defaults to "centred origin, no buttons".
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Mouse {
+    /// Pixel X. Coordinate system matches the host's mouse driver
+    /// view; lab programs typically use `MOV CX, [pos_x]` to read
+    /// directly.
+    pub x: u16,
+    /// Pixel Y.
+    pub y: u16,
+    /// Button mask: bit 0 = left, bit 1 = right, bit 2 = middle.
+    pub buttons: u8,
 }
 
 /// Per-step undo record. Storing only the *changes* (registers before
@@ -263,6 +287,8 @@ impl Cpu {
             key_buffer: VecDeque::new(),
             keys_popped_this_step: Vec::new(),
             clock: Clock::default(),
+            mouse: Mouse::default(),
+            dta: (0, 0x0080), // PSP+0x80 — the DOS default DTA.
         }
     }
 
@@ -272,6 +298,14 @@ impl Cpu {
     /// the clock at its default for deterministic output.
     pub fn set_clock(&mut self, c: Clock) {
         self.clock = c;
+    }
+
+    /// Update the virtual host mouse. The IDE host calls this when a
+    /// lab program polls `INT 33h` AH=03h to surface real DOM mouse
+    /// state; tests can leave it at the default for deterministic
+    /// "no-input" behaviour.
+    pub fn set_mouse(&mut self, m: Mouse) {
+        self.mouse = m;
     }
 
     /// Enqueue one byte for the program to read via the keyboard port
@@ -396,12 +430,82 @@ impl Cpu {
             }
             0x21 => self.dos_int21(rec),
             0x16 => self.bios_int16(rec),
+            0x33 => self.mouse_int33(rec),
+            // Soft interrupts that lab manuals occasionally invoke but
+            // that have no useful effect under our flat `.com` model.
+            // Returning a "succeeded with default values" response is
+            // safer than a hard Unimplemented stop — the manuals'
+            // programs don't actually depend on the result.
+            0x14 | 0x17 => {
+                // INT 14h serial / INT 17h printer: clear AH (no-error
+                // status), keep AL untouched. Real DOS would surface
+                // hardware status bits; our virtual host has none.
+                self.regs.set_ah(0);
+                rec.mnemonic = "int";
+            }
+            0x25 | 0x26 => {
+                // INT 25h / 26h absolute disk read / write: we have no
+                // disk model. Set CF to signal the error return path
+                // most lab programs use (they typically don't actually
+                // call these — the manual just lists them).
+                self.regs.flags.set(Flags::CF, true);
+                self.regs.set_ah(0x05); // generic "access denied"
+                rec.mnemonic = "int";
+            }
+            0x03 => {
+                // Two-byte form `CD 03` (vs the one-byte 0xCC, which
+                // dispatches to this same handler with n=3). On real
+                // DOS this triggers the debugger; here it's a no-op
+                // so programs that fall through to it don't error.
+                rec.mnemonic = "int";
+            }
             other => {
                 rec.stopped = Some(StopReason::Unimplemented {
                     opcode: 0xCD,
                     ip: ip_before,
                 });
                 let _ = other;
+            }
+        }
+    }
+
+    /// INT 33h — mouse driver. We model a virtual host mouse as a
+    /// position + button mask in `self.mouse`; programs that read it
+    /// see whatever the host last set via `set_mouse`. Default state
+    /// is "centred at the screen origin, no buttons pressed".
+    fn mouse_int33(&mut self, rec: &mut StepRecord) {
+        let ax = self.regs.ax;
+        match ax {
+            // 00h — initialise. Returns AX = 0xFFFF (driver present),
+            // BX = number of buttons (we report 2, the canonical DOS
+            // 2-button mouse).
+            0x0000 => {
+                self.regs.ax = 0xFFFF;
+                self.regs.bx = 2;
+                rec.mnemonic = "int";
+            }
+            // 01h — show cursor (no observable effect on our model).
+            // 02h — hide cursor (ditto).
+            0x0001 | 0x0002 => {
+                rec.mnemonic = "int";
+            }
+            // 03h — get position and button status. BX = button mask
+            // (bit 0 = left, bit 1 = right, bit 2 = middle), CX = X
+            // pixel column, DX = Y pixel row.
+            0x0003 => {
+                self.regs.bx = u16::from(self.mouse.buttons);
+                self.regs.cx = self.mouse.x;
+                self.regs.dx = self.mouse.y;
+                rec.mnemonic = "int";
+            }
+            _ => {
+                // Less-common subfunctions (set position, set range,
+                // event handlers) aren't used by the audited lab
+                // programs. Return AX=0 silently rather than stopping
+                // the run — matches real-driver behaviour for
+                // unknown subfunction numbers.
+                self.regs.ax = 0;
+                rec.mnemonic = "int";
             }
         }
     }
@@ -437,6 +541,14 @@ impl Cpu {
                 } else {
                     self.regs.flags.set(Flags::ZF, true);
                 }
+                rec.mnemonic = "int";
+            }
+            // 02h — get keyboard shift state. Bits in AL: 0=right
+            // shift, 1=left shift, 2=ctrl, 3=alt, 4-7=lock states.
+            // We don't model modifier keys, so return 0 (no
+            // modifiers held) — matches a freshly-booted DOS prompt.
+            0x02 => {
+                self.regs.set_al(0);
                 rec.mnemonic = "int";
             }
             _ => {
@@ -495,6 +607,19 @@ impl Cpu {
                 }
                 rec.mnemonic = "int";
             }
+            // 05h — direct printer output. DL holds the byte; route
+            // it to the printer port (0x378) so the existing virtual
+            // printer reconstructs it on the IDE side.
+            0x05 => {
+                let b = self.regs.dl();
+                self.ports[0x378] = b;
+                self.out_log.push(PortWrite {
+                    port: 0x378,
+                    value: u16::from(b),
+                    width: 8,
+                });
+                rec.mnemonic = "int";
+            }
             // 0Ah: buffered keyboard input. DS:DX points to a buffer
             // with byte 0 = max length (set by caller, including the
             // CR terminator), byte 1 = actual count (set by us, NOT
@@ -534,6 +659,67 @@ impl Cpu {
                 self.stdout.push(0x0D);
                 let actual_lin = seg_off(self.regs.ds, buf_off.wrapping_add(1));
                 self.mem.write_u8(actual_lin, count);
+                rec.mnemonic = "int";
+            }
+            // 0Bh — get standard input status. AL=0xFF if a byte is
+            // waiting in the keyboard FIFO, AL=0 otherwise.
+            0x0B => {
+                let ready = !self.key_buffer.is_empty();
+                self.regs.set_al(if ready { 0xFF } else { 0x00 });
+                rec.mnemonic = "int";
+            }
+            // 0Ch — flush keyboard buffer and invoke the read
+            // function in AL (typically 01h, 06h, 07h, 08h, or 0Ah).
+            // We drain whatever's pending and recurse into the named
+            // subfunction. Lab manuals use this to discard stale
+            // keystrokes before prompting.
+            0x0C => {
+                self.key_buffer.clear();
+                let sub = self.regs.al();
+                self.regs.set_ah(sub);
+                // Recursive dispatch on the sub-AH. The set of valid
+                // sub-functions per the DOS contract is exactly the
+                // four blocking-read forms; anything else is a no-op.
+                if matches!(sub, 0x01 | 0x06 | 0x07 | 0x08 | 0x0A) {
+                    self.dos_int21(rec);
+                } else {
+                    rec.mnemonic = "int";
+                }
+            }
+            // 0Dh — disk reset. We have no disk; treat as a no-op.
+            0x0D => {
+                rec.mnemonic = "int";
+            }
+            // 1Ah — set the Disk Transfer Address (DTA). DOS programs
+            // call this before file searches; we have no PSP/DTA
+            // model, so just record DS:DX silently for future use
+            // and move on.
+            0x1A => {
+                self.dta = (self.regs.ds, self.regs.dx);
+                rec.mnemonic = "int";
+            }
+            // 2Bh — set system date. PR 20 introduced the virtual
+            // host clock, so we now wire the call through to it: the
+            // program writes CX=year, DH=month, DL=day, and a
+            // subsequent AH=2Ah read picks up those values. AL=0 on
+            // success per the DOS contract.
+            0x2B => {
+                self.clock.year = self.regs.cx;
+                self.clock.month = self.regs.dh();
+                self.clock.day = self.regs.dl();
+                self.regs.set_al(0);
+                rec.mnemonic = "int";
+            }
+            // 30h — get DOS version. Lab manuals occasionally check
+            // this before falling through to a "vintage DOS"
+            // codepath. Report DOS 5.00 (AL=major, AH=minor) — the
+            // canonical "modern enough" version that most DOS
+            // programs target.
+            0x30 => {
+                self.regs.set_al(5);
+                self.regs.set_ah(0);
+                self.regs.bx = 0; // OEM=IBM (BH), serial=0 (BL)
+                self.regs.cx = 0;
                 rec.mnemonic = "int";
             }
             // 09h: print $-terminated string at DS:DX.
@@ -1869,6 +2055,26 @@ impl Cpu {
             0xCC => {
                 self.handle_int(3, ip_before, &mut rec);
             }
+            // WAIT / FWAIT (9B) — synchronisation prefix for the x87
+            // coprocessor. With no x87 model we treat it as a no-op,
+            // which matches what real 8086 hardware does when no x87
+            // is present. Lab manuals occasionally emit one before
+            // floating-point code that we'd diagnose later anyway.
+            0x9B => {
+                rec.mnemonic = "wait";
+            }
+            // ESC D8-DF — x87 coprocessor escape. Each ESC opcode is
+            // followed by a mod-r/m byte that points at memory the
+            // coprocessor would load; we consume the byte (and any
+            // displacement) so execution continues at the right IP,
+            // but discard the operand since we have no x87 model.
+            0xD8..=0xDF => {
+                let modrm = self.fetch_u8();
+                if let Some(_ea) = self.decode_ea(modrm) {
+                    // decode_ea already advances IP past any displacement.
+                }
+                rec.mnemonic = "esc";
+            }
             // IRET — pop IP, CS, FLAGS. Matches the order INT pushes
             // (FLAGS first, then CS, then IP). For now this is only
             // exercised by host-pushed interrupt handlers; reaching it
@@ -2373,10 +2579,12 @@ mod tests {
 
     #[test]
     fn unimplemented_opcode_halts_at_ip() {
-        // 0x9B (WAIT/FWAIT) is intentionally not implemented and acts as a
-        // stable canary for the "park IP at the offending byte" behavior.
+        // 0x0F is "not a valid 8086 opcode" (it's the 286+ two-byte
+        // opcode prefix) and serves as a stable canary for the
+        // "park IP at the offending byte" behavior. (0x9B used to
+        // play this role; it now decodes as WAIT/FWAIT no-op.)
         let mut c = Cpu::new();
-        c.load_com(&[0x9B]);
+        c.load_com(&[0x0F]);
         let rec = c.step();
         assert!(matches!(
             rec.stopped,
@@ -3229,6 +3437,108 @@ mod tests {
         assert_eq!(c.regs.cl(), 30);
         assert_eq!(c.regs.dh(), 45);
         assert_eq!(c.regs.dl(), 50);
+    }
+
+    // ---- PR 6: minor INT handlers, mouse, prefix bytes ----
+
+    #[test]
+    fn int21_ah05_routes_to_printer_port() {
+        // mov ah, 5 ; mov dl, 'A' ; int 21h ; hlt
+        let c = run(&[0xB4, 0x05, 0xB2, b'A', 0xCD, 0x21, 0xF4]);
+        assert!(c.halted);
+        // Byte landed in port 0x378.
+        assert_eq!(c.ports[0x378], b'A');
+        // And got logged so step_back / printer-paper reconstruction work.
+        assert!(c
+            .out_log
+            .iter()
+            .any(|w| w.port == 0x378 && w.value == u16::from(b'A')));
+    }
+
+    #[test]
+    fn int21_ah0b_reports_keyboard_status() {
+        // Empty FIFO: AH=0Bh ; int 21h → AL=0
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x0B, 0xCD, 0x21, 0xF4]);
+        c.run_until_halt(16);
+        assert_eq!(c.regs.al(), 0);
+        // With a pending key: AL=0xFF.
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x0B, 0xCD, 0x21, 0xF4]);
+        c.push_key(b'X');
+        c.run_until_halt(16);
+        assert_eq!(c.regs.al(), 0xFF);
+    }
+
+    #[test]
+    fn int21_ah30_reports_dos_5() {
+        // mov ah, 30h ; int 21h ; hlt — should report DOS 5.00.
+        let c = run(&[0xB4, 0x30, 0xCD, 0x21, 0xF4]);
+        assert_eq!(c.regs.al(), 5);
+        assert_eq!(c.regs.ah(), 0);
+    }
+
+    #[test]
+    fn int16_ah02_returns_zero_shift_state() {
+        // mov ah, 2 ; int 16h ; hlt — no modifiers held.
+        let c = run(&[0xB4, 0x02, 0xCD, 0x16, 0xF4]);
+        assert_eq!(c.regs.al(), 0);
+    }
+
+    #[test]
+    fn int33_ah00_initialises_returns_button_count() {
+        // mov ax, 0 ; int 33h ; hlt
+        let c = run(&[0xB8, 0x00, 0x00, 0xCD, 0x33, 0xF4]);
+        assert_eq!(c.regs.ax, 0xFFFF, "driver-present flag");
+        assert_eq!(c.regs.bx, 2, "two buttons");
+    }
+
+    #[test]
+    fn int33_ah03_returns_set_mouse_state() {
+        // Host pushes a mouse position+left-button state; the program
+        // asks via INT 33h AH=3 and reads CX/DX/BX.
+        let mut c = Cpu::new();
+        c.set_mouse(Mouse {
+            x: 100,
+            y: 50,
+            buttons: 0b001, // left held
+        });
+        c.load_com(&[0xB8, 0x03, 0x00, 0xCD, 0x33, 0xF4]);
+        c.run_until_halt(32);
+        assert!(c.halted);
+        assert_eq!(c.regs.cx, 100);
+        assert_eq!(c.regs.dx, 50);
+        assert_eq!(c.regs.bx, 1);
+    }
+
+    #[test]
+    fn int_one_byte_form_cc_is_int3() {
+        // The CC opcode is INT 3 — debugger trap. We treat it as a
+        // no-op so a program that runs into a left-over breakpoint
+        // doesn't error out.
+        let mut c = Cpu::new();
+        c.load_com(&[0xCC, 0xF4]); // INT 3 ; HLT
+        c.run_until_halt(16);
+        assert!(c.halted);
+    }
+
+    #[test]
+    fn wait_opcode_9b_is_a_nop() {
+        // 9B (WAIT/FWAIT) was previously the unimplemented canary;
+        // it now executes as a no-op so x87-prefixed lab code parses.
+        let mut c = Cpu::new();
+        c.load_com(&[0x9B, 0xF4]);
+        c.run_until_halt(16);
+        assert!(c.halted);
+    }
+
+    #[test]
+    fn lock_prefix_f0_consumed_silently() {
+        // LOCK is absorbed in the prefix loop; the next opcode runs
+        // normally. Try LOCK + INC AX.
+        let c = run(&[0xF0, 0x40, 0xF4]); // LOCK INC AX ; HLT
+        assert!(c.halted);
+        assert_eq!(c.regs.ax, 1);
     }
 
     // ---- shifts and rotates (M1.5) ----
