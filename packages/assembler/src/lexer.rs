@@ -35,6 +35,15 @@ pub enum Token {
     Plus,
     Minus,
     Star,
+    /// `/` — integer division in constant expressions.
+    Slash,
+    /// `%` — modulo in constant expressions. (MASM also accepts the `MOD`
+    /// keyword for the same operation; we recognise both.)
+    Percent,
+    /// `$` — current-location counter. Evaluates to the address of the
+    /// next byte to be emitted in the current segment, used in the
+    /// canonical `LEN EQU $-MSG` length-of-data idiom.
+    Dollar,
     Newline,
     Eof,
 }
@@ -54,6 +63,9 @@ impl fmt::Display for Token {
             Self::Plus => f.write_str("+"),
             Self::Minus => f.write_str("-"),
             Self::Star => f.write_str("*"),
+            Self::Slash => f.write_str("/"),
+            Self::Percent => f.write_str("%"),
+            Self::Dollar => f.write_str("$"),
             Self::Newline => f.write_str("newline"),
             Self::Eof => f.write_str("end of file"),
         }
@@ -124,6 +136,9 @@ pub fn tokenize(src: &str) -> Result<Vec<Spanned>, LexError> {
             b'+' => Some(Token::Plus),
             b'-' => Some(Token::Minus),
             b'*' => Some(Token::Star),
+            b'/' => Some(Token::Slash),
+            b'%' => Some(Token::Percent),
+            b'$' => Some(Token::Dollar),
             // MASM's "uninitialized" placeholder in `db ?` / `dw ?` /
             // `dd ?` data declarations. Surfaced as an identifier so
             // the parser's data-item branch (which already special-
@@ -346,6 +361,45 @@ mod tests {
                 Token::Newline,
                 Token::Ident("hlt".into()),
                 Token::Newline,
+                Token::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn slash_percent_dollar_tokens() {
+        // The three new operators / location-counter token. They must
+        // round-trip through `Display` so error messages naming them
+        // read sensibly.
+        assert_eq!(
+            toks("a / b % $"),
+            vec![
+                Token::Ident("a".into()),
+                Token::Slash,
+                Token::Ident("b".into()),
+                Token::Percent,
+                Token::Dollar,
+                Token::Eof,
+            ]
+        );
+        assert_eq!(format!("{}", Token::Slash), "/");
+        assert_eq!(format!("{}", Token::Percent), "%");
+        assert_eq!(format!("{}", Token::Dollar), "$");
+    }
+
+    #[test]
+    fn dollar_minus_label_loc_counter_idiom() {
+        // The canonical `LEN EQU $-MSG` lab-manual idiom must lex into
+        // four discrete tokens so the parser's expression evaluator can
+        // see them.
+        assert_eq!(
+            toks("LEN EQU $-MSG"),
+            vec![
+                Token::Ident("LEN".into()),
+                Token::Ident("EQU".into()),
+                Token::Dollar,
+                Token::Minus,
+                Token::Ident("MSG".into()),
                 Token::Eof,
             ]
         );

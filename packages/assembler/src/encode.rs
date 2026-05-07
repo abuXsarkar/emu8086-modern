@@ -5,7 +5,9 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::lexer::Span;
-use crate::parser::{DataItem, Directive, Instr, Item, MemRef, MemSize, MemTerm, Operand, Program};
+use crate::parser::{
+    ConstExpr, DataItem, Directive, Instr, Item, MemRef, MemSize, MemTerm, Operand, Program,
+};
 
 /// Resolved 8086 memory operand: which mod-r/m bits it produces, plus
 /// any sign-extended displacement to emit after the mod-r/m byte.
@@ -134,7 +136,7 @@ fn classify_mem(
                 } else if let Some(lbls) = labels {
                     let v = lbls.get(name).copied().ok_or(EncodeError {
                         span: *span,
-                        message: format!("undefined label `{name}`"),
+                        message: hex_or_undefined_message(name),
                     })?;
                     disp = disp.wrapping_add(i64::from(sign.signum()) * i64::from(v));
                 } else {
@@ -369,28 +371,120 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
             }
             Item::Directive(Directive::Db { items, .. }) => data_size(items, 1),
             Item::Directive(Directive::Dw { items, .. }) => data_size(items, 2),
-            Item::Directive(Directive::Equ { name, value, span }) => {
+            Item::Directive(Directive::Equ { name, span, .. }) => {
+                // EQU expressions are evaluated in the dedicated pass 1.5
+                // below, after pass 1 has placed every real label so
+                // forward references like `LEN EQU $-MSG` (with MSG
+                // declared later) resolve correctly. Here we only check
+                // for name collisions against existing labels; the EQU's
+                // own slot is reserved with a placeholder of 0 that
+                // pass 1.5 overwrites.
                 if labels.contains_key(name) {
                     return Err(EncodeError {
                         span: *span,
                         message: format!("`{name}` already defined"),
                     });
                 }
-                let v = u16::try_from(*value).map_err(|_| EncodeError {
-                    span: *span,
-                    message: format!("EQU value {value} doesn't fit in u16"),
-                })?;
-                // EQU values are absolute, not relative to origin — store
-                // pre-origin-offset so the post-pass adjustment doesn't
-                // shift them. Easiest: insert with `value - origin` so the
-                // adjustment lands on the user's literal value.
-                labels.insert(name.clone(), v.wrapping_sub(origin));
+                labels.insert(name.clone(), 0);
                 0
             }
             Item::Instr(instr) => instr_size(instr)?,
         };
         sizes.push(size);
         cursor = cursor.wrapping_add(size);
+    }
+
+    // The `$` token in an EQU resolves to the *logical* address at the
+    // EQU's position (origin + cursor); label references resolve to the
+    // *logical* address of the label (origin + labels[name]). This
+    // matches MASM's user-visible semantics — `LEN EQU $-MSG` cancels
+    // the origin terms and yields the byte count between MSG and `$`.
+    fn eval_const_expr(
+        expr: &ConstExpr,
+        here: u16,
+        labels: &HashMap<String, u16>,
+        origin: u16,
+    ) -> Result<i64, EncodeError> {
+        match expr {
+            ConstExpr::Number(n, _) => Ok(i64::from(*n)),
+            ConstExpr::Dollar(_) => Ok(i64::from(origin.wrapping_add(here))),
+            ConstExpr::Ident(name, span) => match labels.get(name) {
+                Some(&v) => Ok(i64::from(origin.wrapping_add(v))),
+                None => Err(EncodeError {
+                    span: *span,
+                    message: hex_or_undefined_message(name),
+                }),
+            },
+            ConstExpr::Neg(inner, _) => Ok(eval_const_expr(inner, here, labels, origin)?
+                .wrapping_neg()),
+            ConstExpr::Add(l, r, _) => Ok(eval_const_expr(l, here, labels, origin)?
+                .wrapping_add(eval_const_expr(r, here, labels, origin)?)),
+            ConstExpr::Sub(l, r, _) => Ok(eval_const_expr(l, here, labels, origin)?
+                .wrapping_sub(eval_const_expr(r, here, labels, origin)?)),
+            ConstExpr::Mul(l, r, _) => Ok(eval_const_expr(l, here, labels, origin)?
+                .wrapping_mul(eval_const_expr(r, here, labels, origin)?)),
+            ConstExpr::Div(l, r, span) => {
+                let rhs = eval_const_expr(r, here, labels, origin)?;
+                if rhs == 0 {
+                    return Err(EncodeError {
+                        span: *span,
+                        message: "division by zero in constant expression".into(),
+                    });
+                }
+                Ok(eval_const_expr(l, here, labels, origin)? / rhs)
+            }
+            ConstExpr::Mod(l, r, span) => {
+                let rhs = eval_const_expr(r, here, labels, origin)?;
+                if rhs == 0 {
+                    return Err(EncodeError {
+                        span: *span,
+                        message: "modulo by zero in constant expression".into(),
+                    });
+                }
+                Ok(eval_const_expr(l, here, labels, origin)? % rhs)
+            }
+        }
+    }
+
+    // Pass 1.5: evaluate every EQU expression now that all real labels
+    // are placed (still pre-origin-adjust). We walk items in source
+    // order, maintaining a synthetic cursor so `$` resolves to the
+    // location at the EQU's position rather than the program's end.
+    let mut equ_cursor: u16 = 0;
+    for item in &program.items {
+        match item {
+            Item::Directive(Directive::Org { value, .. }) => {
+                // ORG was already validated in pass 1; just reset our
+                // shadow cursor so `$` after an ORG matches what the
+                // user wrote.
+                equ_cursor = 0;
+                let _ = value;
+            }
+            Item::Label { .. } => {
+                // Label items contribute nothing to byte layout; the
+                // cursor stays where it is.
+            }
+            Item::Directive(Directive::Db { items, .. }) => {
+                equ_cursor = equ_cursor.wrapping_add(data_size(items, 1));
+            }
+            Item::Directive(Directive::Dw { items, .. }) => {
+                equ_cursor = equ_cursor.wrapping_add(data_size(items, 2));
+            }
+            Item::Directive(Directive::Equ { name, expr, .. }) => {
+                let value = eval_const_expr(expr, equ_cursor, &labels, origin)?;
+                // Truncate to 16 bits silently — both addresses and
+                // small lengths fit in u16, and matching MASM the upper
+                // bits are not surfaced. Match the existing label-
+                // storage convention: store the value pre-origin so the
+                // post-pass that adds origin to every label leaves an
+                // EQU's user-literal value unchanged.
+                let v = (value & 0xFFFF) as u16;
+                labels.insert(name.clone(), v.wrapping_sub(origin));
+            }
+            Item::Instr(instr) => {
+                equ_cursor = equ_cursor.wrapping_add(instr_size(instr)?);
+            }
+        }
     }
 
     // Adjust label addresses to logical addresses (origin + offset).
@@ -1675,7 +1769,7 @@ fn emit_mov(
                     }
                     let v = labels.get(name).copied().ok_or(EncodeError {
                         span: *span,
-                        message: format!("undefined label `{name}`"),
+                        message: hex_or_undefined_message(name),
                     })?;
                     out.push(0xB8 + r.code());
                     out.extend_from_slice(&v.to_le_bytes());
@@ -1974,13 +2068,49 @@ fn resolve_label(op: &Operand, labels: &HashMap<String, u16>) -> Result<u16, Enc
         Operand::Number { value, .. } => Ok(*value as u16),
         Operand::Ident { name, span } => labels.get(name).copied().ok_or(EncodeError {
             span: *span,
-            message: format!("undefined label `{name}`"),
+            message: hex_or_undefined_message(name),
         }),
         _ => Err(EncodeError {
             span: op.span(),
             message: "expected label or immediate target".into(),
         }),
     }
+}
+
+/// Diagnostic for an identifier that resolved to nothing. Some lab
+/// manuals (notably the Hashemite MTS-8088 manual) write hex literals
+/// without the MASM `0` prefix or `H` suffix — so `MOV DX, FF12` lexes
+/// as an undefined label rather than the number 0xFF12. When the
+/// identifier looks hex-shaped (all digits/A-F, contains at least one
+/// hex letter) we point the user at the canonical form instead of just
+/// saying "undefined".
+fn hex_or_undefined_message(name: &str) -> String {
+    if looks_like_unprefixed_hex(name) {
+        format!(
+            "undefined label `{name}` — if you meant a hex literal, MASM/emu8086 syntax is `0{}H` (leading `0` and trailing `H`)",
+            name.to_ascii_uppercase()
+        )
+    } else {
+        format!("undefined label `{name}`")
+    }
+}
+
+fn looks_like_unprefixed_hex(s: &str) -> bool {
+    if s.is_empty() {
+        return false;
+    }
+    let mut saw_hex_letter = false;
+    for c in s.chars() {
+        match c {
+            '0'..='9' => {}
+            'a'..='f' | 'A'..='F' => saw_hex_letter = true,
+            _ => return false,
+        }
+    }
+    // We only suggest the hex form when the user almost certainly meant
+    // hex: at least one A–F letter, otherwise a plain decimal-looking
+    // identifier might just be a typo'd label name like `42items`.
+    saw_hex_letter
 }
 
 fn jcc_opcode(m: &str) -> Option<u8> {
@@ -2462,5 +2592,120 @@ mod tests {
         // mov si, cs  →  reg=CS(1)  r/m=SI(6)  → 0xCE
         let bytes = asm("mov si, cs\n");
         assert_eq!(bytes, vec![0x8C, 0xCE]);
+    }
+
+    // ---- PR 1: OFFSET, $, expression operators (GAP-010, 011, 012, 030, 033) ----
+
+    fn try_asm(src: &str) -> Result<Vec<u8>, String> {
+        let toks = tokenize(src).map_err(|e| e.msg)?;
+        let prog = parse(&toks).map_err(|e| e.message)?;
+        encode(&prog).map(|i| i.bytes).map_err(|e| e.message)
+    }
+
+    #[test]
+    fn offset_label_is_transparent_alias() {
+        // GAP-010. `mov dx, OFFSET msg` and `mov dx, msg` must produce
+        // identical bytes — `OFFSET` is a syntactic prefix that yields
+        // the label's offset, which is exactly what a bare label
+        // already encodes in immediate position.
+        let with_offset = asm("org 100h\nmov dx, OFFSET msg\nhlt\nmsg: db \"x\"\n");
+        let without = asm("org 100h\nmov dx, msg\nhlt\nmsg: db \"x\"\n");
+        assert_eq!(with_offset, without);
+        assert_eq!(without[0], 0xBA);
+        assert_eq!(u16::from_le_bytes([without[1], without[2]]), 0x104);
+    }
+
+    #[test]
+    fn equ_loc_counter_minus_label_yields_byte_count() {
+        // GAP-011. The canonical `LEN EQU $-MSG` length-of-data idiom.
+        // After org=0x100, MSG sits at 0x100; the EQU's `$` is at
+        // 0x100 + 5 = 0x105. LEN = 5. The MOV CX, LEN immediate must
+        // therefore encode the literal value 5.
+        let bytes = asm(
+            "org 100h\nmsg: db \"hello\"\nLEN EQU $-msg\nmov cx, LEN\nhlt\n",
+        );
+        // db "hello" is 5 bytes, then `mov cx, imm16` (B9 LL HH), then HLT.
+        assert_eq!(&bytes[0..5], b"hello");
+        assert_eq!(bytes[5], 0xB9); // mov cx, imm16
+        assert_eq!(u16::from_le_bytes([bytes[6], bytes[7]]), 5);
+        assert_eq!(bytes[8], 0xF4); // hlt
+    }
+
+    #[test]
+    fn equ_with_arithmetic_operators() {
+        // GAP-030 + 012. `*`, `/`, `%`, parens, and operator
+        // precedence must all work in EQU constant expressions.
+        let bytes = asm(
+            "org 100h\nA EQU 10\nB EQU (A*4 + 2) / 3 % 7\nmov cx, B\nhlt\n",
+        );
+        // (10*4 + 2) / 3 = 42 / 3 = 14; 14 % 7 = 0.
+        assert_eq!(bytes[0], 0xB9);
+        assert_eq!(u16::from_le_bytes([bytes[1], bytes[2]]), 0);
+    }
+
+    #[test]
+    fn equ_mod_keyword_alias_for_percent() {
+        // MASM also spells modulo as `MOD`. Both forms should yield
+        // the same bytes.
+        let pct = asm("org 100h\nA EQU 10 % 3\nmov cx, A\nhlt\n");
+        let kw = asm("org 100h\nA EQU 10 MOD 3\nmov cx, A\nhlt\n");
+        assert_eq!(pct, kw);
+        assert_eq!(u16::from_le_bytes([pct[1], pct[2]]), 1);
+    }
+
+    #[test]
+    fn equ_div_by_zero_is_a_clear_error() {
+        let err = try_asm("org 100h\nA EQU 1\nB EQU A / 0\n").unwrap_err();
+        assert!(
+            err.contains("division by zero"),
+            "expected a divide-by-zero diagnostic, got: {err}"
+        );
+    }
+
+    #[test]
+    fn unprefixed_hex_label_gets_helpful_diagnostic() {
+        // GAP-033. `MOV DX, FF12` — common in the Hashemite manual —
+        // should not just say "undefined label"; it must point the
+        // student at the canonical `0FF12H` form.
+        let err = try_asm("org 100h\nmov dx, FF12\nhlt\n").unwrap_err();
+        assert!(
+            err.contains("0FF12H"),
+            "expected a hex-syntax hint, got: {err}"
+        );
+        // A plain typo'd label (no hex letters) should NOT trigger the
+        // hint — it's almost certainly just a misspelling.
+        let plain = try_asm("org 100h\nmov dx, msggg\nhlt\n").unwrap_err();
+        assert!(!plain.contains("0H"), "did not expect hex hint, got: {plain}");
+        assert!(plain.contains("undefined label"));
+    }
+
+    #[test]
+    fn offset_works_inside_equ_expression() {
+        // `BUF_END EQU OFFSET MSG + 4` is equivalent to `MSG + 4`. After
+        // org=0x100 and `mov cx, imm16` (3 bytes) before MSG, MSG sits
+        // at 0x103. BUF_END = 0x107. The MOV BX, BUF_END immediate
+        // must be 0x107.
+        let bytes = asm(
+            "org 100h\nmov cx, 0\nmsg: db \"hi\"\nBUF_END EQU OFFSET msg + 4\nmov bx, BUF_END\nhlt\n",
+        );
+        // After: B9 00 00 (mov cx,0), 'h','i', BB LL HH (mov bx,imm), F4
+        assert_eq!(&bytes[3..5], b"hi");
+        assert_eq!(bytes[5], 0xBB);
+        // MSG = 0x103, BUF_END = 0x107.
+        assert_eq!(u16::from_le_bytes([bytes[6], bytes[7]]), 0x107);
+    }
+
+    #[test]
+    fn equ_forward_label_reference_resolves() {
+        // EQU evaluation runs after pass 1 has placed every label, so a
+        // forward reference (label declared later in the source) must
+        // still resolve. `LEN EQU END_OF_DATA - START_OF_DATA` with
+        // both labels declared after the EQU.
+        let bytes = asm(
+            "org 100h\nLEN EQU END_OF_DATA - START_OF_DATA\nmov cx, LEN\nhlt\nSTART_OF_DATA: db \"abc\"\nEND_OF_DATA:\n",
+        );
+        // mov cx, imm16 ; hlt — count = 3.
+        assert_eq!(bytes[0], 0xB9);
+        assert_eq!(u16::from_le_bytes([bytes[1], bytes[2]]), 3);
     }
 }
