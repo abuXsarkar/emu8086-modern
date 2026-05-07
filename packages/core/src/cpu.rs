@@ -521,10 +521,8 @@ impl Cpu {
                     match self.pop_key() {
                         Some(0x0D) | None => break,
                         Some(b) => {
-                            let lin = seg_off(
-                                self.regs.ds,
-                                buf_off.wrapping_add(2 + u16::from(count)),
-                            );
+                            let lin =
+                                seg_off(self.regs.ds, buf_off.wrapping_add(2 + u16::from(count)));
                             self.mem.write_u8(lin, b);
                             self.stdout.push(b);
                             count = count.wrapping_add(1);
