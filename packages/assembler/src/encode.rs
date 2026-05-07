@@ -415,8 +415,9 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
                     message: hex_or_undefined_message(name),
                 }),
             },
-            ConstExpr::Neg(inner, _) => Ok(eval_const_expr(inner, here, labels, origin)?
-                .wrapping_neg()),
+            ConstExpr::Neg(inner, _) => {
+                Ok(eval_const_expr(inner, here, labels, origin)?.wrapping_neg())
+            }
             ConstExpr::Add(l, r, _) => Ok(eval_const_expr(l, here, labels, origin)?
                 .wrapping_add(eval_const_expr(r, here, labels, origin)?)),
             ConstExpr::Sub(l, r, _) => Ok(eval_const_expr(l, here, labels, origin)?
@@ -2621,9 +2622,7 @@ mod tests {
         // After org=0x100, MSG sits at 0x100; the EQU's `$` is at
         // 0x100 + 5 = 0x105. LEN = 5. The MOV CX, LEN immediate must
         // therefore encode the literal value 5.
-        let bytes = asm(
-            "org 100h\nmsg: db \"hello\"\nLEN EQU $-msg\nmov cx, LEN\nhlt\n",
-        );
+        let bytes = asm("org 100h\nmsg: db \"hello\"\nLEN EQU $-msg\nmov cx, LEN\nhlt\n");
         // db "hello" is 5 bytes, then `mov cx, imm16` (B9 LL HH), then HLT.
         assert_eq!(&bytes[0..5], b"hello");
         assert_eq!(bytes[5], 0xB9); // mov cx, imm16
@@ -2635,9 +2634,7 @@ mod tests {
     fn equ_with_arithmetic_operators() {
         // GAP-030 + 012. `*`, `/`, `%`, parens, and operator
         // precedence must all work in EQU constant expressions.
-        let bytes = asm(
-            "org 100h\nA EQU 10\nB EQU (A*4 + 2) / 3 % 7\nmov cx, B\nhlt\n",
-        );
+        let bytes = asm("org 100h\nA EQU 10\nB EQU (A*4 + 2) / 3 % 7\nmov cx, B\nhlt\n");
         // (10*4 + 2) / 3 = 42 / 3 = 14; 14 % 7 = 0.
         assert_eq!(bytes[0], 0xB9);
         assert_eq!(u16::from_le_bytes([bytes[1], bytes[2]]), 0);
@@ -2675,7 +2672,10 @@ mod tests {
         // A plain typo'd label (no hex letters) should NOT trigger the
         // hint — it's almost certainly just a misspelling.
         let plain = try_asm("org 100h\nmov dx, msggg\nhlt\n").unwrap_err();
-        assert!(!plain.contains("0H"), "did not expect hex hint, got: {plain}");
+        assert!(
+            !plain.contains("0H"),
+            "did not expect hex hint, got: {plain}"
+        );
         assert!(plain.contains("undefined label"));
     }
 
