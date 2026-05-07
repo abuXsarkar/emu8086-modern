@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor as MonacoEditor } from "monaco-editor";
 import init, {
-  compile_and_run,
   Emulator,
 } from "../../wasm-api/pkg/emu8086_wasm_api.js";
 import { ASM_LANG_ID, registerAsm8086 } from "./asm8086";
@@ -273,25 +272,36 @@ export function App() {
     setPendingKeys(emuRef.current.key_buffer_len());
   }
 
+  // The share/file-load channel doubles as a generic "click feedback"
+  // toast. Routing every transient message through one slot keeps the
+  // status-region a11y semantics (role="status", aria-live="polite")
+  // applied uniformly without competing live regions.
+  const toastTimerRef = useRef<number | null>(null);
+  function flashToast(msg: string, ms = 1800) {
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    setShareToast(msg);
+    toastTimerRef.current = window.setTimeout(() => {
+      setShareToast("");
+      toastTimerRef.current = null;
+    }, ms);
+  }
+
   function onShare() {
     const fragment = encodeShareFragment(source);
     const url = `${window.location.origin}${window.location.pathname}#code=${fragment}`;
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard
         .writeText(url)
-        .then(() => {
-          setShareToast(t.shareCopied);
-          window.setTimeout(() => setShareToast(""), 1800);
-        })
+        .then(() => flashToast(t.shareCopied))
         .catch(() => {
           window.location.hash = `code=${fragment}`;
-          setShareToast(t.shareInUrl);
-          window.setTimeout(() => setShareToast(""), 1800);
+          flashToast(t.shareInUrl);
         });
     } else {
       window.location.hash = `code=${fragment}`;
-      setShareToast(t.shareInUrl);
-      window.setTimeout(() => setShareToast(""), 1800);
+      flashToast(t.shareInUrl);
     }
   }
 
@@ -413,25 +423,11 @@ export function App() {
     setRunning(true);
     setBreakpointHit("");
     try {
-      // Fast path when no breakpoints are set: run all the way through
-      // in wasm with no JS round-trips per instruction.
-      if (breakpoints.length === 0) {
-        const json = compile_and_run(source, 1_000_000);
-        const parsed = JSON.parse(json) as RunResultJson;
-        setResult(parsed);
-        applyDiagnostic(parsed.error);
-        lineMapRef.current = parsed.line_map ?? [];
-        highlightLine(0);
-        setStepLog("");
-        setStepLoaded(false);
-        refreshDevices();
-        refreshMemHex(parsed.registers);
-        return;
-      }
-      // Breakpoint path: load the source into the stateful Emulator
-      // and step one instruction at a time, checking every predicate
-      // after each step. Slower per-step but unlocks "stop when AX==5".
-      if (!emuRef.current) return;
+      // Always run through the stateful Emulator so device state, memory,
+      // step history (for Back), and keyboard input share a single source
+      // of truth. Breakpoint predicates only apply when the user has set
+      // any; otherwise the loop runs flat-out until halt or the cap.
+      if (!emuRef.current) emuRef.current = new Emulator();
       const loadJson = emuRef.current.load_source(source);
       const loadParsed = JSON.parse(loadJson) as RunResultJson;
       if (!loadParsed.ok || loadParsed.error) {
@@ -448,6 +444,7 @@ export function App() {
       let lastRegs: RunRegisters = loadParsed.registers;
       let hit: { expr: string; index: number } | null = null;
       const cap = 1_000_000;
+      const hasBreakpoints = breakpoints.length > 0;
       for (let n = 0; n < cap; n++) {
         const stepRes = JSON.parse(emuRef.current.step()) as StepResult;
         stepsTaken += 1;
@@ -458,17 +455,19 @@ export function App() {
           exit_code = stepRes.exit_code ?? null;
           break;
         }
-        // Predicate evaluation: stop the run as soon as ANY breakpoint
-        // expression evaluates truthy. Index used so the toast can
-        // point at the offending row in the breakpoint list.
-        for (let i = 0; i < breakpoints.length; i++) {
-          const r = evaluate(breakpoints[i], stepRes.registers);
-          if (r.ok && r.truthy) {
-            hit = { expr: breakpoints[i], index: i };
-            break;
+        if (hasBreakpoints) {
+          // Stop the run as soon as ANY breakpoint expression evaluates
+          // truthy. Index used so the toast can point at the offending
+          // row in the breakpoint list.
+          for (let i = 0; i < breakpoints.length; i++) {
+            const r = evaluate(breakpoints[i], stepRes.registers);
+            if (r.ok && r.truthy) {
+              hit = { expr: breakpoints[i], index: i };
+              break;
+            }
           }
+          if (hit) break;
         }
-        if (hit) break;
       }
       const synthesized: RunResultJson = {
         ok: true,
@@ -486,6 +485,9 @@ export function App() {
       setResult(synthesized);
       applyDiagnostic(null);
       setStepLog("");
+      // Keep the step session live even on halt so Back can rewind into
+      // the just-finished run. The history is in the wasm core; closing
+      // it here would just hide it.
       setStepLoaded(true);
       refreshDevices();
       refreshMemHex(lastRegs);
@@ -538,6 +540,21 @@ export function App() {
     runRef.current = onRun;
   });
 
+  // Once wasm is ready, do a silent initial reset so the memory hex and
+  // device panels render against the current source instead of staying
+  // blank until the user first clicks something. The toast suppression
+  // path (srcOverride) is reused so this doesn't fire `resetDone`.
+  const initialResetDoneRef = useRef(false);
+  useEffect(() => {
+    if (coreState.kind !== "ready") return;
+    if (initialResetDoneRef.current) return;
+    initialResetDoneRef.current = true;
+    onReset(source);
+    // `source` is intentionally a snapshot — re-running on every keystroke
+    // would clobber the user's run state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coreState.kind]);
+
   interface StepResult {
     stdout: string;
     halted: boolean;
@@ -547,31 +564,38 @@ export function App() {
     registers: RunRegisters;
   }
 
-  // Reset the step session: assemble the current source, point the
-  // stateful Emulator at a fresh image, clear the visible step log
-  // and re-render registers at the program's entry point.
-  const onReset = () => {
+  // Reset the step session: assemble the source, point the stateful
+  // Emulator at a fresh image, clear the visible step log and re-render
+  // registers at the program's entry point. `srcOverride` lets callers
+  // (e.g. the example picker) reset against a source they've just
+  // staged, before React has flushed the `setSource` update.
+  const onReset = (srcOverride?: string) => {
     if (coreState.kind !== "ready") return;
+    const src = srcOverride ?? source;
     if (!emuRef.current) emuRef.current = new Emulator();
-    const json = emuRef.current.load_source(source);
+    const json = emuRef.current.load_source(src);
     const parsed = JSON.parse(json) as RunResultJson;
     if (!parsed.ok) {
       setResult(parsed);
       applyDiagnostic(parsed.error);
       setStepLoaded(false);
+      setBreakpointHit("");
+      flashToast(t.fixErrorsFirst);
       return;
     }
     setResult(parsed);
     applyDiagnostic(null);
     setStepLog("");
     setStepLoaded(true);
+    setBreakpointHit("");
     lineMapRef.current = parsed.line_map ?? [];
     // Highlight the line of the very first instruction (current IP).
     const linearIp =
       ((parsed.registers.cs ?? 0) << 4) + (parsed.registers.ip ?? 0);
-    highlightLine(lineForIp(source, lineMapRef.current, linearIp));
+    highlightLine(lineForIp(src, lineMapRef.current, linearIp));
     refreshMemHex(parsed.registers);
     refreshDevices();
+    if (srcOverride === undefined) flashToast(t.resetDone);
   };
 
   const onBack = () => {
@@ -579,7 +603,10 @@ export function App() {
     if (!stepLoaded || !emuRef.current) return;
     const json = emuRef.current.step_back();
     const parsed = JSON.parse(json) as StepResult;
-    if (!parsed.mnemonic) return; // empty history
+    if (!parsed.mnemonic) {
+      flashToast(t.nothingToUndo);
+      return;
+    }
     // The core has already truncated cpu.stdout to the pre-step length;
     // pull the synced view so the output panel un-prints any byte that
     // the rolled-back instruction had emitted.
@@ -639,9 +666,8 @@ export function App() {
     // Move the current-IP highlight to the next instruction.
     const linearIp = ((parsed.registers.cs ?? 0) << 4) + (parsed.registers.ip ?? 0);
     highlightLine(parsed.halted ? 0 : lineForIp(source, lineMapRef.current, linearIp));
-    if (parsed.halted) {
-      setStepLoaded(false);
-    }
+    // Stay in the step session even on halt so Back can rewind into the
+    // halted instruction. The wasm history is still there.
     refreshMemHex(parsed.registers);
     refreshDevices();
   };
@@ -752,6 +778,11 @@ export function App() {
                     const ex = EXAMPLES.find((x) => x.id === e.target.value);
                     if (ex) {
                       setSource(ex.source);
+                      // Reset against the just-staged source directly, so
+                      // device panels, step log and any breakpoint-hit
+                      // toast from the previous example clear instead of
+                      // bleeding into the new program.
+                      onReset(ex.source);
                       e.currentTarget.value = "";
                     }
                   }}
@@ -775,7 +806,7 @@ export function App() {
                 </select>
                 <button
                   type="button"
-                  onClick={onReset}
+                  onClick={() => onReset()}
                   disabled={running}
                   style={{
                     padding: "0.4rem 0.8rem",

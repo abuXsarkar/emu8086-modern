@@ -421,7 +421,6 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
             ConstExpr::Neg(inner, _) => {
                 Ok(eval_const_expr(inner, here, labels, origin)?.wrapping_neg())
             }
-            ConstExpr::BitNot(inner, _) => Ok(!eval_const_expr(inner, here, labels, origin)?),
             ConstExpr::Add(l, r, _) => Ok(eval_const_expr(l, here, labels, origin)?
                 .wrapping_add(eval_const_expr(r, here, labels, origin)?)),
             ConstExpr::Sub(l, r, _) => Ok(eval_const_expr(l, here, labels, origin)?

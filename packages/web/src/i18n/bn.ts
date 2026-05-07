@@ -76,5 +76,9 @@ export const bn: Locale = {
     themeLabel: "এডিটর থিম",
     themeDark: "ডার্ক",
     themeLight: "লাইট",
+
+    nothingToUndo: "ফেরানোর মতো কিছু নেই",
+    fixErrorsFirst: "ধাপ চালানোর আগে ত্রুটি ঠিক করুন",
+    resetDone: "রিসেট হয়েছে — ০ নম্বর নির্দেশে ফিরে এসেছে",
   },
 };
