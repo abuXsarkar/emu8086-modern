@@ -40,6 +40,26 @@ pub enum Directive {
         items: Vec<DataItem>,
         span: Span,
     },
+    /// `dd` — 4-byte (dword) data declarations. Each numeric item is
+    /// emitted little-endian; strings are byte-wide regardless.
+    Dd {
+        items: Vec<DataItem>,
+        span: Span,
+    },
+    /// `dq` — 8-byte (qword) declarations. Lab usage is almost
+    /// exclusively `dq ?` for BCD storage; values are emitted as
+    /// little-endian u32 zero-padded out to 8 bytes (literals that
+    /// exceed u32 are diagnosed at parse time).
+    Dq {
+        items: Vec<DataItem>,
+        span: Span,
+    },
+    /// `dt` — 10-byte (tbyte) declarations. Same zero-pad-to-width
+    /// semantics as `dq`.
+    Dt {
+        items: Vec<DataItem>,
+        span: Span,
+    },
     /// `name EQU expr` — defines a named constant. The `expr` is held as
     /// a small AST so the encoder can resolve `$` (current location) and
     /// forward-referenced labels at a later pass. The canonical lab
@@ -63,12 +83,26 @@ pub enum ConstExpr {
     Number(u32, Span),
     Ident(String, Span),
     Dollar(Span),
+    /// Unary minus.
     Neg(Box<ConstExpr>, Span),
+    /// Unary bitwise NOT (`~` or MASM's `NOT` keyword).
+    BitNot(Box<ConstExpr>, Span),
     Add(Box<ConstExpr>, Box<ConstExpr>, Span),
     Sub(Box<ConstExpr>, Box<ConstExpr>, Span),
     Mul(Box<ConstExpr>, Box<ConstExpr>, Span),
     Div(Box<ConstExpr>, Box<ConstExpr>, Span),
     Mod(Box<ConstExpr>, Box<ConstExpr>, Span),
+    /// Left shift (`<<` or MASM's `SHL` keyword).
+    Shl(Box<ConstExpr>, Box<ConstExpr>, Span),
+    /// Right shift (`>>` or MASM's `SHR` keyword). Logical shift —
+    /// constant expressions are unsigned at this level.
+    Shr(Box<ConstExpr>, Box<ConstExpr>, Span),
+    /// Bitwise AND (`&` or MASM's `AND` keyword).
+    BitAnd(Box<ConstExpr>, Box<ConstExpr>, Span),
+    /// Bitwise XOR (`^` or MASM's `XOR` keyword).
+    BitXor(Box<ConstExpr>, Box<ConstExpr>, Span),
+    /// Bitwise OR (`|` or MASM's `OR` keyword).
+    BitOr(Box<ConstExpr>, Box<ConstExpr>, Span),
 }
 
 impl ConstExpr {
@@ -79,11 +113,17 @@ impl ConstExpr {
             | Self::Ident(_, s)
             | Self::Dollar(s)
             | Self::Neg(_, s)
+            | Self::BitNot(_, s)
             | Self::Add(_, _, s)
             | Self::Sub(_, _, s)
             | Self::Mul(_, _, s)
             | Self::Div(_, _, s)
-            | Self::Mod(_, _, s) => *s,
+            | Self::Mod(_, _, s)
+            | Self::Shl(_, _, s)
+            | Self::Shr(_, _, s)
+            | Self::BitAnd(_, _, s)
+            | Self::BitXor(_, _, s)
+            | Self::BitOr(_, _, s) => *s,
         }
     }
 }
@@ -280,7 +320,10 @@ impl Parser<'_> {
                 // here and let the directive-keyword fallthrough below
                 // parse the remainder of the line normally.
                 Token::Ident(maybe_kw)
-                    if matches!(maybe_kw.to_ascii_lowercase().as_str(), "db" | "dw" | "dd") =>
+                    if matches!(
+                        maybe_kw.to_ascii_lowercase().as_str(),
+                        "db" | "dw" | "dd" | "dq" | "dt"
+                    ) =>
                 {
                     items.push(Item::Label {
                         name: name.clone(),
@@ -344,6 +387,33 @@ impl Parser<'_> {
                     span: Span::new(kw.span.start, end),
                 }));
             }
+            "dd" => {
+                let kw = self.bump();
+                let data = self.parse_data_items()?;
+                let end = self.maybe_eat_newline();
+                items.push(Item::Directive(Directive::Dd {
+                    items: data,
+                    span: Span::new(kw.span.start, end),
+                }));
+            }
+            "dq" => {
+                let kw = self.bump();
+                let data = self.parse_data_items()?;
+                let end = self.maybe_eat_newline();
+                items.push(Item::Directive(Directive::Dq {
+                    items: data,
+                    span: Span::new(kw.span.start, end),
+                }));
+            }
+            "dt" => {
+                let kw = self.bump();
+                let data = self.parse_data_items()?;
+                let end = self.maybe_eat_newline();
+                items.push(Item::Directive(Directive::Dt {
+                    items: data,
+                    span: Span::new(kw.span.start, end),
+                }));
+            }
             _ => {
                 let mnem = self.bump();
                 let lname = head.to_ascii_lowercase();
@@ -400,16 +470,107 @@ impl Parser<'_> {
         end
     }
 
-    /// Parse a constant expression. Recursive descent over MASM
-    /// precedence: addition/subtraction binds loosest, then
-    /// multiplication/division/modulo, then unary `-` (and `+`), then
-    /// primary atoms (numbers, idents, `$`, parenthesised subexprs,
-    /// `OFFSET ident`). The `OFFSET` keyword is accepted as a no-op
-    /// prefix because a bare label identifier already resolves to its
-    /// offset in our model — we recognise it to keep MASM-style
-    /// sources unmodified.
+    /// Parse a constant expression. Recursive descent over the C-like
+    /// precedence we adopt for MASM compatibility:
+    ///
+    /// 1. primary atoms — numbers, idents, `$`, `(expr)`, `OFFSET ident`
+    /// 2. unary `-`, `+`, `~`, `NOT`
+    /// 3. `*`, `/`, `%` (and MASM's `MOD` keyword)
+    /// 4. `+`, `-`
+    /// 5. `<<`, `>>` (and MASM's `SHL` / `SHR` keywords)
+    /// 6. `&` (MASM's `AND` keyword)
+    /// 7. `^` (MASM's `XOR` keyword)
+    /// 8. `|` (MASM's `OR` keyword) — binds loosest
+    ///
+    /// The `OFFSET` keyword is accepted as a no-op prefix because a
+    /// bare label identifier already resolves to its offset in our
+    /// model — we recognise it to keep MASM-style sources unmodified.
     fn parse_const_expr(&mut self) -> Result<ConstExpr, ParseError> {
-        self.parse_const_addsub()
+        self.parse_const_or()
+    }
+
+    fn parse_const_or(&mut self) -> Result<ConstExpr, ParseError> {
+        let mut lhs = self.parse_const_xor()?;
+        loop {
+            let is_pipe = matches!(self.peek().tok, Token::Pipe);
+            let is_or_kw =
+                matches!(&self.peek().tok, Token::Ident(s) if s.eq_ignore_ascii_case("or"));
+            if is_pipe || is_or_kw {
+                self.bump();
+                let rhs = self.parse_const_xor()?;
+                let span = Span::new(lhs.span().start, rhs.span().end);
+                lhs = ConstExpr::BitOr(Box::new(lhs), Box::new(rhs), span);
+            } else {
+                return Ok(lhs);
+            }
+        }
+    }
+
+    fn parse_const_xor(&mut self) -> Result<ConstExpr, ParseError> {
+        let mut lhs = self.parse_const_and()?;
+        loop {
+            let is_caret = matches!(self.peek().tok, Token::Caret);
+            let is_xor_kw =
+                matches!(&self.peek().tok, Token::Ident(s) if s.eq_ignore_ascii_case("xor"));
+            if is_caret || is_xor_kw {
+                self.bump();
+                let rhs = self.parse_const_and()?;
+                let span = Span::new(lhs.span().start, rhs.span().end);
+                lhs = ConstExpr::BitXor(Box::new(lhs), Box::new(rhs), span);
+            } else {
+                return Ok(lhs);
+            }
+        }
+    }
+
+    fn parse_const_and(&mut self) -> Result<ConstExpr, ParseError> {
+        let mut lhs = self.parse_const_shift()?;
+        loop {
+            let is_amp = matches!(self.peek().tok, Token::Amp);
+            let is_and_kw =
+                matches!(&self.peek().tok, Token::Ident(s) if s.eq_ignore_ascii_case("and"));
+            if is_amp || is_and_kw {
+                self.bump();
+                let rhs = self.parse_const_shift()?;
+                let span = Span::new(lhs.span().start, rhs.span().end);
+                lhs = ConstExpr::BitAnd(Box::new(lhs), Box::new(rhs), span);
+            } else {
+                return Ok(lhs);
+            }
+        }
+    }
+
+    fn parse_const_shift(&mut self) -> Result<ConstExpr, ParseError> {
+        let mut lhs = self.parse_const_addsub()?;
+        loop {
+            match &self.peek().tok {
+                Token::LShift => {
+                    self.bump();
+                    let rhs = self.parse_const_addsub()?;
+                    let span = Span::new(lhs.span().start, rhs.span().end);
+                    lhs = ConstExpr::Shl(Box::new(lhs), Box::new(rhs), span);
+                }
+                Token::RShift => {
+                    self.bump();
+                    let rhs = self.parse_const_addsub()?;
+                    let span = Span::new(lhs.span().start, rhs.span().end);
+                    lhs = ConstExpr::Shr(Box::new(lhs), Box::new(rhs), span);
+                }
+                Token::Ident(s) if s.eq_ignore_ascii_case("shl") => {
+                    self.bump();
+                    let rhs = self.parse_const_addsub()?;
+                    let span = Span::new(lhs.span().start, rhs.span().end);
+                    lhs = ConstExpr::Shl(Box::new(lhs), Box::new(rhs), span);
+                }
+                Token::Ident(s) if s.eq_ignore_ascii_case("shr") => {
+                    self.bump();
+                    let rhs = self.parse_const_addsub()?;
+                    let span = Span::new(lhs.span().start, rhs.span().end);
+                    lhs = ConstExpr::Shr(Box::new(lhs), Box::new(rhs), span);
+                }
+                _ => return Ok(lhs),
+            }
+        }
     }
 
     fn parse_const_addsub(&mut self) -> Result<ConstExpr, ParseError> {
@@ -480,6 +641,22 @@ impl Parser<'_> {
             Token::Plus => {
                 self.bump();
                 self.parse_const_unary()
+            }
+            Token::Tilde => {
+                self.bump();
+                let inner = self.parse_const_unary()?;
+                let span = Span::new(cur.span.start, inner.span().end);
+                Ok(ConstExpr::BitNot(Box::new(inner), span))
+            }
+            // MASM's `NOT` keyword spelling. Only treat it as the
+            // unary prefix when it's actually at expression-start; an
+            // ident named `NOT` would have to be a label, which the
+            // primary path handles below.
+            Token::Ident(ref s) if s.eq_ignore_ascii_case("not") => {
+                self.bump();
+                let inner = self.parse_const_unary()?;
+                let span = Span::new(cur.span.start, inner.span().end);
+                Ok(ConstExpr::BitNot(Box::new(inner), span))
             }
             _ => self.parse_const_primary(),
         }
@@ -629,18 +806,47 @@ impl Parser<'_> {
                             });
                         }
                         let inner = self.parse_operand()?;
-                        if let Operand::Mem(mut m) = inner {
-                            m.size_hint = Some(if lname == "byte" {
-                                MemSize::Byte
-                            } else {
-                                MemSize::Word
-                            });
-                            return Ok(Operand::Mem(m));
+                        let size = if lname == "byte" {
+                            MemSize::Byte
+                        } else {
+                            MemSize::Word
+                        };
+                        match inner {
+                            Operand::Mem(mut m) => {
+                                m.size_hint = Some(size);
+                                return Ok(Operand::Mem(m));
+                            }
+                            // `BYTE PTR var` / `WORD PTR var` (no
+                            // brackets). MASM treats this as if the
+                            // user had written `BYTE PTR [var]` — the
+                            // size hint applies to the implicit deref
+                            // of a label that names byte- or
+                            // word-sized data. Common in M2 BCD
+                            // programs (`INC BYTE PTR var`).
+                            Operand::Ident {
+                                name,
+                                span: ident_span,
+                            } => {
+                                return Ok(Operand::Mem(MemRef {
+                                    terms: vec![MemTerm::Ident {
+                                        name,
+                                        sign: 1,
+                                        span: ident_span,
+                                    }],
+                                    span: ident_span,
+                                    size_hint: Some(size),
+                                    seg_override: None,
+                                }));
+                            }
+                            _ => {
+                                return Err(ParseError {
+                                    span: inner.span(),
+                                    message: format!(
+                                        "expected `[…]` or a label after `{lname} ptr`"
+                                    ),
+                                });
+                            }
                         }
-                        return Err(ParseError {
-                            span: inner.span(),
-                            message: format!("expected `[…]` after `{lname} ptr`"),
-                        });
                     }
                 }
             }

@@ -44,6 +44,21 @@ pub enum Token {
     /// next byte to be emitted in the current segment, used in the
     /// canonical `LEN EQU $-MSG` length-of-data idiom.
     Dollar,
+    /// `<<` — left shift (constant expressions). MASM keyword `SHL` is
+    /// also accepted.
+    LShift,
+    /// `>>` — right shift (logical, constant expressions). MASM
+    /// keyword `SHR` is also accepted.
+    RShift,
+    /// `&` — bitwise AND. MASM keyword `AND` is also accepted.
+    Amp,
+    /// `|` — bitwise OR. MASM keyword `OR` is also accepted.
+    Pipe,
+    /// `^` — bitwise XOR. MASM keyword `XOR` is also accepted.
+    Caret,
+    /// `~` — bitwise NOT (unary, one's complement). MASM keyword
+    /// `NOT` is also accepted.
+    Tilde,
     Newline,
     Eof,
 }
@@ -66,6 +81,12 @@ impl fmt::Display for Token {
             Self::Slash => f.write_str("/"),
             Self::Percent => f.write_str("%"),
             Self::Dollar => f.write_str("$"),
+            Self::LShift => f.write_str("<<"),
+            Self::RShift => f.write_str(">>"),
+            Self::Amp => f.write_str("&"),
+            Self::Pipe => f.write_str("|"),
+            Self::Caret => f.write_str("^"),
+            Self::Tilde => f.write_str("~"),
             Self::Newline => f.write_str("newline"),
             Self::Eof => f.write_str("end of file"),
         }
@@ -139,6 +160,31 @@ pub fn tokenize(src: &str) -> Result<Vec<Spanned>, LexError> {
             b'/' => Some(Token::Slash),
             b'%' => Some(Token::Percent),
             b'$' => Some(Token::Dollar),
+            b'&' => Some(Token::Amp),
+            b'|' => Some(Token::Pipe),
+            b'^' => Some(Token::Caret),
+            b'~' => Some(Token::Tilde),
+            // Two-char shift operators. Peek the next byte; emit the
+            // double-char token if it matches, otherwise it would have
+            // to be a `<` or `>` alone (we don't define those, so an
+            // unbalanced angle bracket falls through to the
+            // unexpected-character error below).
+            b'<' if bytes.get(i + 1) == Some(&b'<') => {
+                i += 2;
+                out.push(Spanned {
+                    tok: Token::LShift,
+                    span: Span::new(start, i),
+                });
+                continue;
+            }
+            b'>' if bytes.get(i + 1) == Some(&b'>') => {
+                i += 2;
+                out.push(Spanned {
+                    tok: Token::RShift,
+                    span: Span::new(start, i),
+                });
+                continue;
+            }
             // MASM's "uninitialized" placeholder in `db ?` / `dw ?` /
             // `dd ?` data declarations. Surfaced as an identifier so
             // the parser's data-item branch (which already special-
