@@ -157,6 +157,54 @@ pub struct Cpu {
     /// re-prepend them, restoring the buffer exactly. Cleared at the
     /// start of every step.
     keys_popped_this_step: Vec<u8>,
+    /// Virtual host clock — what `INT 21h` AH=2Ah (date) and AH=2Ch
+    /// (time) report. The CPU never advances it on its own (real
+    /// programs see no time pass between back-to-back instructions
+    /// from the inside, and time-travel debugging needs the clock to
+    /// be deterministic); the host refreshes it via `set_clock` if a
+    /// real wall-clock value is wanted.
+    pub clock: Clock,
+}
+
+/// State of the virtual host clock. Defaults to a fixed deterministic
+/// epoch so unit tests don't depend on system time. The IDE host
+/// pushes the real wall-clock time before each run so lab programs
+/// that print "current time" show a sensible value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Clock {
+    /// Year, 1980–2099 per the DOS calendar contract.
+    pub year: u16,
+    /// Month, 1–12.
+    pub month: u8,
+    /// Day, 1–31.
+    pub day: u8,
+    /// Day of week, 0=Sunday … 6=Saturday.
+    pub day_of_week: u8,
+    /// Hour, 0–23.
+    pub hour: u8,
+    /// Minute, 0–59.
+    pub minute: u8,
+    /// Second, 0–59.
+    pub second: u8,
+    /// Hundredths of a second, 0–99.
+    pub hundredths: u8,
+}
+
+impl Default for Clock {
+    fn default() -> Self {
+        // 2024-01-01 12:00:00.00 — a fixed-point Monday so tests that
+        // assert on the dow byte don't drift with real time.
+        Self {
+            year: 2024,
+            month: 1,
+            day: 1,
+            day_of_week: 1,
+            hour: 12,
+            minute: 0,
+            second: 0,
+            hundredths: 0,
+        }
+    }
 }
 
 /// Per-step undo record. Storing only the *changes* (registers before
@@ -214,7 +262,16 @@ impl Cpu {
             history_capacity: 0,
             key_buffer: VecDeque::new(),
             keys_popped_this_step: Vec::new(),
+            clock: Clock::default(),
         }
+    }
+
+    /// Update the virtual host clock. Hosts (the IDE, the CLI) call
+    /// this before a run if a lab program reads `INT 21h` AH=2Ah / 2Ch
+    /// and the user expects to see real-world time. Tests can leave
+    /// the clock at its default for deterministic output.
+    pub fn set_clock(&mut self, c: Clock) {
+        self.clock = c;
     }
 
     /// Enqueue one byte for the program to read via the keyboard port
@@ -388,6 +445,9 @@ impl Cpu {
         }
     }
 
+    // Split into a per-subfunction match. Total length is the sum of
+    // the small handlers it dispatches to, not a complexity signal.
+    #[allow(clippy::too_many_lines)]
     fn dos_int21(&mut self, rec: &mut StepRecord) {
         let ah = self.regs.ah();
         match ah {
@@ -409,6 +469,15 @@ impl Cpu {
                 self.stdout.push(self.regs.dl());
                 rec.mnemonic = "int";
             }
+            // 08h: read char without echo. Same drain semantics as 01h
+            // but without writing the byte to stdout. If the FIFO is
+            // empty we return 0 rather than blocking, mirroring the
+            // 01h behavior so polling loops don't hang the runtime.
+            0x08 => {
+                let b = self.pop_key().unwrap_or(0);
+                self.regs.set_al(b);
+                rec.mnemonic = "int";
+            }
             // 06h: direct console I/O. If DL == 0xFF this is a
             // non-blocking read: drain a byte if present (ZF=0, AL=byte),
             // otherwise signal "no key" with ZF=1. Else, write DL.
@@ -426,6 +495,49 @@ impl Cpu {
                 }
                 rec.mnemonic = "int";
             }
+            // 0Ah: buffered keyboard input. DS:DX points to a buffer
+            // with byte 0 = max length (set by caller, including the
+            // CR terminator), byte 1 = actual count (set by us, NOT
+            // including the CR), bytes 2..2+count = the typed bytes,
+            // byte 2+count = the literal CR (0x0D). DOS blocks until
+            // the user presses Enter; our synchronous drain consumes
+            // pending keys until either a CR or the capacity is
+            // reached, then writes the CR terminator regardless. Each
+            // typed byte is echoed to stdout, matching DOS behavior so
+            // a tester sees the input transcript.
+            0x0A => {
+                let buf_off = self.regs.dx;
+                let lin_max = seg_off(self.regs.ds, buf_off);
+                let max_bytes = self.mem.read_u8(lin_max);
+                // capacity excluding the mandatory CR terminator. DOS
+                // documents max=1 as "only the CR fits"; we treat
+                // max=0 the same way (count stays 0, CR still
+                // emitted).
+                let cap = max_bytes.saturating_sub(1);
+                let mut count: u8 = 0;
+                while count < cap {
+                    // CR ends input; an empty FIFO ends it the same
+                    // way (we never block — see AH=01h's contract).
+                    match self.pop_key() {
+                        Some(0x0D) | None => break,
+                        Some(b) => {
+                            let lin = seg_off(
+                                self.regs.ds,
+                                buf_off.wrapping_add(2 + u16::from(count)),
+                            );
+                            self.mem.write_u8(lin, b);
+                            self.stdout.push(b);
+                            count = count.wrapping_add(1);
+                        }
+                    }
+                }
+                let cr_lin = seg_off(self.regs.ds, buf_off.wrapping_add(2 + u16::from(count)));
+                self.mem.write_u8(cr_lin, 0x0D);
+                self.stdout.push(0x0D);
+                let actual_lin = seg_off(self.regs.ds, buf_off.wrapping_add(1));
+                self.mem.write_u8(actual_lin, count);
+                rec.mnemonic = "int";
+            }
             // 09h: print $-terminated string at DS:DX.
             0x09 => {
                 let mut off = self.regs.dx;
@@ -440,6 +552,29 @@ impl Cpu {
                     self.stdout.push(b);
                     off = off.wrapping_add(1);
                 }
+                rec.mnemonic = "int";
+            }
+            // 2Ah: get system date. Returns CX=year (1980-2099),
+            // DH=month (1-12), DL=day (1-31), AL=day-of-week
+            // (0=Sunday..6=Saturday). Reads from `self.clock`, which
+            // the host sets before a run. Default clock is 2024-01-01
+            // Monday so unit tests don't depend on real time.
+            0x2A => {
+                self.regs.cx = self.clock.year;
+                self.regs.set_dh(self.clock.month);
+                self.regs.set_dl(self.clock.day);
+                self.regs.set_al(self.clock.day_of_week);
+                rec.mnemonic = "int";
+            }
+            // 2Ch: get system time. Returns CH=hour (0-23), CL=minute
+            // (0-59), DH=second (0-59), DL=hundredths (0-99). Same
+            // virtual-clock contract as 2Ah; programs that compute
+            // elapsed time across instructions will see no advance.
+            0x2C => {
+                self.regs.set_ch(self.clock.hour);
+                self.regs.set_cl(self.clock.minute);
+                self.regs.set_dh(self.clock.second);
+                self.regs.set_dl(self.clock.hundredths);
                 rec.mnemonic = "int";
             }
             // 4Ch: terminate with exit code in AL. The 8086 manual also
@@ -2974,6 +3109,128 @@ mod tests {
         let c = run(&[0xCD, 0x20]);
         assert!(c.halted);
         assert_eq!(c.exit_code, Some(0));
+    }
+
+    // ---- INT 21h additions for PR 2 (GAP-100, 101, 102, 103) ----
+
+    #[test]
+    fn int21_ah08_reads_char_without_echo() {
+        // mov ah, 08h ; int 21h ; hlt — pre-push 'X' so the call drains.
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x08, 0xCD, 0x21, 0xF4]);
+        c.push_key(b'X');
+        c.run_until_halt(16);
+        assert!(c.halted);
+        assert_eq!(c.regs.al(), b'X', "AL should hold the keystroke");
+        assert!(
+            c.stdout.is_empty(),
+            "AH=08h must not echo to stdout, got {:?}",
+            c.stdout
+        );
+    }
+
+    #[test]
+    fn int21_ah08_returns_zero_when_buffer_empty() {
+        // No pre-pushed key: AL should come back 0 (we don't block).
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x08, 0xCD, 0x21, 0xF4]);
+        c.run_until_halt(16);
+        assert!(c.halted);
+        assert_eq!(c.regs.al(), 0);
+    }
+
+    #[test]
+    fn int21_ah0a_buffered_input_writes_count_and_terminator() {
+        // mov ah, 0Ah ; mov dx, 0x200 ; int 21h ; int 20h
+        // Buffer at DS:0x200 with max=8. Pre-push "hi\r" so the drain
+        // sees an explicit CR end-of-input.
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x0A, 0xBA, 0x00, 0x02, 0xCD, 0x21, 0xCD, 0x20]);
+        c.mem.write_u8(seg_off(c.regs.ds, 0x0200), 8); // max byte
+        c.push_key(b'h');
+        c.push_key(b'i');
+        c.push_key(0x0D); // CR ends input
+        c.run_until_halt(64);
+        assert!(c.halted);
+        // buffer[1] = actual count = 2 (CR not counted).
+        assert_eq!(c.mem.read_u8(seg_off(c.regs.ds, 0x0201)), 2);
+        // buffer[2..4] = "hi", buffer[4] = CR.
+        assert_eq!(c.mem.read_u8(seg_off(c.regs.ds, 0x0202)), b'h');
+        assert_eq!(c.mem.read_u8(seg_off(c.regs.ds, 0x0203)), b'i');
+        assert_eq!(c.mem.read_u8(seg_off(c.regs.ds, 0x0204)), 0x0D);
+        // stdout echoes the input including the CR.
+        assert_eq!(c.stdout, b"hi\r");
+    }
+
+    #[test]
+    fn int21_ah0a_respects_capacity_when_user_overruns() {
+        // Capacity=4 means at most 3 bytes before the mandatory CR. If
+        // the user pre-pushes "abcdef\r" the call must stop at 3 bytes
+        // and silently drop the rest.
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x0A, 0xBA, 0x00, 0x02, 0xCD, 0x21, 0xCD, 0x20]);
+        c.mem.write_u8(seg_off(c.regs.ds, 0x0200), 4);
+        for &b in b"abcdef" {
+            c.push_key(b);
+        }
+        c.push_key(0x0D);
+        c.run_until_halt(64);
+        assert!(c.halted);
+        assert_eq!(c.mem.read_u8(seg_off(c.regs.ds, 0x0201)), 3);
+        assert_eq!(c.mem.read_u8(seg_off(c.regs.ds, 0x0205)), 0x0D);
+        assert_eq!(c.stdout, b"abc\r");
+    }
+
+    #[test]
+    fn int21_ah2a_returns_default_clock_date() {
+        // Default clock is 2024-01-01 Monday.
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x2A, 0xCD, 0x21, 0xF4]);
+        c.run_until_halt(16);
+        assert!(c.halted);
+        assert_eq!(c.regs.cx, 2024);
+        assert_eq!(c.regs.dh(), 1);
+        assert_eq!(c.regs.dl(), 1);
+        assert_eq!(c.regs.al(), 1, "default clock day_of_week is Monday=1");
+    }
+
+    #[test]
+    fn int21_ah2c_returns_default_clock_time() {
+        // Default clock is 12:00:00.00.
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x2C, 0xCD, 0x21, 0xF4]);
+        c.run_until_halt(16);
+        assert!(c.halted);
+        assert_eq!(c.regs.ch(), 12);
+        assert_eq!(c.regs.cl(), 0);
+        assert_eq!(c.regs.dh(), 0);
+        assert_eq!(c.regs.dl(), 0);
+    }
+
+    #[test]
+    fn int21_set_clock_propagates_to_2a_and_2c() {
+        // Host overrides the clock to 2026-05-08 Friday at 14:30:45.50;
+        // both AH=2Ah and AH=2Ch must reflect it.
+        let mut c = Cpu::new();
+        c.set_clock(Clock {
+            year: 2026,
+            month: 5,
+            day: 8,
+            day_of_week: 5,
+            hour: 14,
+            minute: 30,
+            second: 45,
+            hundredths: 50,
+        });
+        c.load_com(&[0xB4, 0x2A, 0xCD, 0x21, 0xB4, 0x2C, 0xCD, 0x21, 0xF4]);
+        c.run_until_halt(64);
+        assert!(c.halted);
+        // After AH=2Ah ran first, then AH=2Ch overwrote DH/DL with the
+        // time fields. CX still carries the time (CH=hour, CL=minute).
+        assert_eq!(c.regs.ch(), 14);
+        assert_eq!(c.regs.cl(), 30);
+        assert_eq!(c.regs.dh(), 45);
+        assert_eq!(c.regs.dl(), 50);
     }
 
     // ---- shifts and rotates (M1.5) ----

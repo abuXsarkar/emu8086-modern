@@ -327,6 +327,36 @@ impl Emulator {
         self.cpu.key_buffer.len() as u32
     }
 
+    /// Push the host wall-clock into the virtual DOS clock that
+    /// `INT 21h` AH=2Ah and AH=2Ch read. Lab programs that print "the
+    /// current time" stay deterministic by default (the core's clock
+    /// is fixed at 2024-01-01 12:00:00.00 unless this is called); the
+    /// IDE calls this once at the start of every run so `Date.now()`
+    /// is what students see.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_clock(
+        &mut self,
+        year: u16,
+        month: u8,
+        day: u8,
+        day_of_week: u8,
+        hour: u8,
+        minute: u8,
+        second: u8,
+        hundredths: u8,
+    ) {
+        self.cpu.set_clock(emu8086_core::Clock {
+            year,
+            month,
+            day,
+            day_of_week,
+            hour,
+            minute,
+            second,
+            hundredths,
+        });
+    }
+
     /// Snapshot of the 80×25 text-mode video buffer at linear address
     /// 0xB8000 as a string of 25 newline-separated rows of 80
     /// characters. Non-printable bytes are rendered as spaces; the
@@ -795,5 +825,23 @@ hlt
         let out = compile_and_run(src, 1000);
         assert!(out.contains("\"ok\":false"));
         assert!(out.contains("\"line\":2"), "got: {out}");
+    }
+
+    #[test]
+    fn emulator_set_clock_propagates_to_int21_2c() {
+        // Host pushes wall-clock 14:30:45.50; a program that calls
+        // INT 21h AH=2Ch must see those values in CH/CL/DH/DL.
+        // Source: mov ah, 2Ch ; int 21h ; mov ax, 4C00h ; int 21h
+        let src = "mov ah, 2Ch\nint 21h\nmov ax, 4C00h\nint 21h\n";
+        let mut e = Emulator::new();
+        let _ = e.load_source(src);
+        e.set_clock(2026, 5, 8, 5, 14, 30, 45, 50);
+        let final_state = e.run(1000);
+        assert!(final_state.contains("\"halted\":true"), "{final_state}");
+        // Inspect the cpu directly: time fields populated CX and DX.
+        assert_eq!(e.cpu.regs.ch(), 14);
+        assert_eq!(e.cpu.regs.cl(), 30);
+        assert_eq!(e.cpu.regs.dh(), 45);
+        assert_eq!(e.cpu.regs.dl(), 50);
     }
 }
