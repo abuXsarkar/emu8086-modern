@@ -40,13 +40,52 @@ pub enum Directive {
         items: Vec<DataItem>,
         span: Span,
     },
-    /// `name EQU value` — defines a named constant. Resolved in pass 1
-    /// so it can be forward-referenced.
+    /// `name EQU expr` — defines a named constant. The `expr` is held as
+    /// a small AST so the encoder can resolve `$` (current location) and
+    /// forward-referenced labels at a later pass. The canonical lab
+    /// idiom `LEN EQU $-MSG` (length-of-data) needs both.
     Equ {
         name: String,
-        value: u32,
+        expr: ConstExpr,
         span: Span,
     },
+}
+
+/// A constant-expression AST. Used in `EQU` definitions and anywhere
+/// else the assembler accepts a compile-time integer (currently only
+/// EQU; immediate operands stay on the simpler `Operand::Number` path
+/// for now). Ops match MASM precedence: unary first, then `* / %`,
+/// then `+ -`. `$` resolves to the current location counter inside the
+/// segment; `Ident` resolves to a label's offset (which is what
+/// `OFFSET label` and a bare-label-in-immediate produce equivalently).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConstExpr {
+    Number(u32, Span),
+    Ident(String, Span),
+    Dollar(Span),
+    Neg(Box<ConstExpr>, Span),
+    Add(Box<ConstExpr>, Box<ConstExpr>, Span),
+    Sub(Box<ConstExpr>, Box<ConstExpr>, Span),
+    Mul(Box<ConstExpr>, Box<ConstExpr>, Span),
+    Div(Box<ConstExpr>, Box<ConstExpr>, Span),
+    Mod(Box<ConstExpr>, Box<ConstExpr>, Span),
+}
+
+impl ConstExpr {
+    #[must_use]
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Number(_, s)
+            | Self::Ident(_, s)
+            | Self::Dollar(s)
+            | Self::Neg(_, s)
+            | Self::Add(_, _, s)
+            | Self::Sub(_, _, s)
+            | Self::Mul(_, _, s)
+            | Self::Div(_, _, s)
+            | Self::Mod(_, _, s) => *s,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -227,11 +266,11 @@ impl Parser<'_> {
                 }
                 Token::Ident(maybe_kw) if maybe_kw.eq_ignore_ascii_case("equ") => {
                     self.bump(); // consume EQU
-                    let n = self.parse_number()?;
+                    let expr = self.parse_const_expr()?;
                     let end = self.maybe_eat_newline();
                     items.push(Item::Directive(Directive::Equ {
                         name: name.clone(),
-                        value: n.0,
+                        expr,
                         span: Span::new(lab.span.start, end),
                     }));
                     return Ok(());
@@ -359,6 +398,149 @@ impl Parser<'_> {
             self.bump();
         }
         end
+    }
+
+    /// Parse a constant expression. Recursive descent over MASM
+    /// precedence: addition/subtraction binds loosest, then
+    /// multiplication/division/modulo, then unary `-` (and `+`), then
+    /// primary atoms (numbers, idents, `$`, parenthesised subexprs,
+    /// `OFFSET ident`). The `OFFSET` keyword is accepted as a no-op
+    /// prefix because a bare label identifier already resolves to its
+    /// offset in our model — we recognise it to keep MASM-style
+    /// sources unmodified.
+    fn parse_const_expr(&mut self) -> Result<ConstExpr, ParseError> {
+        self.parse_const_addsub()
+    }
+
+    fn parse_const_addsub(&mut self) -> Result<ConstExpr, ParseError> {
+        let mut lhs = self.parse_const_muldiv()?;
+        loop {
+            match self.peek().tok {
+                Token::Plus => {
+                    self.bump();
+                    let rhs = self.parse_const_muldiv()?;
+                    let span = Span::new(lhs.span().start, rhs.span().end);
+                    lhs = ConstExpr::Add(Box::new(lhs), Box::new(rhs), span);
+                }
+                Token::Minus => {
+                    self.bump();
+                    let rhs = self.parse_const_muldiv()?;
+                    let span = Span::new(lhs.span().start, rhs.span().end);
+                    lhs = ConstExpr::Sub(Box::new(lhs), Box::new(rhs), span);
+                }
+                _ => return Ok(lhs),
+            }
+        }
+    }
+
+    fn parse_const_muldiv(&mut self) -> Result<ConstExpr, ParseError> {
+        let mut lhs = self.parse_const_unary()?;
+        loop {
+            match self.peek().tok {
+                Token::Star => {
+                    self.bump();
+                    let rhs = self.parse_const_unary()?;
+                    let span = Span::new(lhs.span().start, rhs.span().end);
+                    lhs = ConstExpr::Mul(Box::new(lhs), Box::new(rhs), span);
+                }
+                Token::Slash => {
+                    self.bump();
+                    let rhs = self.parse_const_unary()?;
+                    let span = Span::new(lhs.span().start, rhs.span().end);
+                    lhs = ConstExpr::Div(Box::new(lhs), Box::new(rhs), span);
+                }
+                Token::Percent => {
+                    self.bump();
+                    let rhs = self.parse_const_unary()?;
+                    let span = Span::new(lhs.span().start, rhs.span().end);
+                    lhs = ConstExpr::Mod(Box::new(lhs), Box::new(rhs), span);
+                }
+                // MASM also spells modulo as the `MOD` keyword.
+                Token::Ident(ref kw) if kw.eq_ignore_ascii_case("mod") => {
+                    self.bump();
+                    let rhs = self.parse_const_unary()?;
+                    let span = Span::new(lhs.span().start, rhs.span().end);
+                    lhs = ConstExpr::Mod(Box::new(lhs), Box::new(rhs), span);
+                }
+                _ => return Ok(lhs),
+            }
+        }
+    }
+
+    fn parse_const_unary(&mut self) -> Result<ConstExpr, ParseError> {
+        let cur = self.peek().clone();
+        match cur.tok {
+            Token::Minus => {
+                self.bump();
+                let inner = self.parse_const_unary()?;
+                let span = Span::new(cur.span.start, inner.span().end);
+                Ok(ConstExpr::Neg(Box::new(inner), span))
+            }
+            // Unary `+` is a syntactic no-op (some sources spell `+1`).
+            Token::Plus => {
+                self.bump();
+                self.parse_const_unary()
+            }
+            _ => self.parse_const_primary(),
+        }
+    }
+
+    fn parse_const_primary(&mut self) -> Result<ConstExpr, ParseError> {
+        let cur = self.peek().clone();
+        match cur.tok {
+            Token::Number(n) => {
+                self.bump();
+                Ok(ConstExpr::Number(n, cur.span))
+            }
+            Token::Dollar => {
+                self.bump();
+                Ok(ConstExpr::Dollar(cur.span))
+            }
+            Token::LParen => {
+                self.bump();
+                let inner = self.parse_const_expr()?;
+                let r = self.expect(&Token::RParen)?;
+                Ok(match inner {
+                    // Re-attach the outer span so error messages point at
+                    // the parenthesised form rather than just the inside.
+                    ConstExpr::Number(n, _) => {
+                        ConstExpr::Number(n, Span::new(cur.span.start, r.span.end))
+                    }
+                    other => other,
+                })
+            }
+            Token::Ident(name) => {
+                // `OFFSET label` is a transparent prefix in our model:
+                // a bare label identifier in a constant context already
+                // resolves to its offset (the same u16 the `OFFSET`
+                // operator yields in MASM), so we just consume the
+                // keyword and re-parse the inner identifier as the atom.
+                if name.eq_ignore_ascii_case("offset") {
+                    self.bump();
+                    let inner = self.peek().clone();
+                    if let Token::Ident(label) = inner.tok {
+                        self.bump();
+                        return Ok(ConstExpr::Ident(
+                            label,
+                            Span::new(cur.span.start, inner.span.end),
+                        ));
+                    }
+                    return Err(ParseError {
+                        span: inner.span,
+                        message: format!("expected a label after `OFFSET`, found {}", inner.tok),
+                    });
+                }
+                self.bump();
+                Ok(ConstExpr::Ident(name, cur.span))
+            }
+            _ => Err(ParseError {
+                span: cur.span,
+                message: format!(
+                    "expected a number, identifier, `$`, or `(`, found {}",
+                    cur.tok
+                ),
+            }),
+        }
     }
 
     fn parse_number(&mut self) -> Result<(u32, Span), ParseError> {
@@ -494,6 +676,24 @@ impl Parser<'_> {
         let cur = self.peek().clone();
         match cur.tok {
             Token::Ident(name) => {
+                // `OFFSET label` is a transparent prefix: a bare label
+                // identifier in immediate position already resolves to
+                // its offset, so OFFSET just consumes the keyword and
+                // returns the inner label as the operand. This lets
+                // `MOV DX, OFFSET MSG` (the canonical INT 21h fn 09h
+                // print idiom) parse without diverging from MASM.
+                if name.eq_ignore_ascii_case("offset") {
+                    if let Some(next) = self.toks.get(self.pos + 1).cloned() {
+                        if let Token::Ident(label) = next.tok {
+                            self.bump(); // OFFSET
+                            self.bump(); // label
+                            return Ok(Operand::Ident {
+                                name: label,
+                                span: Span::new(cur.span.start, next.span.end),
+                            });
+                        }
+                    }
+                }
                 self.bump();
                 Ok(Operand::Ident {
                     name,
