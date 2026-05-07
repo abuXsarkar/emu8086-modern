@@ -493,7 +493,8 @@ impl Parser<'_> {
         let mut lhs = self.parse_const_xor()?;
         loop {
             let is_pipe = matches!(self.peek().tok, Token::Pipe);
-            let is_or_kw = matches!(&self.peek().tok, Token::Ident(s) if s.eq_ignore_ascii_case("or"));
+            let is_or_kw =
+                matches!(&self.peek().tok, Token::Ident(s) if s.eq_ignore_ascii_case("or"));
             if is_pipe || is_or_kw {
                 self.bump();
                 let rhs = self.parse_const_xor()?;
@@ -509,7 +510,8 @@ impl Parser<'_> {
         let mut lhs = self.parse_const_and()?;
         loop {
             let is_caret = matches!(self.peek().tok, Token::Caret);
-            let is_xor_kw = matches!(&self.peek().tok, Token::Ident(s) if s.eq_ignore_ascii_case("xor"));
+            let is_xor_kw =
+                matches!(&self.peek().tok, Token::Ident(s) if s.eq_ignore_ascii_case("xor"));
             if is_caret || is_xor_kw {
                 self.bump();
                 let rhs = self.parse_const_and()?;
@@ -525,7 +527,8 @@ impl Parser<'_> {
         let mut lhs = self.parse_const_shift()?;
         loop {
             let is_amp = matches!(self.peek().tok, Token::Amp);
-            let is_and_kw = matches!(&self.peek().tok, Token::Ident(s) if s.eq_ignore_ascii_case("and"));
+            let is_and_kw =
+                matches!(&self.peek().tok, Token::Ident(s) if s.eq_ignore_ascii_case("and"));
             if is_amp || is_and_kw {
                 self.bump();
                 let rhs = self.parse_const_shift()?;
@@ -820,7 +823,10 @@ impl Parser<'_> {
                             // of a label that names byte- or
                             // word-sized data. Common in M2 BCD
                             // programs (`INC BYTE PTR var`).
-                            Operand::Ident { name, span: ident_span } => {
+                            Operand::Ident {
+                                name,
+                                span: ident_span,
+                            } => {
                                 return Ok(Operand::Mem(MemRef {
                                     terms: vec![MemTerm::Ident {
                                         name,
