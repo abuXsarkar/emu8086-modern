@@ -53,9 +53,12 @@ A more detailed breakdown lives in [`docs/pain-points.md`](docs/pain-points.md).
 
 ## Source compatibility with emu8086
 
-The legacy emu8086 has syntax quirks that thousands of textbooks and lab manuals depend on (e.g. the `emu8086.inc` macro library, `.MODEL SMALL` shortcuts, the `org 100h` `.com` template, `PRINT` / `PRINTN` / `GOTOXY` macros, the virtual `OUT` ports for the traffic light). Our assembler accepts these as a **dialect** (`--dialect=emu8086`, the default) so that existing course materials run unmodified. A stricter `--dialect=nasm` is also offered.
+The legacy emu8086 has syntax quirks that thousands of textbooks and lab manuals depend on (`.MODEL SMALL` shortcuts, the `org 100h` `.com` template, `OFFSET msg` / `LEN EQU $-MSG` patterns in `INT 21h` print idioms, the virtual `OUT` ports for vintage peripherals, and the `emu8086.inc` macro pack). Our goal is to accept these without source modification under the default `emu8086` dialect.
 
-See [`docs/emu8086-compatibility.md`](docs/emu8086-compatibility.md) for the full compatibility matrix.
+The current state is partial. As of 2026-05-08 we run roughly **45% of the programs across four representative public lab manuals** as written. The remaining gaps are tracked individually with `GAP-NNN` IDs and mapped to the PRs that close them.
+
+- **[`docs/lab-manual-audit.md`](docs/lab-manual-audit.md)** — the audit itself. Documents how the four manuals were sourced (URLs + access dates), per-manual program inventories with run/blocked status, the full gap list with severity, and an 8-PR plan that closes every gap (no item deferred indefinitely).
+- **[`docs/emu8086-compatibility.md`](docs/emu8086-compatibility.md)** — feature-by-feature matrix (templates, number bases, directives, expression operators, INT subfunctions, port maps), with each ❌ row linking to the gap that tracks it.
 
 ---
 
@@ -164,7 +167,8 @@ Full architecture in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - [`SECURITY.md`](SECURITY.md) — vulnerability disclosure policy
 - [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — community standards
 - [`docs/pain-points.md`](docs/pain-points.md) — detailed legacy comparison
-- [`docs/emu8086-compatibility.md`](docs/emu8086-compatibility.md) — dialect compatibility matrix
+- [`docs/lab-manual-audit.md`](docs/lab-manual-audit.md) — public-search lab-manual audit, per-manual run-status, full gap list, 8-PR close-out plan
+- [`docs/emu8086-compatibility.md`](docs/emu8086-compatibility.md) — dialect compatibility matrix (every ❌ row links to a `GAP-NNN` in the audit)
 - [`docs/student-experience.md`](docs/student-experience.md) — UX principles
 - [`docs/educator-guide.md`](docs/educator-guide.md) — guide for institutes adopting the tool
 - [`docs/adr/0001-tech-stack.md`](docs/adr/0001-tech-stack.md) — architecture decision: Rust + wasm + React
