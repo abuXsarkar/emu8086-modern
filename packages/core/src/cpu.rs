@@ -185,6 +185,18 @@ pub struct Cpu {
     /// `AH=3Ch` and `AH=3Dh` allocate from index 5 upwards. A `None`
     /// slot is a closed handle that can be reused.
     pub handles: Vec<Option<FileHandle>>,
+    /// Current `INT 10h` video mode. Default `0x03` is the standard
+    /// 80×25 colour text mode that boots DOS programs see; mode 12h
+    /// (640×480×16 graphics) is what M1's mouse-paint experiment
+    /// switches to. We track the byte but only the text-mode buffer
+    /// at linear `0xB_8000` is rendered — graphics modes accept the
+    /// switch but `AH=0Ch` write-pixel is currently a stub.
+    pub video_mode: u8,
+    /// Cursor row (0..24 in mode 03h) — the next position
+    /// `AH=09h`/`0Ah`/`0Eh` writes target.
+    pub cursor_row: u8,
+    /// Cursor column (0..79 in mode 03h).
+    pub cursor_col: u8,
 }
 
 /// In-memory virtual filesystem. Files are looked up by exact path
@@ -346,6 +358,9 @@ impl Cpu {
             // Reserve indices 0..=4 for the standard DOS handles —
             // INT 21h AH=3Ch / 3Dh start allocating from index 5.
             handles: vec![None, None, None, None, None],
+            video_mode: 0x03, // standard 80x25 colour text mode
+            cursor_row: 0,
+            cursor_col: 0,
         }
     }
 
@@ -487,6 +502,7 @@ impl Cpu {
             }
             0x21 => self.dos_int21(rec),
             0x16 => self.bios_int16(rec),
+            0x10 => self.bios_int10(rec),
             0x33 => self.mouse_int33(rec),
             // Soft interrupts that lab manuals occasionally invoke but
             // that have no useful effect under our flat `.com` model.
@@ -522,6 +538,240 @@ impl Cpu {
                     ip: ip_before,
                 });
                 let _ = other;
+            }
+        }
+    }
+
+    /// INT 10h — BIOS video services. We implement the small subset
+    /// the four catalogued lab manuals reach for (M1 Experiment 6
+    /// mouse-paint and M4 program 5's CLS proc); subfunctions
+    /// outside this list trap as `Unimplemented` so the IDE can
+    /// surface them.
+    ///
+    /// Coordinate system for text mode 03h: (row 0, col 0) is the
+    /// top-left of the 80×25 buffer at linear `0xB_8000`; each cell
+    /// is 2 bytes (`char`, `attribute`). We treat attribute `0x07`
+    /// (light grey on black) as the default when a subfunction
+    /// doesn't supply one.
+    #[allow(clippy::too_many_lines)]
+    fn bios_int10(&mut self, rec: &mut StepRecord) {
+        const BASE: usize = 0xB_8000;
+        const COLS: u8 = 80;
+        const ROWS: u8 = 25;
+        let ah = self.regs.ah();
+        match ah {
+            // 00h — set video mode. AL holds the mode byte. We
+            // record the mode for `AH=0Fh` to read back; for text
+            // modes we also clear the screen buffer so a CLS proc
+            // (`MOV AH,0Fh ; INT 10h ; MOV AH,0 ; INT 10h`) actually
+            // wipes the display the way the manual expects.
+            0x00 => {
+                self.video_mode = self.regs.al();
+                self.cursor_row = 0;
+                self.cursor_col = 0;
+                if matches!(self.video_mode, 0x00 | 0x01 | 0x02 | 0x03 | 0x07) {
+                    // Fill 80x25 cells with (' ', 0x07).
+                    for cell in 0..(usize::from(COLS) * usize::from(ROWS)) {
+                        self.mem.write_u8(BASE + cell * 2, b' ');
+                        self.mem.write_u8(BASE + cell * 2 + 1, 0x07);
+                    }
+                }
+                rec.mnemonic = "int";
+            }
+            // 02h — set cursor position. BH=page (ignored — we
+            // model only page 0), DH=row, DL=col.
+            0x02 => {
+                self.cursor_row = self.regs.dh();
+                self.cursor_col = self.regs.dl();
+                rec.mnemonic = "int";
+            }
+            // 03h — get cursor position + size. We don't model the
+            // cursor scanline range, so report a sensible default
+            // (CH=6, CL=7 — the standard underline cursor).
+            0x03 => {
+                self.regs.set_ch(6);
+                self.regs.set_cl(7);
+                self.regs.set_dh(self.cursor_row);
+                self.regs.set_dl(self.cursor_col);
+                self.regs.set_bh(0);
+                rec.mnemonic = "int";
+            }
+            // 06h / 07h — scroll window up / down. AL=lines (0 means
+            // clear the whole window), BH=fill attribute, CH/CL =
+            // top-left, DH/DL = bottom-right. The two directions
+            // share enough that we collapse them into one helper.
+            0x06 | 0x07 => {
+                let lines = self.regs.al();
+                let attr = self.regs.bh();
+                let r0 = self.regs.ch().min(ROWS - 1);
+                let c0 = self.regs.cl().min(COLS - 1);
+                let r1 = self.regs.dh().min(ROWS - 1);
+                let c1 = self.regs.dl().min(COLS - 1);
+                if lines == 0 || lines as i32 > i32::from(r1) - i32::from(r0) {
+                    // Clear the entire window.
+                    for r in r0..=r1 {
+                        for c in c0..=c1 {
+                            let off =
+                                BASE + (usize::from(r) * usize::from(COLS) + usize::from(c)) * 2;
+                            self.mem.write_u8(off, b' ');
+                            self.mem.write_u8(off + 1, attr);
+                        }
+                    }
+                } else {
+                    // Partial scroll: copy `n` rows then blank the
+                    // newly-vacated edge. AH=06h scrolls up (each
+                    // source row moves up by `lines`), AH=07h
+                    // scrolls down.
+                    let scroll_up = ah == 0x06;
+                    let n = lines as usize;
+                    for step in 0..n {
+                        let _ = step;
+                    }
+                    if scroll_up {
+                        for r in r0..=(r1.saturating_sub(n as u8)) {
+                            for c in c0..=c1 {
+                                let src = BASE
+                                    + (usize::from(r + n as u8) * usize::from(COLS)
+                                        + usize::from(c))
+                                        * 2;
+                                let dst = BASE
+                                    + (usize::from(r) * usize::from(COLS) + usize::from(c)) * 2;
+                                self.mem.write_u8(dst, self.mem.read_u8(src));
+                                self.mem.write_u8(dst + 1, self.mem.read_u8(src + 1));
+                            }
+                        }
+                        // Blank the bottom n rows.
+                        for r in (r1.saturating_sub(n as u8) + 1)..=r1 {
+                            for c in c0..=c1 {
+                                let off = BASE
+                                    + (usize::from(r) * usize::from(COLS) + usize::from(c)) * 2;
+                                self.mem.write_u8(off, b' ');
+                                self.mem.write_u8(off + 1, attr);
+                            }
+                        }
+                    } else {
+                        for r in (r0 + n as u8..=r1).rev() {
+                            for c in c0..=c1 {
+                                let src = BASE
+                                    + (usize::from(r - n as u8) * usize::from(COLS)
+                                        + usize::from(c))
+                                        * 2;
+                                let dst = BASE
+                                    + (usize::from(r) * usize::from(COLS) + usize::from(c)) * 2;
+                                self.mem.write_u8(dst, self.mem.read_u8(src));
+                                self.mem.write_u8(dst + 1, self.mem.read_u8(src + 1));
+                            }
+                        }
+                        for r in r0..(r0 + n as u8) {
+                            for c in c0..=c1 {
+                                let off = BASE
+                                    + (usize::from(r) * usize::from(COLS) + usize::from(c)) * 2;
+                                self.mem.write_u8(off, b' ');
+                                self.mem.write_u8(off + 1, attr);
+                            }
+                        }
+                    }
+                }
+                rec.mnemonic = "int";
+            }
+            // 09h — write character with attribute at cursor, CX
+            // times. Cursor doesn't advance (per the BIOS contract).
+            // AL=char, BL=attribute, CX=count.
+            0x09 => {
+                let ch = self.regs.al();
+                let attr = self.regs.bl();
+                let count = self.regs.cx;
+                for i in 0..count {
+                    let r = self.cursor_row;
+                    let c = self.cursor_col.wrapping_add(i as u8);
+                    if r < ROWS && c < COLS {
+                        let off = BASE + (usize::from(r) * usize::from(COLS) + usize::from(c)) * 2;
+                        self.mem.write_u8(off, ch);
+                        self.mem.write_u8(off + 1, attr);
+                    }
+                }
+                rec.mnemonic = "int";
+            }
+            // 0Ah — write character at cursor without changing
+            // attribute. CX times, like 09h.
+            0x0A => {
+                let ch = self.regs.al();
+                let count = self.regs.cx;
+                for i in 0..count {
+                    let r = self.cursor_row;
+                    let c = self.cursor_col.wrapping_add(i as u8);
+                    if r < ROWS && c < COLS {
+                        let off = BASE + (usize::from(r) * usize::from(COLS) + usize::from(c)) * 2;
+                        self.mem.write_u8(off, ch);
+                    }
+                }
+                rec.mnemonic = "int";
+            }
+            // 0Eh — TTY-style write. AL=char. Advances the cursor;
+            // handles BS / LF / CR. Also pushes printable bytes to
+            // stdout so CLI programs that use INT 10h's TTY style
+            // produce visible output without needing INT 21h.
+            0x0E => {
+                let ch = self.regs.al();
+                match ch {
+                    0x08 => {
+                        // BS: back up one column (no wrap).
+                        if self.cursor_col > 0 {
+                            self.cursor_col -= 1;
+                        }
+                    }
+                    b'\n' => {
+                        if self.cursor_row + 1 < ROWS {
+                            self.cursor_row += 1;
+                        }
+                        self.stdout.push(b'\n');
+                    }
+                    b'\r' => {
+                        self.cursor_col = 0;
+                    }
+                    _ => {
+                        let off = BASE
+                            + (usize::from(self.cursor_row) * usize::from(COLS)
+                                + usize::from(self.cursor_col))
+                                * 2;
+                        self.mem.write_u8(off, ch);
+                        self.mem.write_u8(off + 1, 0x07);
+                        self.stdout.push(ch);
+                        self.cursor_col += 1;
+                        if self.cursor_col >= COLS {
+                            self.cursor_col = 0;
+                            if self.cursor_row + 1 < ROWS {
+                                self.cursor_row += 1;
+                            }
+                        }
+                    }
+                }
+                rec.mnemonic = "int";
+            }
+            // 0Fh — get current video mode. AL=mode, AH=column count
+            // (80 in mode 03h), BH=active page (always 0 here).
+            0x0F => {
+                self.regs.set_al(self.video_mode);
+                self.regs.set_ah(COLS);
+                self.regs.set_bh(0);
+                rec.mnemonic = "int";
+            }
+            // 0Ch / 0Dh — write / read pixel. Stub: M1's mouse-paint
+            // calls these in graphics mode 12h, which would need a
+            // separate framebuffer at 0xA_0000. For now we no-op
+            // (write) and return AL=0 (read) so the program runs to
+            // completion without hanging on an unimplemented trap.
+            0x0C | 0x0D => {
+                if ah == 0x0D {
+                    self.regs.set_al(0);
+                }
+                rec.mnemonic = "int";
+            }
+            _ => {
+                rec.stopped = Some(StopReason::Unimplemented {
+                    opcode: 0xCD,
+                    ip: self.regs.ip.wrapping_sub(2),
+                });
             }
         }
     }
@@ -3913,6 +4163,139 @@ mod tests {
         let c = run(&[0xBB, 0x63, 0x00, 0xB4, 0x3E, 0xCD, 0x21, 0xF4]);
         assert!(c.regs.flags.get(Flags::CF));
         assert_eq!(c.regs.ax, 0x06, "DOS error 6 = invalid handle");
+    }
+
+    // ---- PR 3: INT 10h video subset ----
+
+    #[test]
+    fn int10_ah00_set_text_mode_clears_buffer() {
+        // mov ah, 0 ; mov al, 3 ; int 10h ; hlt
+        // First write a non-blank cell so we can prove the clear ran.
+        let mut c = Cpu::new();
+        c.mem.write_u8(0xB_8000, b'X');
+        c.mem.write_u8(0xB_8001, 0xF0);
+        c.load_com(&[0xB4, 0x00, 0xB0, 0x03, 0xCD, 0x10, 0xF4]);
+        c.run_until_halt(32);
+        assert!(c.halted);
+        assert_eq!(c.video_mode, 0x03);
+        // Cell 0 is now (' ', 0x07).
+        assert_eq!(c.mem.read_u8(0xB_8000), b' ');
+        assert_eq!(c.mem.read_u8(0xB_8001), 0x07);
+        // Cursor reset to (0, 0).
+        assert_eq!(c.cursor_row, 0);
+        assert_eq!(c.cursor_col, 0);
+    }
+
+    #[test]
+    fn int10_ah0f_reports_default_mode() {
+        // mov ah, 0Fh ; int 10h ; hlt
+        let c = run(&[0xB4, 0x0F, 0xCD, 0x10, 0xF4]);
+        assert_eq!(c.regs.al(), 0x03, "default mode");
+        assert_eq!(c.regs.ah(), 80, "column count");
+        assert_eq!(c.regs.bh(), 0, "page");
+    }
+
+    #[test]
+    fn int10_cls_proc_pattern_from_m4_works() {
+        // The canonical M4 BMSIT CLS proc:
+        //   MOV AH, 0Fh ; INT 10h ; MOV AH, 0 ; INT 10h
+        // Should read the current mode and re-set it, which clears
+        // the screen buffer.
+        let mut c = Cpu::new();
+        // Pre-dirty the buffer so we can prove the clear happened.
+        c.mem.write_u8(0xB_8000, b'X');
+        c.mem.write_u8(0xB_8002, b'Y');
+        c.load_com(&[
+            0xB4, 0x0F, 0xCD, 0x10, // get mode → AL=03
+            0xB4, 0x00, 0xCD, 0x10, // set mode (AL still 03 from prev call)
+            0xF4, // hlt
+        ]);
+        c.run_until_halt(32);
+        assert!(c.halted);
+        assert_eq!(c.mem.read_u8(0xB_8000), b' ');
+        assert_eq!(c.mem.read_u8(0xB_8002), b' ');
+    }
+
+    #[test]
+    fn int10_ah02_set_cursor_and_ah03_get_cursor_round_trip() {
+        // mov ah, 02h ; mov bh, 0 ; mov dh, 5 ; mov dl, 12 ; int 10h
+        // mov ah, 03h ; int 10h
+        // hlt
+        let c = run(&[
+            0xB4, 0x02, 0xB7, 0x00, 0xB6, 0x05, 0xB2, 0x0C, 0xCD, 0x10, 0xB4, 0x03, 0xCD, 0x10,
+            0xF4,
+        ]);
+        assert!(c.halted);
+        assert_eq!(c.cursor_row, 5);
+        assert_eq!(c.cursor_col, 12);
+        // AH=03h returned the same row/col in DH/DL.
+        assert_eq!(c.regs.dh(), 5);
+        assert_eq!(c.regs.dl(), 12);
+        // BH=0, default cursor scanlines in CH/CL.
+        assert_eq!(c.regs.bh(), 0);
+        assert_eq!(c.regs.ch(), 6);
+        assert_eq!(c.regs.cl(), 7);
+    }
+
+    #[test]
+    fn int10_ah09_writes_char_with_attribute_at_cursor() {
+        // Set cursor to (1, 2), then write 'A' with attr 0x4F three times.
+        // mov ah, 02h ; mov bh, 0 ; mov dh, 1 ; mov dl, 2 ; int 10h
+        // mov ah, 09h ; mov al, 'A' ; mov bh, 0 ; mov bl, 4Fh ; mov cx, 3 ; int 10h
+        let c = run(&[
+            0xB4, 0x02, 0xB7, 0x00, 0xB6, 0x01, 0xB2, 0x02, 0xCD, 0x10, 0xB4, 0x09, 0xB0, b'A',
+            0xB7, 0x00, 0xB3, 0x4F, 0xB9, 0x03, 0x00, 0xCD, 0x10, 0xF4,
+        ]);
+        assert!(c.halted);
+        // Buffer at (row=1, col=2..4) holds ('A', 0x4F) three times.
+        for col in 2..5 {
+            let off = 0xB_8000 + (80 + col) * 2;
+            assert_eq!(c.mem.read_u8(off), b'A', "col {col}");
+            assert_eq!(c.mem.read_u8(off + 1), 0x4F, "col {col} attr");
+        }
+        // Cursor doesn't advance for AH=09h.
+        assert_eq!(c.cursor_col, 2);
+    }
+
+    #[test]
+    fn int10_ah0e_tty_writes_to_stdout_and_advances_cursor() {
+        // Print "Hi\n" via the BIOS TTY service.
+        let c = run(&[
+            0xB4, 0x0E, 0xB0, b'H', 0xCD, 0x10, 0xB4, 0x0E, 0xB0, b'i', 0xCD, 0x10, 0xB4, 0x0E,
+            0xB0, b'\n', 0xCD, 0x10, 0xF4,
+        ]);
+        assert!(c.halted);
+        assert_eq!(c.stdout, b"Hi\n");
+        assert_eq!(c.cursor_col, 2, "cursor advanced past 'Hi'");
+        assert_eq!(c.cursor_row, 1, "newline advanced row");
+    }
+
+    #[test]
+    fn int10_ah06_with_al_zero_clears_window() {
+        // Pre-fill a 3×3 window at (1,1)..(3,3) with 'X'/0xFF, then
+        // scroll-clear it to ' '/0x70.
+        let mut c = Cpu::new();
+        for r in 1..=3u8 {
+            for col in 1..=3u8 {
+                let off = 0xB_8000 + (usize::from(r) * 80 + usize::from(col)) * 2;
+                c.mem.write_u8(off, b'X');
+                c.mem.write_u8(off + 1, 0xFF);
+            }
+        }
+        // mov ah, 06h ; mov al, 0 ; mov bh, 70h ; mov cx, 0x0101 ; mov dx, 0x0303 ; int 10h ; hlt
+        c.load_com(&[
+            0xB4, 0x06, 0xB0, 0x00, 0xB7, 0x70, 0xB9, 0x01, 0x01, 0xBA, 0x03, 0x03, 0xCD, 0x10,
+            0xF4,
+        ]);
+        c.run_until_halt(64);
+        assert!(c.halted);
+        for r in 1..=3u8 {
+            for col in 1..=3u8 {
+                let off = 0xB_8000 + (usize::from(r) * 80 + usize::from(col)) * 2;
+                assert_eq!(c.mem.read_u8(off), b' ', "({r},{col}) char");
+                assert_eq!(c.mem.read_u8(off + 1), 0x70, "({r},{col}) attr");
+            }
+        }
     }
 
     // ---- shifts and rotates (M1.5) ----
