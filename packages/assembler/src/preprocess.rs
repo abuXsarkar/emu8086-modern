@@ -71,7 +71,43 @@ fn is_dropped_directive(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
     matches!(
         lower.as_str(),
-        ".model" | ".stack" | ".data" | ".code" | ".startup" | ".exit" | "assume" | "end"
+        ".model"
+            | ".stack"
+            | ".data"
+            | ".code"
+            | ".startup"
+            | ".exit"
+            | "assume"
+            | "end"
+            // Modular assembly markers — the manuals' linker is
+            // doing scope work we don't model in our flat `.com`
+            // image. Accept them so multi-file lab sources don't
+            // error out; the linker is a separate concern.
+            | "public"
+            | "extrn"
+            | "extern"
+            | "group"
+            // Conditional assembly. We don't have a real macro-time
+            // evaluator yet, so treat both branches as included
+            // (drop just the directive line). For the common
+            // `IFDEF foo ; <stuff> ; ENDIF` library-protection
+            // pattern this is the right thing — typical lab usage
+            // doesn't put conflicting `ELSE` bodies that would
+            // collide if both were emitted.
+            | "if"
+            | "ifdef"
+            | "ifndef"
+            | "ifb"
+            | "ifnb"
+            | "ife"
+            | "elseif"
+            | "elseifdef"
+            | "elseifndef"
+            | "elseifb"
+            | "elseifnb"
+            | "elseife"
+            | "else"
+            | "endif"
     )
 }
 
@@ -126,6 +162,79 @@ fn expand_into(toks: &[Spanned], state: &mut ExpandState) -> Result<Vec<Spanned>
                         continue;
                     }
                     if kw.eq_ignore_ascii_case("endp") {
+                        i = consume_line(toks, i + 2);
+                        continue;
+                    }
+                    // `name SEGMENT [PUBLIC ALIGN ...]` — full-segment
+                    // form. We model only a flat `.com` image, so the
+                    // segment markers themselves are no-ops; the body
+                    // (instructions and data between SEGMENT and the
+                    // matching ENDS) flows through the normal parser.
+                    if kw.eq_ignore_ascii_case("segment") {
+                        i = consume_line(toks, i + 2);
+                        continue;
+                    }
+                    // `name ENDS` — closes a SEGMENT or STRUC. The
+                    // STRUC branch above handles the structure case
+                    // by consuming everything up to its own ENDS, so
+                    // by the time we reach this line we know the
+                    // ENDS is for a SEGMENT and is safe to drop.
+                    if kw.eq_ignore_ascii_case("ends") {
+                        i = consume_line(toks, i + 2);
+                        continue;
+                    }
+                    // `name STRUC` ... `name ENDS` — record-type
+                    // declaration. We don't model record types
+                    // (programs that use STRUCs typically index via
+                    // explicit offsets we already support), so drop
+                    // the whole block including the body.
+                    if kw.eq_ignore_ascii_case("struc") {
+                        let target = name.clone();
+                        i = consume_line(toks, i + 2);
+                        // Skip everything until we find a matching
+                        // `<target> ENDS` line. Defensive cap so a
+                        // malformed source doesn't infinite-loop.
+                        let mut guard = 0usize;
+                        while i < toks.len() && guard < 100_000 {
+                            guard += 1;
+                            // Look for `<target>` Ident at line start
+                            // followed by `ENDS`.
+                            let after_nl = out
+                                .last()
+                                .is_none_or(|last| matches!(last.tok, Token::Newline));
+                            let _ = after_nl;
+                            let line_starts_with_target = matches!(
+                                (toks.get(i), toks.get(i + 1)),
+                                (
+                                    Some(Spanned { tok: Token::Ident(n), .. }),
+                                    Some(Spanned { tok: Token::Ident(k), .. })
+                                ) if n.eq_ignore_ascii_case(&target) && k.eq_ignore_ascii_case("ends")
+                            );
+                            if line_starts_with_target {
+                                i = consume_line(toks, i + 2);
+                                break;
+                            }
+                            i = consume_line(toks, i);
+                        }
+                        continue;
+                    }
+                    // `name LABEL <type>` — declares `name` as a label
+                    // of the given type (BYTE/WORD/DWORD/...). We
+                    // don't track label types separately, so emit the
+                    // label as a normal `name:` and drop the type.
+                    if kw.eq_ignore_ascii_case("label") {
+                        out.push(Spanned {
+                            tok: Token::Ident(name.clone()),
+                            span: name_tok.span,
+                        });
+                        out.push(Spanned {
+                            tok: Token::Colon,
+                            span: name_tok.span,
+                        });
+                        out.push(Spanned {
+                            tok: Token::Newline,
+                            span: name_tok.span,
+                        });
                         i = consume_line(toks, i + 2);
                         continue;
                     }

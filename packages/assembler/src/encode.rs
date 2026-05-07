@@ -2177,9 +2177,11 @@ mod tests {
     use super::*;
     use crate::lexer::tokenize;
     use crate::parser::parse;
+    use crate::preprocess::expand_macros;
 
     fn asm(src: &str) -> Vec<u8> {
         let toks = tokenize(src).unwrap();
+        let toks = expand_macros(&toks).unwrap();
         let prog = parse(&toks).unwrap();
         encode(&prog).unwrap().bytes
     }
@@ -2707,5 +2709,89 @@ mod tests {
         // mov cx, imm16 ; hlt — count = 3.
         assert_eq!(bytes[0], 0xB9);
         assert_eq!(u16::from_le_bytes([bytes[1], bytes[2]]), 3);
+    }
+
+    // ---- PR 4: SEGMENT/ENDS, LABEL, PUBLIC/EXTRN, STRUC, GROUP, ----
+    // ---- IF/ENDIF, SEG / TYPE / LENGTH / SIZE operators        ----
+
+    #[test]
+    fn segment_ends_pair_lex_and_drops() {
+        // GAP-013. `name SEGMENT` ... `name ENDS` form — drop the
+        // markers, keep the body.
+        let bytes = asm("CODE SEGMENT\norg 100h\nmov ax, 0x4C00\nint 21h\nCODE ENDS\nEND\n");
+        // Same prefix as a bare `mov ax, 0x4C00 ; int 21h`.
+        assert_eq!(bytes, vec![0xB8, 0x00, 0x4C, 0xCD, 0x21]);
+    }
+
+    #[test]
+    fn public_extrn_group_dropped_silently() {
+        // GAP-015, GAP-020. PUBLIC / EXTRN / EXTERN / GROUP are
+        // linker concerns — drop the lines.
+        let src = "PUBLIC start\nEXTRN otherlabel:NEAR\nEXTERN moreLabel:WORD\nGROUP DGROUP _DATA, _BSS\norg 100h\nstart: hlt\n";
+        let bytes = asm(src);
+        assert_eq!(bytes, vec![0xF4]);
+    }
+
+    #[test]
+    fn label_directive_emits_label_then_drops_type() {
+        // GAP-016. `name LABEL <type>` ≡ `name:`. Type byte is
+        // ignored — we don't track size in our label table.
+        let bytes = asm("org 100h\nstart LABEL BYTE\nhlt\nmov dx, start\n");
+        // hlt at start (offset 0x100), then mov dx, imm16 = BA <start_lo> <start_hi>.
+        assert_eq!(bytes[0], 0xF4);
+        assert_eq!(bytes[1], 0xBA);
+        assert_eq!(u16::from_le_bytes([bytes[2], bytes[3]]), 0x100);
+    }
+
+    #[test]
+    fn struc_block_drops_entirely() {
+        // GAP-017. Struct definitions don't generate code; drop
+        // the whole `name STRUC ... name ENDS` block including
+        // any field declarations inside it.
+        let src = "POINT STRUC\n  px dw ?\n  py dw ?\nPOINT ENDS\norg 100h\nhlt\n";
+        let bytes = asm(src);
+        assert_eq!(bytes, vec![0xF4]);
+    }
+
+    #[test]
+    fn if_else_endif_directives_dropped() {
+        // GAP-018. We don't have a macro-time evaluator, so each
+        // IF/ELSE/ENDIF line is a no-op and both branches' bodies
+        // flow through. For the typical `IFDEF foo / inclusive
+        // body / ENDIF` lab idiom, the body lands in the output
+        // unchanged.
+        let src = "org 100h\nIFDEF DEBUG\nnop\nENDIF\nhlt\n";
+        let bytes = asm(src);
+        // NOP (0x90) ; HLT (0xF4).
+        assert_eq!(bytes, vec![0x90, 0xF4]);
+    }
+
+    #[test]
+    fn seg_operator_returns_zero_in_const_expr() {
+        // GAP-031. `SEG label` evaluates to 0 in our flat model.
+        // Use it in an EQU so the result lands in a MOV imm16 we
+        // can inspect.
+        let bytes = asm("org 100h\nfoo: db 0\nSEGFOO EQU SEG foo\nmov ax, SEGFOO\nhlt\n");
+        // db ; mov ax, imm16 ; hlt
+        assert_eq!(bytes[1], 0xB8);
+        assert_eq!(u16::from_le_bytes([bytes[2], bytes[3]]), 0);
+    }
+
+    #[test]
+    fn type_length_size_operators_default_to_one() {
+        // GAP-032. We don't track type/size separately for labels
+        // yet, so TYPE / LENGTH / SIZE / LENGTHOF all return 1.
+        // Programs assemble; runtime semantics can diverge for
+        // multi-element arrays — tracked in the compatibility doc.
+        for op in &["TYPE", "LENGTH", "SIZE", "LENGTHOF", "SIZEOF"] {
+            let src = format!("org 100h\nfoo: db 0\nN EQU {op} foo\nmov ax, N\nhlt\n");
+            let bytes = asm(&src);
+            assert_eq!(bytes[1], 0xB8, "{op}: expected mov ax, imm16");
+            assert_eq!(
+                u16::from_le_bytes([bytes[2], bytes[3]]),
+                1,
+                "{op} foo should return 1",
+            );
+        }
     }
 }
