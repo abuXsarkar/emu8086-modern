@@ -79,6 +79,11 @@ export interface Strings {
   themeLabel: string;
   themeDark: string;
   themeLight: string;
+
+  // Click-feedback toasts for actions that otherwise complete silently
+  nothingToUndo: string;
+  fixErrorsFirst: string;
+  resetDone: string;
 }
 
 export type LocaleId = "en" | "es" | "bn";

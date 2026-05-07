@@ -74,5 +74,9 @@ export const es: Locale = {
     themeLabel: "Tema del editor",
     themeDark: "Oscuro",
     themeLight: "Claro",
+
+    nothingToUndo: "no hay nada que deshacer",
+    fixErrorsFirst: "corrige los errores antes de avanzar",
+    resetDone: "reiniciado — de vuelta en la instrucción 0",
   },
 };
