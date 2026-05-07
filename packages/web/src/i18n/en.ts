@@ -69,5 +69,9 @@ export const en: Locale = {
     themeLabel: "Editor theme",
     themeDark: "Dark",
     themeLight: "Light",
+
+    nothingToUndo: "nothing to undo",
+    fixErrorsFirst: "fix the errors before stepping",
+    resetDone: "reset — back at instruction 0",
   },
 };
