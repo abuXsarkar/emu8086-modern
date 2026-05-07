@@ -371,6 +371,9 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
             }
             Item::Directive(Directive::Db { items, .. }) => data_size(items, 1),
             Item::Directive(Directive::Dw { items, .. }) => data_size(items, 2),
+            Item::Directive(Directive::Dd { items, .. }) => data_size(items, 4),
+            Item::Directive(Directive::Dq { items, .. }) => data_size(items, 8),
+            Item::Directive(Directive::Dt { items, .. }) => data_size(items, 10),
             Item::Directive(Directive::Equ { name, span, .. }) => {
                 // EQU expressions are evaluated in the dedicated pass 1.5
                 // below, after pass 1 has placed every real label so
@@ -417,6 +420,7 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
             },
             ConstExpr::Neg(inner, _) => Ok(eval_const_expr(inner, here, labels, origin)?
                 .wrapping_neg()),
+            ConstExpr::BitNot(inner, _) => Ok(!eval_const_expr(inner, here, labels, origin)?),
             ConstExpr::Add(l, r, _) => Ok(eval_const_expr(l, here, labels, origin)?
                 .wrapping_add(eval_const_expr(r, here, labels, origin)?)),
             ConstExpr::Sub(l, r, _) => Ok(eval_const_expr(l, here, labels, origin)?
@@ -443,6 +447,28 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
                 }
                 Ok(eval_const_expr(l, here, labels, origin)? % rhs)
             }
+            // Shift counts beyond the 64-bit width of our intermediate
+            // i64 are clamped to 63 — matching what MASM does (excess
+            // shift produces zero/sign-extension as documented).
+            ConstExpr::Shl(l, r, _) => {
+                let lhs = eval_const_expr(l, here, labels, origin)?;
+                let shamt = eval_const_expr(r, here, labels, origin)?.clamp(0, 63);
+                Ok(lhs.wrapping_shl(shamt as u32))
+            }
+            ConstExpr::Shr(l, r, _) => {
+                let lhs = eval_const_expr(l, here, labels, origin)?;
+                let shamt = eval_const_expr(r, here, labels, origin)?.clamp(0, 63);
+                // Logical right shift on the underlying u64 bits, so a
+                // negative `lhs` doesn't sign-extend; the `as i64`
+                // conversion preserves the bit pattern.
+                Ok((lhs as u64).wrapping_shr(shamt as u32) as i64)
+            }
+            ConstExpr::BitAnd(l, r, _) => Ok(eval_const_expr(l, here, labels, origin)?
+                & eval_const_expr(r, here, labels, origin)?),
+            ConstExpr::BitOr(l, r, _) => Ok(eval_const_expr(l, here, labels, origin)?
+                | eval_const_expr(r, here, labels, origin)?),
+            ConstExpr::BitXor(l, r, _) => Ok(eval_const_expr(l, here, labels, origin)?
+                ^ eval_const_expr(r, here, labels, origin)?),
         }
     }
 
@@ -469,6 +495,15 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
             }
             Item::Directive(Directive::Dw { items, .. }) => {
                 equ_cursor = equ_cursor.wrapping_add(data_size(items, 2));
+            }
+            Item::Directive(Directive::Dd { items, .. }) => {
+                equ_cursor = equ_cursor.wrapping_add(data_size(items, 4));
+            }
+            Item::Directive(Directive::Dq { items, .. }) => {
+                equ_cursor = equ_cursor.wrapping_add(data_size(items, 8));
+            }
+            Item::Directive(Directive::Dt { items, .. }) => {
+                equ_cursor = equ_cursor.wrapping_add(data_size(items, 10));
             }
             Item::Directive(Directive::Equ { name, expr, .. }) => {
                 let value = eval_const_expr(expr, equ_cursor, &labels, origin)?;
@@ -509,6 +544,15 @@ pub fn encode(program: &Program) -> Result<AssembledImage, EncodeError> {
             }
             Item::Directive(Directive::Dw { items, .. }) => {
                 emit_data(items, 2, &mut bytes);
+            }
+            Item::Directive(Directive::Dd { items, .. }) => {
+                emit_data(items, 4, &mut bytes);
+            }
+            Item::Directive(Directive::Dq { items, .. }) => {
+                emit_data(items, 8, &mut bytes);
+            }
+            Item::Directive(Directive::Dt { items, .. }) => {
+                emit_data(items, 10, &mut bytes);
             }
             Item::Instr(instr) => {
                 let here = origin.wrapping_add(cursor);
@@ -667,20 +711,35 @@ fn data_size(items: &[DataItem], width: u16) -> u16 {
 fn emit_data(items: &[DataItem], width: u16, out: &mut Vec<u8>) {
     for it in items {
         match it {
-            DataItem::Number(n, _) => {
-                if width == 1 {
-                    out.push(*n as u8);
-                } else {
-                    let v = *n as u16;
-                    out.extend_from_slice(&v.to_le_bytes());
+            DataItem::Number(n, _) => match width {
+                1 => out.push(*n as u8),
+                2 => out.extend_from_slice(&(*n as u16).to_le_bytes()),
+                4 => out.extend_from_slice(&n.to_le_bytes()),
+                // dq / dt: emit the parsed u32 little-endian, then
+                // zero-pad to the full 8 / 10 byte cell. Larger
+                // literals would need a wider DataItem; the manuals
+                // we audit only use these for `?` (zero) and small
+                // BCD constants, which fit in u32.
+                w => {
+                    out.extend_from_slice(&n.to_le_bytes());
+                    for _ in 0..(w - 4) {
+                        out.push(0);
+                    }
                 }
-            }
+            },
             DataItem::String(bytes, _) => {
                 if width == 1 {
                     out.extend_from_slice(bytes);
                 } else {
+                    // For multi-byte cells each character occupies a
+                    // whole cell, low byte = the character, the rest
+                    // zero-pad. Matches MASM's behaviour for `dw 'A'`
+                    // (emits 0x41 0x00).
                     for b in bytes {
-                        out.extend_from_slice(&u16::from(*b).to_le_bytes());
+                        out.push(*b);
+                        for _ in 1..width {
+                            out.push(0);
+                        }
                     }
                 }
             }
@@ -766,9 +825,17 @@ fn instr_size(instr: &Instr) -> Result<u16, EncodeError> {
                 });
             }
         }
-        "inc" | "dec" if one => 1, // r16 form
+        "inc" | "dec" if one => match &instr.operands[0] {
+            Operand::Mem(m) => {
+                // FE /0 (byte) or FF /0 (word) + mod-r/m + disp.
+                let enc = classify_mem(m, None)?;
+                2 + enc.extra_bytes()
+            }
+            _ => 1, // r16 form
+        },
         "mov" if two => mov_size(&instr.operands[0], &instr.operands[1])?,
         "lea" if two => lea_size(&instr.operands[0], &instr.operands[1])?,
+        "lds" | "les" if two => lea_size(&instr.operands[0], &instr.operands[1])?,
         "xchg" if two => xchg_size(&instr.operands[0], &instr.operands[1])?,
         "add" | "sub" | "cmp" | "and" | "or" | "xor" | "adc" | "sbb" if two => {
             arith_size(&instr.operands[0], &instr.operands[1])?
@@ -1322,14 +1389,32 @@ fn emit_instr(
             }
         }
         "inc" | "dec" => {
+            // Memory form: FE /0|/1 (byte) or FF /0|/1 (word). Size
+            // comes from the operand's size_hint (`BYTE PTR` /
+            // `WORD PTR`); a label whose declaration was `db` flows
+            // through implicit-memory promotion with the right hint.
+            if let Operand::Mem(m_ref) = &instr.operands[0] {
+                let enc = classify_mem(m_ref, Some(labels))?;
+                let opcode = match m_ref.size_hint {
+                    Some(MemSize::Byte) => 0xFE,
+                    // Default to word — matches MASM when the deref
+                    // is unambiguous (e.g. `inc word ptr [bx]`).
+                    Some(MemSize::Word) | None => 0xFF,
+                };
+                let sub = u8::from(m != "inc");
+                out.push(opcode);
+                out.push(enc.modrm_byte(sub));
+                emit_disp(out, enc);
+                return Ok(());
+            }
             let name = ident_name(&instr.operands[0]).ok_or(EncodeError {
                 span: instr.span,
-                message: "expected register operand".into(),
+                message: "expected register or memory operand".into(),
             })?;
             let r = Reg16::from_name(&name.to_ascii_lowercase()).ok_or(EncodeError {
                 span: instr.span,
                 message: format!(
-                    "inc/dec accepts only a 16-bit register in this slice (got `{name}`)"
+                    "inc/dec accepts a 16-bit register or a memory operand (got `{name}`)"
                 ),
             })?;
             let base = if m == "inc" { 0x40 } else { 0x48 };
@@ -1337,6 +1422,28 @@ fn emit_instr(
             Ok(())
         }
         "mov" => emit_mov(
+            &instr.operands[0],
+            &instr.operands[1],
+            labels,
+            out,
+            instr.span,
+        ),
+        // LDS r16, m  →  C5 /r  (r16 ← low word, DS ← high word)
+        // LES r16, m  →  C4 /r  (r16 ← low word, ES ← high word)
+        // The mod-r/m form is identical to LEA's; we reuse the helper
+        // and just hand it a different opcode byte.
+        "lds" => emit_far_load(
+            0xC5,
+            "lds",
+            &instr.operands[0],
+            &instr.operands[1],
+            labels,
+            out,
+            instr.span,
+        ),
+        "les" => emit_far_load(
+            0xC4,
+            "les",
             &instr.operands[0],
             &instr.operands[1],
             labels,
@@ -1647,6 +1754,43 @@ fn emit_lea(
     };
     let enc = classify_mem(m, Some(labels))?;
     out.push(0x8D);
+    out.push(enc.modrm_byte(r.code()));
+    emit_disp(out, enc);
+    Ok(())
+}
+
+/// Shared emitter for LDS (C5 /r) and LES (C4 /r). Both load a far
+/// pointer (offset:segment) from a memory operand into a 16-bit
+/// register and the matching segment register; the only encoding
+/// difference is the opcode byte.
+fn emit_far_load(
+    opcode: u8,
+    mnemonic: &'static str,
+    dst: &Operand,
+    src: &Operand,
+    labels: &HashMap<String, u16>,
+    out: &mut Vec<u8>,
+    span: Span,
+) -> Result<(), EncodeError> {
+    let dname = ident_name(dst).ok_or(EncodeError {
+        span,
+        message: format!("{mnemonic} destination must be a 16-bit register"),
+    })?;
+    let r = Reg16::from_name(&dname.to_ascii_lowercase()).ok_or(EncodeError {
+        span: dst.span(),
+        message: format!("{mnemonic} destination must be a 16-bit register (got `{dname}`)"),
+    })?;
+    let m = match src {
+        Operand::Mem(m) => m,
+        _ => {
+            return Err(EncodeError {
+                span: src.span(),
+                message: format!("{mnemonic} source must be a memory operand `[…]`"),
+            });
+        }
+    };
+    let enc = classify_mem(m, Some(labels))?;
+    out.push(opcode);
     out.push(enc.modrm_byte(r.code()));
     emit_disp(out, enc);
     Ok(())
@@ -2693,6 +2837,95 @@ mod tests {
         assert_eq!(bytes[5], 0xBB);
         // MSG = 0x103, BUF_END = 0x107.
         assert_eq!(u16::from_le_bytes([bytes[6], bytes[7]]), 0x107);
+    }
+
+    // ---- PR 5: LDS/LES, BYTE PTR var, DQ/DT, shift+bitwise ops ----
+
+    #[test]
+    fn lds_reg_mem_emits_c5_modrm() {
+        // lds si, [bx]  →  C5 /r  reg=SI(6) rm=[BX](7) mod=00  → C5 37
+        let bytes = asm("lds si, [bx]\n");
+        assert_eq!(bytes, vec![0xC5, 0x37]);
+    }
+
+    #[test]
+    fn les_reg_mem_emits_c4_modrm() {
+        // les di, [bx]  →  C4 /r  reg=DI(7) rm=[BX](7) mod=00  → C4 3F
+        let bytes = asm("les di, [bx]\n");
+        assert_eq!(bytes, vec![0xC4, 0x3F]);
+    }
+
+    #[test]
+    fn byte_ptr_unbracketed_label_promotes_to_mem_byte() {
+        // GAP-014. `INC BYTE PTR var` should encode identically to
+        // `INC BYTE PTR [var]`. Both forms appear in M2 BCD programs.
+        let with_brackets = asm("org 100h\ninc BYTE PTR [var]\nhlt\nvar: db 0\n");
+        let without = asm("org 100h\ninc BYTE PTR var\nhlt\nvar: db 0\n");
+        assert_eq!(with_brackets, without);
+        // INC byte mem  →  FE /0  with mod=00 rm=110 disp16=var.
+        assert_eq!(without[0], 0xFE);
+        assert_eq!(without[1], 0x06);
+    }
+
+    #[test]
+    fn dd_emits_four_byte_little_endian() {
+        // Number fits in u32; result is 4 bytes LE plus a HLT after.
+        let bytes = asm("dd 0x12345678\nhlt\n");
+        assert_eq!(bytes, vec![0x78, 0x56, 0x34, 0x12, 0xF4]);
+    }
+
+    #[test]
+    fn dq_emits_eight_bytes_with_zero_padding() {
+        // `dq 1` → 0x01 followed by 7 zero bytes.
+        let bytes = asm("dq 1\n");
+        assert_eq!(bytes, vec![0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        // `dq ?` is the canonical M2 BCD-storage idiom — 8 zero bytes.
+        let bytes = asm("dq ?\n");
+        assert_eq!(bytes, vec![0; 8]);
+    }
+
+    #[test]
+    fn dt_emits_ten_bytes_with_zero_padding() {
+        let bytes = asm("dt 0x42\n");
+        assert_eq!(bytes.len(), 10);
+        assert_eq!(bytes[0], 0x42);
+        assert!(bytes[1..].iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn equ_with_shift_and_bitwise_operators() {
+        // GAP-034 / 035. C-like precedence: `&` binds tighter than `^`,
+        // both bind tighter than `|`. Shifts are tighter than `&`.
+        // (1 << 8) | 0x55 = 0x0155
+        let bytes = asm("org 100h\nA EQU (1 << 8) | 55h\nmov bx, A\nhlt\n");
+        assert_eq!(bytes[0], 0xBB); // mov bx, imm16
+        assert_eq!(u16::from_le_bytes([bytes[1], bytes[2]]), 0x0155);
+
+        // bitwise NOT and the MASM keyword forms must agree:
+        let with_tilde = asm("org 100h\nA EQU ~0 AND 0FFh\nmov bx, A\nhlt\n");
+        let with_kw = asm("org 100h\nA EQU NOT 0 AND 0FFh\nmov bx, A\nhlt\n");
+        assert_eq!(with_tilde, with_kw);
+        // ~0 = 0xFFFFFFFF…; AND 0xFF leaves 0xFF.
+        assert_eq!(u16::from_le_bytes([with_tilde[1], with_tilde[2]]), 0x00FF);
+
+        // SHL keyword equivalent to `<<`:
+        let s1 = asm("org 100h\nA EQU 3 << 4\nmov bx, A\nhlt\n");
+        let s2 = asm("org 100h\nA EQU 3 SHL 4\nmov bx, A\nhlt\n");
+        assert_eq!(s1, s2);
+        assert_eq!(u16::from_le_bytes([s1[1], s1[2]]), 48);
+    }
+
+    #[test]
+    fn shift_and_bitwise_precedence_matches_c_like() {
+        // 1 + 2 << 3 = (1 + 2) << 3 = 24, NOT 1 + (2 << 3) = 17.
+        // (Shifts bind looser than addition in our precedence — same
+        // as C; users who want the other binding write parens.)
+        let bytes = asm("org 100h\nA EQU 1 + 2 << 3\nmov bx, A\nhlt\n");
+        assert_eq!(u16::from_le_bytes([bytes[1], bytes[2]]), 24);
+        // 0xF0 & 0x0F | 0x100 = (0xF0 & 0x0F) | 0x100 = 0x100. AND
+        // binds tighter than OR.
+        let bytes = asm("org 100h\nA EQU 0F0h & 0Fh | 100h\nmov bx, A\nhlt\n");
+        assert_eq!(u16::from_le_bytes([bytes[1], bytes[2]]), 0x100);
     }
 
     #[test]
