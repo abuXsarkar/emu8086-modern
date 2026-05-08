@@ -530,6 +530,61 @@ impl Parser<'_> {
                         message: format!("expected a label after `OFFSET`, found {}", inner.tok),
                     });
                 }
+                // `SEG label` — segment of a label. In our flat
+                // `.com` model every segment register holds the same
+                // base, so the *value* this returns isn't meaningful
+                // beyond "any constant that stays consistent across
+                // calls". Returning 0 matches what programs that
+                // immediately load it into a segment register expect
+                // (programs that compare two SEG values for equality
+                // also pass — both are 0). Consumes the inner
+                // identifier silently so the keyword is purely
+                // syntactic.
+                if name.eq_ignore_ascii_case("seg") {
+                    self.bump();
+                    let inner = self.peek().clone();
+                    if let Token::Ident(_) = inner.tok {
+                        self.bump();
+                        return Ok(ConstExpr::Number(
+                            0,
+                            Span::new(cur.span.start, inner.span.end),
+                        ));
+                    }
+                    return Err(ParseError {
+                        span: inner.span,
+                        message: format!("expected a label after `SEG`, found {}", inner.tok),
+                    });
+                }
+                // MASM `TYPE` / `LENGTH` / `SIZE` / `LENGTHOF`
+                // operators. Real MASM resolves these using the
+                // declaration of the named symbol; we don't carry
+                // size/length info into the parser yet, so we
+                // return the small-but-correct constant for the
+                // typical "single-byte declared label" case
+                // (TYPE=1, LENGTH=1, SIZE=1*1=1, LENGTHOF=1).
+                // Programs that compute array sizes against a
+                // multi-element DUP will get the wrong answer here;
+                // that's a deliberate trade-off — the source
+                // assembles, runtime semantics may differ, the
+                // compatibility doc tracks it.
+                if matches!(
+                    name.to_ascii_lowercase().as_str(),
+                    "type" | "length" | "size" | "lengthof" | "sizeof"
+                ) {
+                    self.bump();
+                    let inner = self.peek().clone();
+                    if let Token::Ident(_) = inner.tok {
+                        self.bump();
+                        return Ok(ConstExpr::Number(
+                            1,
+                            Span::new(cur.span.start, inner.span.end),
+                        ));
+                    }
+                    return Err(ParseError {
+                        span: inner.span,
+                        message: format!("expected a label after `{name}`, found {}", inner.tok),
+                    });
+                }
                 self.bump();
                 Ok(ConstExpr::Ident(name, cur.span))
             }
