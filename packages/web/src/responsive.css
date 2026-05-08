@@ -21,19 +21,43 @@ body,
   min-height: 100%;
 }
 
-/* Two-column desktop layout. */
+/* Three-column desktop shell — left rail / center / right rail.
+   Phase 2 widened from 1fr+320 to 240+1fr+300 to make room for the
+   examples / file-drop sidebar without crowding the device gallery.
+   `body.layout-wide` / `body.layout-equal` are TweaksPanel overrides. */
 .app-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: 240px minmax(0, 1fr) 300px;
   gap: 1rem;
+  align-items: start;
+}
+body.layout-wide .app-layout {
+  grid-template-columns: 200px minmax(0, 1fr) 260px;
+}
+body.layout-equal .app-layout {
+  grid-template-columns: 300px minmax(0, 1fr) 360px;
 }
 
-/* Phones / narrow tablets: stack the columns. The aside panels sit
-   below the source / output / registers so a student can scroll
-   linearly: code, run, results, devices. */
+/* Tablet — drop the left rail under the wider gap budget. The right
+   rail stays beside the editor since registers/flags lose meaning when
+   they're scrolled away from the source. */
+@media (max-width: 1180px) {
+  .app-layout {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+  .left-rail {
+    grid-column: 1 / -1;
+    order: -1;
+  }
+}
+
+/* Phones / narrow tablets: stack everything. */
 @media (max-width: 760px) {
   .app-layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .left-rail {
+    grid-column: auto;
   }
 
   /* Header: title block first, dropdowns on a wrapped second row,

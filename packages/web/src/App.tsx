@@ -16,6 +16,8 @@ import { Keyboard } from "./Keyboard";
 import { Printer } from "./Printer";
 import { Robot } from "./Robot";
 import { DebuggerListPanel } from "./DebuggerListPanel";
+import { DeviceSlot } from "./DeviceSlot";
+import { TweaksPanel } from "./TweaksPanel";
 import { LOCALES, useLocaleId, useStrings } from "./i18n";
 import type { RunRegisters } from "./registers";
 import { formatValue, evaluate } from "./debugExpr";
@@ -143,20 +145,7 @@ function hex(n: number, w = 4): string {
 
 function flagBadge(name: string, on: boolean) {
   return (
-    <span
-      key={name}
-      style={{
-        display: "inline-block",
-        padding: "0 6px",
-        marginRight: 6,
-        border: "1px solid #2a2a2a",
-        borderRadius: 4,
-        background: on ? "#0a7" : "#222",
-        color: on ? "#000" : "#888",
-        fontFamily: "monospace",
-        fontSize: 12,
-      }}
-    >
+    <span key={name} className={`flag-badge${on ? " on" : ""}`}>
       {name}
     </span>
   );
@@ -231,6 +220,13 @@ export function App() {
       /* ignore */
     }
   }, [breakpoints]);
+  // Mirror Monaco's vs/vs-dark choice onto `body.dark` so the
+  // token-driven CSS palette flips together with the editor theme.
+  // The inline pre-paint script in index.html handles the cold-load
+  // case before React mounts, avoiding a flash of light theme.
+  useEffect(() => {
+    document.body.classList.toggle("dark", editorTheme === "vs-dark");
+  }, [editorTheme]);
   const [shareToast, setShareToast] = useState<string>("");
   const emuRef = useRef<Emulator | null>(null);
   const lineMapRef = useRef<Array<[number, number]>>([]);
@@ -342,6 +338,44 @@ export function App() {
     editorRef.current = editor;
     monacoRef.current = monacoApi;
     registerAsm8086(monacoApi);
+    // Paper-aesthetic Monaco themes. Hex literals (not oklch) because
+    // Monaco's tokenizer rejects modern color syntax. Values are
+    // hand-mapped from the v2 design's --accent / --ink / --muted
+    // ramps so the editor blends with the surrounding token palette.
+    monacoApi.editor.defineTheme("emu-paper", {
+      base: "vs",
+      inherit: true,
+      rules: [
+        { token: "keyword", foreground: "c8521a", fontStyle: "bold" },
+        { token: "number", foreground: "1f4a8a" },
+        { token: "string", foreground: "2d8a4e" },
+        { token: "comment", foreground: "5a5a55", fontStyle: "italic" },
+      ],
+      colors: {
+        "editor.background": "#f4f2ec",
+        "editor.foreground": "#0c0c0c",
+        "editor.lineHighlightBackground": "#ebe8df",
+        "editorLineNumber.foreground": "#5a5a55",
+        "editorGutter.background": "#f4f2ec",
+      },
+    });
+    monacoApi.editor.defineTheme("emu-paper-dark", {
+      base: "vs-dark",
+      inherit: true,
+      rules: [
+        { token: "keyword", foreground: "e08a55", fontStyle: "bold" },
+        { token: "number", foreground: "8ab6e0" },
+        { token: "string", foreground: "6cba88" },
+        { token: "comment", foreground: "807c70", fontStyle: "italic" },
+      ],
+      colors: {
+        "editor.background": "#15140f",
+        "editor.foreground": "#ece9df",
+        "editor.lineHighlightBackground": "#1d1c16",
+        "editorLineNumber.foreground": "#807c70",
+        "editorGutter.background": "#15140f",
+      },
+    });
     // Ctrl/Cmd+Enter runs the program. We close over a ref so the
     // command always sees the latest `onRun` (closures inside Monaco
     // commands aren't re-bound on re-render).
@@ -679,33 +713,24 @@ export function App() {
     <main
       className="app-root"
       style={{
-        fontFamily: "system-ui, -apple-system, sans-serif",
         padding: "1.5rem 2rem",
         maxWidth: 1180,
         margin: "0 auto",
         lineHeight: 1.45,
       }}
     >
-      <header
-        className="app-header"
-        style={{
-          marginBottom: "1rem",
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 12,
-        }}
-      >
-        <div>
-          <h1 style={{ marginBottom: 0 }}>{t.appTitle}</h1>
-          <p style={{ color: "#666", marginTop: "0.25rem" }}>
+      <header className="app-header">
+        <div className="brand">
+          <h1>{t.appTitle}</h1>
+          <p className="lead">
             {t.appLead}
             <strong>{t.appLeadRunVerb}</strong>
             {".  "}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="header-controls">
           <select
+            className="select-tokenized"
             aria-label={t.themeLabel}
             value={editorTheme}
             onChange={(e) => {
@@ -717,31 +742,18 @@ export function App() {
                 /* ignore */
               }
             }}
-            style={{
-              padding: "0.25rem 0.5rem",
-              border: "1px solid #ccc",
-              borderRadius: 4,
-              background: "#fff",
-              fontSize: 12,
-            }}
             title={t.themeLabel}
           >
             <option value="vs-dark">{t.themeDark}</option>
             <option value="vs">{t.themeLight}</option>
           </select>
           <select
+            className="select-tokenized"
             aria-label={t.languageLabel}
             value={localeId}
             onChange={(e) =>
               setLocaleIdValue(e.target.value as typeof localeId)
             }
-            style={{
-              padding: "0.25rem 0.5rem",
-              border: "1px solid #ccc",
-              borderRadius: 4,
-              background: "#fff",
-              fontSize: 12,
-            }}
             title={t.languageLabel}
           >
             {LOCALES.map((l) => (
@@ -760,130 +772,84 @@ export function App() {
 
       {coreState.kind === "ready" && (
         <div className="app-layout">
-          <section>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 6,
-              }}
-            >
-              <strong>{t.source}</strong>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <select
-                  aria-label={t.loadExample}
-                  defaultValue=""
-                  onChange={(e) => {
-                    const ex = EXAMPLES.find((x) => x.id === e.target.value);
-                    if (ex) {
-                      setSource(ex.source);
-                      // Reset against the just-staged source directly, so
-                      // device panels, step log and any breakpoint-hit
-                      // toast from the previous example clear instead of
-                      // bleeding into the new program.
-                      onReset(ex.source);
-                      e.currentTarget.value = "";
-                    }
-                  }}
-                  style={{
-                    padding: "0.35rem 0.5rem",
-                    border: "1px solid #ccc",
-                    borderRadius: 4,
-                    background: "#fff",
-                    fontSize: 13,
-                  }}
-                  title={t.loadExampleTooltip}
-                >
-                  <option value="" disabled>
-                    {t.loadExample}
+          <aside className="left-rail">
+            <div className="pane">
+              <strong className="smallcaps">{t.loadExample}</strong>
+              <select
+                className="full-width-select"
+                aria-label={t.loadExample}
+                defaultValue=""
+                onChange={(e) => {
+                  const ex = EXAMPLES.find((x) => x.id === e.target.value);
+                  if (ex) {
+                    setSource(ex.source);
+                    onReset(ex.source);
+                    e.currentTarget.value = "";
+                  }
+                }}
+                title={t.loadExampleTooltip}
+              >
+                <option value="" disabled>
+                  {t.loadExample}
+                </option>
+                {EXAMPLES.map((ex) => (
+                  <option key={ex.id} value={ex.id}>
+                    {ex.label}
                   </option>
-                  {EXAMPLES.map((ex) => (
-                    <option key={ex.id} value={ex.id}>
-                      {ex.label}
-                    </option>
-                  ))}
-                </select>
+                ))}
+              </select>
+            </div>
+            <div className="pane">
+              <strong className="smallcaps">Drop file</strong>
+              <p className="drop-hint">
+                Drop an <code>.asm</code> source file onto the editor frame.
+                Files larger than 1 MiB are rejected.
+              </p>
+            </div>
+          </aside>
+          <section>
+            <div className="run-toolbar">
+              <strong className="smallcaps">{t.source}</strong>
+              <div className="run-toolbar-controls">
                 <button
                   type="button"
+                  className="btn"
                   onClick={() => onReset()}
                   disabled={running}
-                  style={{
-                    padding: "0.4rem 0.8rem",
-                    background: "#fff",
-                    color: "#222",
-                    border: "1px solid #888",
-                    borderRadius: 4,
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
                   title={t.resetTooltip}
                 >
                   {t.reset}
                 </button>
                 <button
                   type="button"
+                  className="btn"
                   onClick={onBack}
                   disabled={running || !stepLoaded}
-                  style={{
-                    padding: "0.4rem 0.8rem",
-                    background: "#fff",
-                    color: "#222",
-                    border: "1px solid #888",
-                    borderRadius: 4,
-                    cursor: stepLoaded ? "pointer" : "not-allowed",
-                    fontWeight: 600,
-                    opacity: stepLoaded ? 1 : 0.5,
-                  }}
                   title={t.backTooltip}
                 >
                   {t.back}
                 </button>
                 <button
                   type="button"
+                  className="btn"
                   onClick={onStep}
                   disabled={running}
-                  style={{
-                    padding: "0.4rem 0.8rem",
-                    background: "#fff",
-                    color: "#222",
-                    border: "1px solid #888",
-                    borderRadius: 4,
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
                   title={t.stepTooltip}
                 >
                   {t.step}
                 </button>
                 <button
                   type="button"
+                  className="btn primary"
                   onClick={onRun}
                   disabled={running}
-                  style={{
-                    padding: "0.4rem 1rem",
-                    background: "#0a7",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 4,
-                    cursor: running ? "default" : "pointer",
-                    fontWeight: 600,
-                  }}
                 >
                   {running ? t.running : t.run}
                 </button>
                 <button
                   type="button"
+                  className="btn accent"
                   onClick={onShare}
-                  style={{
-                    padding: "0.4rem 0.8rem",
-                    background: "#fff",
-                    color: "#222",
-                    border: "1px solid #888",
-                    borderRadius: 4,
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
                   title={t.shareTooltip}
                 >
                   {t.share}
@@ -891,7 +857,7 @@ export function App() {
                 <span
                   role="status"
                   aria-live="polite"
-                  style={{ color: "#0a7", fontSize: 13, marginLeft: 4 }}
+                  className="share-toast"
                 >
                   {shareToast}
                 </span>
@@ -933,26 +899,20 @@ export function App() {
                     setTimeout(() => setShareToast(""), 2500);
                   });
               }}
-              className="source-editor-frame"
-              style={{
-                border: "1px solid #2a2a2a",
-                borderRadius: 4,
-                overflow: "hidden",
-                height: 420,
-              }}
+              className="source-editor-frame pane"
             >
               <Editor
                 height="100%"
                 defaultLanguage={ASM_LANG_ID}
                 language={ASM_LANG_ID}
-                theme={editorTheme}
+                theme={editorTheme === "vs-dark" ? "emu-paper-dark" : "emu-paper"}
                 value={source}
                 onChange={(v) => setSource(v ?? "")}
                 onMount={onEditorMount}
                 options={{
                   fontFamily:
-                    "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                  fontSize: 14,
+                    "'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                  fontSize: 13.5,
                   minimap: { enabled: false },
                   lineNumbers: "on",
                   scrollBeyondLastLine: false,
@@ -963,20 +923,9 @@ export function App() {
               />
             </div>
 
-            <div style={{ marginTop: "1rem" }}>
-              <strong>{t.output}</strong>
-              <pre
-                style={{
-                  background: "#111",
-                  color: "#eee",
-                  padding: "0.75rem",
-                  borderRadius: 4,
-                  minHeight: 80,
-                  whiteSpace: "pre-wrap",
-                  fontFamily:
-                    "ui-monospace, SFMono-Regular, Menlo, monospace",
-                }}
-              >
+            <div className="output-region">
+              <strong className="smallcaps">{t.output}</strong>
+              <pre className="output-stdout mono">
                 {result?.stdout || (running ? t.running : t.noOutputYet)}
               </pre>
               {result?.ok && !running && !result.error && (() => {
@@ -989,9 +938,6 @@ export function App() {
                 const noStdout = (result.stdout ?? "").length === 0;
                 if (!ranOut && !halted) return null;
                 const isHalted = halted;
-                const bg = isHalted ? "#0a3a22" : "#3a2a0a";
-                const border = isHalted ? "#0a8" : "#fc3";
-                const fg = isHalted ? "#9fe" : "#fc3";
                 const icon = isHalted ? "✓" : "⏱";
                 const title = isHalted ? t.statusHalted : t.statusOutOfSteps;
                 const hint = isHalted
@@ -1001,21 +947,13 @@ export function App() {
                   <div
                     role="status"
                     aria-live="polite"
-                    style={{
-                      marginTop: 6,
-                      padding: "0.5rem 0.7rem",
-                      background: bg,
-                      border: `1px solid ${border}`,
-                      borderRadius: 4,
-                      color: fg,
-                      fontFamily: "ui-monospace, Menlo, monospace",
-                      fontSize: 13,
-                    }}
+                    className={`status-banner ${isHalted ? "halted" : "warn"}`}
                   >
-                    <div style={{ fontWeight: 700 }}>
-                      {icon} {title}
+                    <div className="status-banner-title">
+                      <span className={`status-dot ${isHalted ? "" : "warn"}`} />
+                      <span>{icon} {title}</span>
                     </div>
-                    <div style={{ marginTop: 2, fontSize: 12, color: "#cdd" }}>
+                    <div className="status-banner-hint">
                       {hint}
                       {isHalted && noStdout && (
                         <>
@@ -1028,20 +966,7 @@ export function App() {
                 );
               })()}
               {result?.error && (
-                <div
-                  role="alert"
-                  style={{
-                    background: "#fee",
-                    border: "1px solid #c66",
-                    padding: "0.6rem 0.8rem",
-                    borderRadius: 4,
-                    marginTop: "0.5rem",
-                    fontFamily:
-                      "ui-monospace, SFMono-Regular, Menlo, monospace",
-                    fontSize: 13,
-                    color: "#900",
-                  }}
-                >
+                <div role="alert" className="error-banner mono">
                   <div>
                     {t.errorAt(
                       result.error.stage,
@@ -1051,23 +976,14 @@ export function App() {
                     )}
                   </div>
                   {errorLine > 0 && errorLine <= sourceLines.length && (
-                    <pre
-                      style={{
-                        marginTop: 6,
-                        marginBottom: 0,
-                        background: "#fff",
-                        padding: "0.4rem",
-                        borderRadius: 3,
-                        color: "#222",
-                      }}
-                    >
+                    <pre className="error-banner-snippet">
                       {`${errorLine.toString().padStart(3)} | ${sourceLines[errorLine - 1]}`}
                     </pre>
                   )}
                 </div>
               )}
               {result?.ok && (
-                <div style={{ color: "#666", fontSize: 12, marginTop: 4 }}>
+                <div className="exit-line mono">
                   {result.bytes > 0 && (
                     <>{t.bytesAssembled(result.bytes, hex(result.origin))} </>
                   )}
@@ -1077,122 +993,104 @@ export function App() {
                 </div>
               )}
               {stepLog && (
-                <details style={{ marginTop: "1rem" }}>
-                  <summary style={{ cursor: "pointer", color: "#666", fontSize: 13 }}>
+                <details className="step-log">
+                  <summary>
                     {t.stepLogSummary(stepLog.split("\n").filter(Boolean).length)}
                   </summary>
-                  <pre
-                    style={{
-                      background: "#111",
-                      color: "#aaa",
-                      padding: "0.5rem 0.75rem",
-                      borderRadius: 4,
-                      maxHeight: 200,
-                      overflow: "auto",
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                      fontSize: 12,
-                    }}
-                  >
-                    {stepLog}
-                  </pre>
+                  <pre className="step-log-pre mono">{stepLog}</pre>
                 </details>
               )}
             </div>
           </section>
 
-          <aside>
-            <strong>{t.registers}</strong>
-            {result?.registers ? (
-              <table
-                style={{
-                  borderCollapse: "collapse",
-                  fontFamily:
-                    "ui-monospace, SFMono-Regular, Menlo, monospace",
-                  fontSize: 13,
-                  marginTop: 4,
-                }}
-              >
-                <tbody>
-                  {(["ax", "bx", "cx", "dx", "si", "di", "bp", "sp", "ip"] as const).map(
-                    (k) => (
+          <aside className="aside-region">
+            <section className="aside-section">
+              <strong className="smallcaps">{t.registers}</strong>
+              {result?.registers ? (
+                <table className="reg-table mono">
+                  <tbody>
+                    {(["ax", "bx", "cx", "dx", "si", "di", "bp", "sp", "ip"] as const).map(
+                      (k) => (
+                        <tr key={k}>
+                          <td className="reg-name">{k.toUpperCase()}</td>
+                          <td className="reg-val">
+                            0x{hex(result.registers[k] ?? 0)}
+                          </td>
+                        </tr>
+                      ),
+                    )}
+                    {(["cs", "ds", "es", "ss"] as const).map((k) => (
                       <tr key={k}>
-                        <td style={{ padding: "2px 8px", color: "#888" }}>{k.toUpperCase()}</td>
-                        <td style={{ padding: "2px 0", color: "#000" }}>
+                        <td className="reg-name">{k.toUpperCase()}</td>
+                        <td className="reg-val">
                           0x{hex(result.registers[k] ?? 0)}
                         </td>
                       </tr>
-                    ),
-                  )}
-                  {(["cs", "ds", "es", "ss"] as const).map((k) => (
-                    <tr key={k}>
-                      <td style={{ padding: "2px 8px", color: "#888" }}>{k.toUpperCase()}</td>
-                      <td style={{ padding: "2px 0", color: "#000" }}>
-                        0x{hex(result.registers[k] ?? 0)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div style={{ color: "#888", fontSize: 13, marginTop: 4 }}>
-                {t.noRegistersYet}
-              </div>
-            )}
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="aside-empty">{t.noRegistersYet}</div>
+              )}
+            </section>
 
-            <div style={{ marginTop: "1rem" }}>
-              <strong>{t.flags}</strong>
-              <div style={{ marginTop: 4 }}>
+            <section className="aside-section">
+              <strong className="smallcaps">{t.flags}</strong>
+              <div className="flags-row">
                 {result?.registers
                   ? FLAG_BITS.map(([name, mask]) =>
                       flagBadge(name, (result.registers.flags & mask) !== 0),
                     )
                   : null}
               </div>
-            </div>
+            </section>
 
-            <div style={{ marginTop: "1rem" }}>
-              <strong style={{ display: "block", marginBottom: 4 }}>{t.devices}</strong>
+            <section className="aside-section">
+              <strong className="smallcaps">{t.devices}</strong>
               <div className="device-row">
-                <SevenSegment value={port199} />
-                <TrafficLight value={port4} />
-                <LedMatrix rows={ledRows} />
-                <Stepper value={port7} steps={stepperSteps} />
-                <Keyboard pendingKeys={pendingKeys} onKey={pushKey} />
-                <Printer paper={printerPaper} />
-                <Robot
-                  x={robotX}
-                  y={robotY}
-                  heading={robotHeading}
-                  commands={robotCommands}
-                />
+                <DeviceSlot id="seg" title="7-SEG · port 199" defaultPos={{ x: 80, y: 100 }}>
+                  <SevenSegment value={port199} />
+                </DeviceSlot>
+                <DeviceSlot id="traffic" title="TRAFFIC · port 4" defaultPos={{ x: 240, y: 100 }}>
+                  <TrafficLight value={port4} />
+                </DeviceSlot>
+                <DeviceSlot id="led" title="LED 8×8 · ports 8–F" defaultPos={{ x: 400, y: 120 }}>
+                  <LedMatrix rows={ledRows} />
+                </DeviceSlot>
+                <DeviceSlot id="stepper" title="STEPPER · port 7" defaultPos={{ x: 580, y: 100 }}>
+                  <Stepper value={port7} steps={stepperSteps} />
+                </DeviceSlot>
+                <DeviceSlot id="kbd" title="KEYBOARD" defaultPos={{ x: 80, y: 320 }}>
+                  <Keyboard pendingKeys={pendingKeys} onKey={pushKey} />
+                </DeviceSlot>
+                <DeviceSlot id="printer" title="PRINTER" defaultPos={{ x: 360, y: 340 }}>
+                  <Printer paper={printerPaper} />
+                </DeviceSlot>
+                <DeviceSlot id="robot" title="ROBOT" defaultPos={{ x: 600, y: 340 }}>
+                  <Robot
+                    x={robotX}
+                    y={robotY}
+                    heading={robotHeading}
+                    commands={robotCommands}
+                  />
+                </DeviceSlot>
               </div>
-              <div style={{ marginTop: 8 }}>
-                <Screen text={videoText} />
+              <div className="screen-row">
+                <DeviceSlot id="screen" title="SCREEN · int 10h" defaultPos={{ x: 80, y: 480 }}>
+                  <Screen text={videoText} />
+                </DeviceSlot>
               </div>
-            </div>
+            </section>
 
             {memHex && (
-              <div style={{ marginTop: "1rem" }}>
-                <strong style={{ display: "block", marginBottom: 4 }}>
+              <section className="aside-section">
+                <strong className="smallcaps">
                   {t.memory}{" "}
-                  <span style={{ color: "#888", fontWeight: 400, fontSize: 12 }}>
+                  <span className="memory-range-label">
                     {t.memoryRangeLabel}
                   </span>
                 </strong>
-                <pre
-                  style={{
-                    background: "#111",
-                    color: "#ddd",
-                    padding: "0.5rem 0.6rem",
-                    borderRadius: 4,
-                    fontFamily:
-                      "ui-monospace, SFMono-Regular, Menlo, monospace",
-                    fontSize: 11,
-                    margin: 0,
-                    maxHeight: 200,
-                    overflow: "auto",
-                  }}
-                >
+                <pre className="mem-hex mono">
                   {(() => {
                     const tokens = memHex.split(" ");
                     const prev = memHexPrevRef.current.split(" ");
@@ -1210,10 +1108,7 @@ export function App() {
                         cells.push(
                           <span
                             key={j}
-                            style={{
-                              color: changed ? "#fc3" : undefined,
-                              fontWeight: changed ? 700 : undefined,
-                            }}
+                            className={changed ? "mem-cell changed" : "mem-cell"}
                           >
                             {j > 0 ? " " : ""}
                             {tok}
@@ -1222,7 +1117,7 @@ export function App() {
                       }
                       rowJSX.push(
                         <div key={i}>
-                          <span style={{ color: "#888" }}>{off}: </span>
+                          <span className="mem-off">{off}: </span>
                           {cells}
                         </div>,
                       );
@@ -1230,7 +1125,7 @@ export function App() {
                     return rowJSX;
                   })()}
                 </pre>
-              </div>
+              </section>
             )}
 
             <DebuggerListPanel
@@ -1257,26 +1152,18 @@ export function App() {
               }
             />
             {breakpointHit && (
-              <p
-                style={{
-                  marginTop: 6,
-                  color: "#fc3",
-                  fontSize: 12,
-                  fontFamily: "ui-monospace, Menlo, monospace",
-                }}
-              >
-                {breakpointHit}
-              </p>
+              <p className="breakpoint-hit mono">{breakpointHit}</p>
             )}
           </aside>
         </div>
       )}
 
-      <footer style={{ marginTop: "2rem", color: "#666", fontSize: 13 }}>
+      <footer className="app-footer mono">
         <a href="https://github.com/abuXsarkar/emu8086-modern">{t.footerLink}</a>
         {t.footerSeparator}
         {t.footerNote}
       </footer>
+      <TweaksPanel />
     </main>
   );
 }

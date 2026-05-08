@@ -1,0 +1,125 @@
+/* Design tokens — paper-academic / hairline-brutalist. Primary surface
+   is light "paper" with a near-black "ink"; `body.dark` flips to a warm
+   off-black. Token names mirror `.design/v2/Modern8086 IDE.html`.
+
+   `oklch()` is required for the accent ramp (Chrome 111+, Safari 16.4+,
+   Firefox 113+, mid-2023). The `@supports` block below pins hex
+   fallbacks for older browsers — student lab Win10 PCs in particular. */
+
+/* Fonts: Geist + Geist Mono + Instrument Serif are self-hosted via
+   @fontsource packages imported from main.tsx; woff2 files get
+   fingerprinted into the bundle and precached by the PWA worker. */
+
+:root {
+  --paper: #f4f2ec;
+  --ink: #0c0c0c;
+  --hair: #0c0c0c;
+  --muted: #5a5a55;
+  --rule: #1a1a1a;
+  --tint: #ebe8df;
+  --accent: oklch(0.55 0.17 28);
+  --accent-soft: oklch(0.94 0.04 28);
+  --good: oklch(0.55 0.13 145);
+  --warn: oklch(0.7 0.16 70);
+  --hair-w: 1.2px;
+  --rad: 0px;
+  --density: 1;
+}
+
+body.dark {
+  --paper: #15140f;
+  --ink: #ece9df;
+  --hair: #ece9df;
+  --muted: #807c70;
+  --rule: #2c2a23;
+  --tint: #1d1c16;
+  --accent: oklch(0.72 0.17 28);
+  --accent-soft: oklch(0.30 0.06 28);
+  --good: oklch(0.72 0.16 145);
+}
+
+/* Pre-2023 browsers (no oklch). Hex picked to match the oklch ramp
+   visually so the design doesn't collapse to default greys. */
+@supports not (color: oklch(0% 0 0)) {
+  :root {
+    --accent: #c8521a;
+    --accent-soft: #f3e3da;
+    --good: #2d8a4e;
+    --warn: #c89500;
+  }
+  body.dark {
+    --accent: #e08a55;
+    --accent-soft: #4a2a1a;
+    --good: #6cba88;
+    --warn: #d8b35a;
+  }
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Geist Variable", "Geist", system-ui, -apple-system, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+/* Paper grain. Two overlaid radial-gradient dot fields multiplied
+   into the page give the off-white surface a subtle texture that
+   isn't visible on dark mode (where it'd add noise without warmth).
+   `pointer-events: none` so it can never block clicks; z-index 0
+   keeps it under interactive content. Suppressed via .no-grain. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(rgba(0, 0, 0, 0.018) 1px, transparent 1px),
+    radial-gradient(rgba(0, 0, 0, 0.014) 1px, transparent 1px);
+  background-size: 3px 3px, 7px 7px;
+  background-position: 0 0, 1px 2px;
+  mix-blend-mode: multiply;
+}
+body.dark::before,
+body.no-grain::before {
+  display: none;
+}
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Density. Compact tightens base font-size and pane padding so a
+   denser register/memory dump fits on lab-PC screens. */
+body.density-compact {
+  font-size: 13px;
+}
+body.density-compact .pane {
+  padding-block: 10px;
+}
+body.density-compact .aside-section {
+  font-size: 12.5px;
+}
+
+.mono {
+  font-family: "Geist Mono", ui-monospace, Menlo, monospace;
+  font-variant-ligatures: none;
+}
+
+.serif {
+  font-family: "Instrument Serif", Georgia, serif;
+  font-style: italic;
+}
+
+/* Monaco line decorations. Class names are the values passed to
+   editor.deltaDecorations(...) in App.tsx (search "currentLineHighlight"). */
+.currentLineHighlight {
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+}
+.currentLineGlyph {
+  background: var(--accent);
+  width: 3px !important;
+  margin-left: 3px;
+}
