@@ -102,7 +102,7 @@ Before requesting review:
 - [ ] Branch is rebased on the latest `main`.
 - [ ] CI is green.
 - [ ] PR description fills the template (problem, change, manual test).
-- [ ] Public-API changes have a `CHANGELOG.md` entry.
+- [ ] **Public-visible changes drop a fragment in `.changeset/`** (see [`.changeset/README.md`](.changeset/README.md)). Do not edit `CHANGELOG.md` directly — the maintainer collates fragments at release time. Two PRs both adding `CHANGELOG.md` entries always conflict on the same line; the changeset directory makes those PRs orthogonal.
 - [ ] New tests cover the change.
 - [ ] Lint/format clean: `cargo fmt`, `cargo clippy -- -D warnings`, `pnpm lint`.
 - [ ] If UI changes: a screenshot or short clip is attached.
