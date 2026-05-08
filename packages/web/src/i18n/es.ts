@@ -64,6 +64,10 @@ export const es: Locale = {
 
     memoryRangeLabel: "DS:0x100..1FF",
 
+    dropFileLabel: "Soltar archivo",
+    dropFileHint:
+      "Suelta un archivo .asm sobre el editor. Los archivos de más de 1 MiB se rechazan.",
+
     footerLink: "github",
     footerSeparator: " · ",
     footerNote:

@@ -67,6 +67,10 @@ export interface Strings {
   // Memory panel sub-label
   memoryRangeLabel: string;
 
+  // Left rail — file-drop hint
+  dropFileLabel: string;
+  dropFileHint: string;
+
   // Footer
   footerLink: string;
   footerSeparator: string;

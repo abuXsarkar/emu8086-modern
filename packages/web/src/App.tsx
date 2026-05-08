@@ -800,11 +800,8 @@ export function App() {
               </select>
             </div>
             <div className="pane">
-              <strong className="smallcaps">Drop file</strong>
-              <p className="drop-hint">
-                Drop an <code>.asm</code> source file onto the editor frame.
-                Files larger than 1 MiB are rejected.
-              </p>
+              <strong className="smallcaps">{t.dropFileLabel}</strong>
+              <p className="drop-hint">{t.dropFileHint}</p>
             </div>
           </aside>
           <section>

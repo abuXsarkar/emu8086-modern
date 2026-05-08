@@ -66,6 +66,10 @@ export const bn: Locale = {
 
     memoryRangeLabel: "DS:0x100..1FF",
 
+    dropFileLabel: "ফাইল ড্রপ",
+    dropFileHint:
+      ".asm সোর্স ফাইল এডিটর ফ্রেমে টেনে ছাড়ুন। ১ MiB-এর বড় ফাইল গ্রহণ করা হবে না।",
+
     footerLink: "github",
     footerSeparator: " · ",
     footerNote:
