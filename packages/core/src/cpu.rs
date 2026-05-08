@@ -174,6 +174,59 @@ pub struct Cpu {
     /// address keeps a program that round-trips set/get-DTA from
     /// silently losing it.
     pub dta: (u16, u16),
+    /// Virtual filesystem backing `INT 21h` AH=3Ch..41h (DOS file
+    /// handles). All file I/O happens against an in-memory map of
+    /// path → bytes. The host (CLI or IDE) populates it before a
+    /// run if the program needs to read a known file, and reads it
+    /// back afterwards to surface anything the program wrote.
+    pub vfs: Vfs,
+    /// Open file-handle table. Indices 0..=4 are reserved for the
+    /// standard DOS handles (stdin / stdout / stderr / aux / prn) so
+    /// `AH=3Ch` and `AH=3Dh` allocate from index 5 upwards. A `None`
+    /// slot is a closed handle that can be reused.
+    pub handles: Vec<Option<FileHandle>>,
+}
+
+/// In-memory virtual filesystem. Files are looked up by exact path
+/// (case-preserved); directory hierarchy isn't modelled — a path
+/// like `\\out\\log.txt` is just a single key in the map.
+#[derive(Debug, Clone, Default)]
+pub struct Vfs {
+    files: std::collections::HashMap<String, Vec<u8>>,
+}
+
+impl Vfs {
+    /// Pre-populate a file before a run. Hosts use this to seed
+    /// inputs the program will `INT 21h AH=3Dh` open.
+    pub fn put(&mut self, path: impl Into<String>, contents: Vec<u8>) {
+        self.files.insert(path.into(), contents);
+    }
+
+    /// Read a file's contents, if it exists. Hosts use this after a
+    /// run to surface anything the program wrote via AH=40h.
+    #[must_use]
+    pub fn get(&self, path: &str) -> Option<&[u8]> {
+        self.files.get(path).map(Vec::as_slice)
+    }
+
+    /// Drop a file. Used by AH=41h delete.
+    pub fn remove(&mut self, path: &str) -> bool {
+        self.files.remove(path).is_some()
+    }
+
+    /// Iterate over all (path, bytes) pairs. Hosts use this to dump
+    /// the post-run filesystem state back out.
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &Vec<u8>)> {
+        self.files.iter()
+    }
+}
+
+/// One row of the open-file-handle table.
+#[derive(Debug, Clone)]
+pub struct FileHandle {
+    pub path: String,
+    pub pos: usize,
+    pub writable: bool,
 }
 
 /// State of the virtual host clock. Defaults to a fixed deterministic
@@ -289,6 +342,10 @@ impl Cpu {
             clock: Clock::default(),
             mouse: Mouse::default(),
             dta: (0, 0x0080), // PSP+0x80 — the DOS default DTA.
+            vfs: Vfs::default(),
+            // Reserve indices 0..=4 for the standard DOS handles —
+            // INT 21h AH=3Ch / 3Dh start allocating from index 5.
+            handles: vec![None, None, None, None, None],
         }
     }
 
@@ -761,6 +818,24 @@ impl Cpu {
                 self.regs.set_dl(self.clock.hundredths);
                 rec.mnemonic = "int";
             }
+            // 3Ch — create file. DS:DX = ASCIIZ filename. CX = file
+            // attribute (we ignore — no concept of read-only). On
+            // success, AX = handle and CF cleared. On failure, AX =
+            // error code with CF set.
+            0x3C => self.dos_create(rec),
+            // 3Dh — open file. DS:DX = ASCIIZ filename. AL = mode
+            // (0 read, 1 write, 2 read/write). On success, AX = handle.
+            0x3D => self.dos_open(rec),
+            // 3Eh — close file. BX = handle. Returns AX = 0 success.
+            0x3E => self.dos_close(rec),
+            // 3Fh — read from file. BX = handle, CX = bytes,
+            // DS:DX = buffer. Returns AX = bytes actually read.
+            0x3F => self.dos_read(rec),
+            // 40h — write to file. BX = handle, CX = bytes,
+            // DS:DX = buffer. Returns AX = bytes actually written.
+            0x40 => self.dos_write(rec),
+            // 41h — delete file. DS:DX = ASCIIZ filename. AX = 0 success.
+            0x41 => self.dos_delete(rec),
             // 4Ch: terminate with exit code in AL. The 8086 manual also
             // documents 00h as "terminate" with exit-code 0 — we treat it
             // the same.
@@ -777,6 +852,186 @@ impl Cpu {
                 });
             }
         }
+    }
+
+    /// Read a NUL-terminated ASCII path from `DS:DX`. Caps at 256
+    /// bytes since DOS path limits are far below that and a missing
+    /// terminator should not hang the emulator.
+    fn read_asciiz_at_dx(&self) -> String {
+        let mut bytes = Vec::with_capacity(64);
+        let mut off = self.regs.dx;
+        for _ in 0..256u32 {
+            let lin = seg_off(self.regs.ds, off);
+            let b = self.mem.read_u8(lin);
+            if b == 0 {
+                break;
+            }
+            bytes.push(b);
+            off = off.wrapping_add(1);
+        }
+        String::from_utf8_lossy(&bytes).into_owned()
+    }
+
+    /// Allocate a new entry in the open-file-handle table. Indices
+    /// 0..=4 are reserved for the standard DOS handles, so we start
+    /// scanning from 5. Reuses the lowest free `None` slot so handles
+    /// stay numerically small over the life of a run.
+    fn alloc_handle(&mut self, fh: FileHandle) -> u16 {
+        for i in 5..self.handles.len() {
+            if self.handles[i].is_none() {
+                self.handles[i] = Some(fh);
+                return i as u16;
+            }
+        }
+        self.handles.push(Some(fh));
+        (self.handles.len() - 1) as u16
+    }
+
+    /// Set CF and AX to a DOS error code. Used by every file-I/O
+    /// subfunction's failure path.
+    fn dos_error(&mut self, code: u16) {
+        self.regs.flags.set(Flags::CF, true);
+        self.regs.ax = code;
+    }
+
+    /// Clear CF on success. The handle / count value is set by the
+    /// caller into AX.
+    fn dos_success(&mut self) {
+        self.regs.flags.set(Flags::CF, false);
+    }
+
+    fn dos_create(&mut self, rec: &mut StepRecord) {
+        let path = self.read_asciiz_at_dx();
+        // Truncate any existing file (DOS semantics for AH=3Ch: it
+        // creates if absent, truncates if present).
+        self.vfs.put(path.clone(), Vec::new());
+        let handle = self.alloc_handle(FileHandle {
+            path,
+            pos: 0,
+            writable: true,
+        });
+        self.regs.ax = handle;
+        self.dos_success();
+        rec.mnemonic = "int";
+    }
+
+    fn dos_open(&mut self, rec: &mut StepRecord) {
+        let path = self.read_asciiz_at_dx();
+        if self.vfs.get(&path).is_none() {
+            self.dos_error(0x02); // DOS error 2: file not found
+            rec.mnemonic = "int";
+            return;
+        }
+        let writable = matches!(self.regs.al(), 1 | 2);
+        let handle = self.alloc_handle(FileHandle {
+            path,
+            pos: 0,
+            writable,
+        });
+        self.regs.ax = handle;
+        self.dos_success();
+        rec.mnemonic = "int";
+    }
+
+    fn dos_close(&mut self, rec: &mut StepRecord) {
+        let h = self.regs.bx as usize;
+        if h < self.handles.len() && self.handles[h].is_some() {
+            self.handles[h] = None;
+            self.regs.ax = 0;
+            self.dos_success();
+        } else {
+            self.dos_error(0x06); // DOS error 6: invalid handle
+        }
+        rec.mnemonic = "int";
+    }
+
+    fn dos_read(&mut self, rec: &mut StepRecord) {
+        let h = self.regs.bx as usize;
+        let want = self.regs.cx as usize;
+        let dest = self.regs.dx;
+        let ds = self.regs.ds;
+        let Some(handle) = self.handles.get(h).and_then(|s| s.as_ref()).cloned() else {
+            self.dos_error(0x06);
+            rec.mnemonic = "int";
+            return;
+        };
+        // Snapshot the file's bytes at the handle's current position.
+        let Some(file) = self.vfs.get(&handle.path) else {
+            self.dos_error(0x02);
+            rec.mnemonic = "int";
+            return;
+        };
+        let start = handle.pos.min(file.len());
+        let end = (start + want).min(file.len());
+        let chunk: Vec<u8> = file[start..end].to_vec();
+        let actually_read = chunk.len();
+        // Write into guest memory at DS:DX.
+        for (i, b) in chunk.into_iter().enumerate() {
+            let lin = seg_off(ds, dest.wrapping_add(i as u16));
+            self.mem.write_u8(lin, b);
+        }
+        // Advance the handle's position.
+        if let Some(slot) = self.handles.get_mut(h) {
+            if let Some(fh) = slot.as_mut() {
+                fh.pos = end;
+            }
+        }
+        self.regs.ax = actually_read as u16;
+        self.dos_success();
+        rec.mnemonic = "int";
+    }
+
+    fn dos_write(&mut self, rec: &mut StepRecord) {
+        let h = self.regs.bx as usize;
+        let want = self.regs.cx as usize;
+        let src = self.regs.dx;
+        let ds = self.regs.ds;
+        let Some(handle) = self.handles.get(h).and_then(|s| s.as_ref()).cloned() else {
+            self.dos_error(0x06);
+            rec.mnemonic = "int";
+            return;
+        };
+        if !handle.writable {
+            self.dos_error(0x05); // access denied
+            rec.mnemonic = "int";
+            return;
+        }
+        // Pull the bytes out of guest memory.
+        let mut buf = Vec::with_capacity(want);
+        for i in 0..want {
+            let lin = seg_off(ds, src.wrapping_add(i as u16));
+            buf.push(self.mem.read_u8(lin));
+        }
+        // Splice them into the file at the handle's current position.
+        let bytes_to_write = buf.len();
+        if let Some(file) = self.vfs.files.get_mut(&handle.path) {
+            let start = handle.pos.min(file.len());
+            let end = start + bytes_to_write;
+            if end > file.len() {
+                file.resize(end, 0);
+            }
+            file[start..end].copy_from_slice(&buf);
+        }
+        // Advance the handle's position.
+        if let Some(slot) = self.handles.get_mut(h) {
+            if let Some(fh) = slot.as_mut() {
+                fh.pos += bytes_to_write;
+            }
+        }
+        self.regs.ax = bytes_to_write as u16;
+        self.dos_success();
+        rec.mnemonic = "int";
+    }
+
+    fn dos_delete(&mut self, rec: &mut StepRecord) {
+        let path = self.read_asciiz_at_dx();
+        if self.vfs.remove(&path) {
+            self.regs.ax = 0;
+            self.dos_success();
+        } else {
+            self.dos_error(0x02);
+        }
+        rec.mnemonic = "int";
     }
 
     fn fetch_u8(&mut self) -> u8 {
@@ -3539,6 +3794,125 @@ mod tests {
         let c = run(&[0xF0, 0x40, 0xF4]); // LOCK INC AX ; HLT
         assert!(c.halted);
         assert_eq!(c.regs.ax, 1);
+    }
+
+    // ---- PR 7: virtual filesystem + INT 21h file I/O ----
+
+    /// Helper to load a NUL-terminated path into guest memory at
+    /// DS:offset and return the offset for the test program to use.
+    fn write_asciiz(c: &mut Cpu, off: u16, path: &[u8]) {
+        for (i, b) in path.iter().enumerate() {
+            c.mem.write_u8(seg_off(c.regs.ds, off + i as u16), *b);
+        }
+        c.mem
+            .write_u8(seg_off(c.regs.ds, off + path.len() as u16), 0);
+    }
+
+    #[test]
+    fn int21_ah3c_creates_file_and_returns_handle() {
+        // mov ah, 3Ch ; mov dx, 0x0200 ; int 21h ; hlt
+        // Path "out.txt" sits at DS:0x0200.
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x3C, 0xBA, 0x00, 0x02, 0xCD, 0x21, 0xF4]);
+        write_asciiz(&mut c, 0x0200, b"out.txt");
+        c.run_until_halt(32);
+        assert!(c.halted);
+        assert!(!c.regs.flags.get(Flags::CF), "CF must be clear on success");
+        assert!(
+            c.regs.ax >= 5,
+            "handle must be allocated above the reserved DOS handles"
+        );
+        assert_eq!(
+            c.vfs.get("out.txt"),
+            Some(&[][..]),
+            "file must exist (empty)"
+        );
+    }
+
+    #[test]
+    fn int21_ah3d_open_returns_error_when_file_missing() {
+        // mov ah, 3Dh ; mov al, 0 ; mov dx, 0x0200 ; int 21h ; hlt
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x3D, 0xB0, 0x00, 0xBA, 0x00, 0x02, 0xCD, 0x21, 0xF4]);
+        write_asciiz(&mut c, 0x0200, b"missing.dat");
+        c.run_until_halt(32);
+        assert!(c.halted);
+        assert!(
+            c.regs.flags.get(Flags::CF),
+            "CF must be set on file-not-found"
+        );
+        assert_eq!(
+            c.regs.ax, 0x02,
+            "AX should hold DOS error 2 (file not found)"
+        );
+    }
+
+    #[test]
+    fn int21_file_io_full_write_then_read_round_trips() {
+        // The canonical M1 Experiment 5 idiom: create → write → close
+        // → open → read → close. We stitch it all into one program so
+        // the test exercises every subfunction and verifies the bytes
+        // we wrote come back unchanged on the read side.
+        //
+        // Layout in DS:
+        //   0x0200: path "log.txt\0"
+        //   0x0210: write buffer "hi"
+        //   0x0220: read buffer (initially zeros)
+        let mut c = Cpu::new();
+        // Program:
+        //   mov dx, 0x0200 ; mov ah, 3Ch ; int 21h     ; create, AX=h1
+        //   mov bx, ax     ; mov dx, 0x0210 ; mov cx, 2 ; mov ah, 40h ; int 21h  ; write
+        //   mov ah, 3Eh ; int 21h                     ; close
+        //   mov dx, 0x0200 ; mov al, 0 ; mov ah, 3Dh ; int 21h         ; open RO, AX=h2
+        //   mov bx, ax ; mov dx, 0x0220 ; mov cx, 2 ; mov ah, 3Fh ; int 21h ; read
+        //   mov ah, 3Eh ; int 21h                     ; close
+        //   hlt
+        c.load_com(&[
+            0xBA, 0x00, 0x02, 0xB4, 0x3C, 0xCD, 0x21, // create
+            0x89, 0xC3, 0xBA, 0x10, 0x02, 0xB9, 0x02, 0x00, 0xB4, 0x40, 0xCD, 0x21, // write
+            0xB4, 0x3E, 0xCD, 0x21, // close
+            0xBA, 0x00, 0x02, 0xB0, 0x00, 0xB4, 0x3D, 0xCD, 0x21, // open
+            0x89, 0xC3, 0xBA, 0x20, 0x02, 0xB9, 0x02, 0x00, 0xB4, 0x3F, 0xCD, 0x21, // read
+            0xB4, 0x3E, 0xCD, 0x21, // close
+            0xF4, // hlt
+        ]);
+        write_asciiz(&mut c, 0x0200, b"log.txt");
+        c.mem.write_u8(seg_off(c.regs.ds, 0x0210), b'h');
+        c.mem.write_u8(seg_off(c.regs.ds, 0x0211), b'i');
+        c.run_until_halt(256);
+        assert!(c.halted, "program must run to HLT");
+        // The VFS now holds the bytes we wrote.
+        assert_eq!(c.vfs.get("log.txt"), Some(&b"hi"[..]));
+        // And the read landed in 0x0220..0x0222.
+        assert_eq!(c.mem.read_u8(seg_off(c.regs.ds, 0x0220)), b'h');
+        assert_eq!(c.mem.read_u8(seg_off(c.regs.ds, 0x0221)), b'i');
+    }
+
+    #[test]
+    fn int21_ah41_deletes_file_or_signals_not_found() {
+        let mut c = Cpu::new();
+        c.vfs.put("garbage.tmp", b"junk".to_vec());
+        c.load_com(&[0xB4, 0x41, 0xBA, 0x00, 0x02, 0xCD, 0x21, 0xF4]);
+        write_asciiz(&mut c, 0x0200, b"garbage.tmp");
+        c.run_until_halt(32);
+        assert!(c.halted);
+        assert!(!c.regs.flags.get(Flags::CF));
+        assert!(c.vfs.get("garbage.tmp").is_none(), "file must be gone");
+        // Second call against the same path now returns CF=1, AX=2.
+        let mut c = Cpu::new();
+        c.load_com(&[0xB4, 0x41, 0xBA, 0x00, 0x02, 0xCD, 0x21, 0xF4]);
+        write_asciiz(&mut c, 0x0200, b"garbage.tmp");
+        c.run_until_halt(32);
+        assert!(c.regs.flags.get(Flags::CF));
+        assert_eq!(c.regs.ax, 0x02);
+    }
+
+    #[test]
+    fn int21_close_invalid_handle_returns_error() {
+        // BX=99 is not a real handle.
+        let c = run(&[0xBB, 0x63, 0x00, 0xB4, 0x3E, 0xCD, 0x21, 0xF4]);
+        assert!(c.regs.flags.get(Flags::CF));
+        assert_eq!(c.regs.ax, 0x06, "DOS error 6 = invalid handle");
     }
 
     // ---- shifts and rotates (M1.5) ----
