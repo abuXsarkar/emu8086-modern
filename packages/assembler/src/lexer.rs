@@ -165,10 +165,22 @@ pub fn tokenize(src: &str) -> Result<Vec<Spanned>, LexError> {
         }
 
         // String literal: "..." with simple escape processing.
-        // Single-quoted runs are char/short-string literals: 'A' is the
-        // number 0x41, 'AB' is 0x4241 (the 8086 / MASM convention for
-        // packed-string immediates). Multi-byte single-quote runs longer
-        // than 4 bytes are rejected for now.
+        //
+        // Single-quoted runs follow MASM's two-mode behaviour:
+        //   - length 1 → a packed `Number` (e.g. `'A'` = 0x41), so
+        //     `mov al, 'A'` works as a single-byte immediate.
+        //   - length >= 2 → a `String` token, identical to a
+        //     double-quoted string. The canonical lab-manual idiom
+        //     `db 'Hello, world!$'` therefore emits the byte
+        //     sequence rather than truncating to a packed number.
+        //
+        // The 1-vs-many threshold is unambiguous: there's no useful
+        // single-byte string in `db` position (you'd write `db 'A'`
+        // for a one-byte buffer just as well as `db 0x41`), and
+        // there's no instruction that takes a multi-byte packed
+        // immediate that students reach for. Programs needing the
+        // packed-2-byte form (`mov ax, 'AB'` = 0x4241) can write
+        // the literal directly: `mov ax, 4142h`.
         if b == b'"' || b == b'\'' {
             let quote = b;
             i += 1;
@@ -207,21 +219,26 @@ pub fn tokenize(src: &str) -> Result<Vec<Spanned>, LexError> {
             i += 1; // consume closing quote
 
             if quote == b'\'' {
-                // Char/short-string literal → packed Number.
-                if s.is_empty() || s.len() > 4 {
+                if s.is_empty() {
                     return Err(LexError {
                         pos: start,
-                        msg: format!("char literal must be 1-4 bytes (got {})", s.len()),
+                        msg: "empty char literal".into(),
+                    });
+                } else if s.len() == 1 {
+                    // One byte → packed Number for use as an
+                    // immediate operand.
+                    out.push(Spanned {
+                        tok: Token::Number(u32::from(s[0])),
+                        span: Span::new(start, i),
+                    });
+                } else {
+                    // Multi-byte single-quoted runs are strings,
+                    // matching MASM's `db 'hello'` semantics.
+                    out.push(Spanned {
+                        tok: Token::String(s),
+                        span: Span::new(start, i),
                     });
                 }
-                let mut n: u32 = 0;
-                for &byte in &s {
-                    n = (n << 8) | u32::from(byte);
-                }
-                out.push(Spanned {
-                    tok: Token::Number(n),
-                    span: Span::new(start, i),
-                });
             } else {
                 out.push(Spanned {
                     tok: Token::String(s),
@@ -349,6 +366,45 @@ mod tests {
     fn string_literal_with_escapes() {
         let t = toks(r#""hi\nworld""#);
         assert!(matches!(&t[0], Token::String(s) if s == b"hi\nworld"));
+    }
+
+    #[test]
+    fn single_quote_one_byte_is_packed_number() {
+        // `'A'` should still lex as a number so `mov al, 'A'`
+        // continues to work as a single-byte immediate.
+        let t = toks("'A'");
+        assert!(matches!(&t[0], Token::Number(0x41)));
+    }
+
+    #[test]
+    fn single_quote_multi_byte_is_a_string() {
+        // The canonical lab-manual `db 'hello, world!$'` form must
+        // lex as a String so the data-item branch emits the bytes
+        // unchanged. Previously this was rejected as "char literal
+        // must be 1-4 bytes".
+        let t = toks("'hello, world!$'");
+        assert!(
+            matches!(&t[0], Token::String(s) if s == b"hello, world!$"),
+            "expected String, got {:?}",
+            t[0]
+        );
+    }
+
+    #[test]
+    fn single_quote_two_byte_is_a_string_not_packed() {
+        // Threshold case: two-byte single-quoted runs follow the
+        // string interpretation. Programs needing the legacy packed
+        // form (`mov ax, 'AB'` = 0x4142) should write the literal
+        // directly (`mov ax, 4142h`).
+        let t = toks("'AB'");
+        assert!(matches!(&t[0], Token::String(s) if s == b"AB"));
+    }
+
+    #[test]
+    fn single_quote_empty_is_an_error() {
+        // No content between the quotes is rejected — there's no
+        // sensible default, and most occurrences are typos.
+        assert!(tokenize("''").is_err());
     }
 
     #[test]

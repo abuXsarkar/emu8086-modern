@@ -79,7 +79,7 @@ Each gap has a stable ID (`GAP-NNN`) so PR commits can reference it.
 | GAP-032 | `TYPE` / `LENGTH` / `SIZE` / `LENGTHOF` operators | M | M1, M2, M4 | PR 4 |
 | GAP-033 | Hex literal without `0` prefix or `H` suffix (`MOV DX, FF12`) | M | M1 stepper program | PR 1 (clear "did you mean `0FF12H`?" diagnostic) |
 | GAP-034 | `<<`, `>>` shift operators in expressions | m | M4 library boilerplate | PR 5 |
-| GAP-035 | `&`, `|`, `^`, `~` bitwise operators in expressions | m | M4 | PR 5 |
+| GAP-035 | `&`, `\|`, `^`, `~` bitwise operators in expressions | m | M4 | PR 5 |
 
 ### CPU — INT 21h DOS subfunctions (currently support: 01h, 02h, 06h, 09h, 00h, 4Ch)
 
