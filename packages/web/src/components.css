@@ -1,0 +1,773 @@
+/* Token-driven component classes. Read `theme.css` first for the
+   `--paper / --ink / --rule / --accent / ...` palette these reference.
+   Class set mirrors the v2 design's vocabulary so the JSX migration is
+   a near-mechanical class-name swap. */
+
+/* Hairline rules */
+.rule {
+  border: 0;
+  border-top: var(--hair-w) solid var(--rule);
+  margin: 0;
+}
+.rule-thin {
+  border: 0;
+  border-top: 0.6px solid var(--rule);
+  margin: 0;
+  opacity: 0.45;
+}
+
+/* Tiny mono caps used for section headers */
+.smallcaps {
+  font-family: "Geist Mono", monospace;
+  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* Generic plate (panel) */
+.pane {
+  background: var(--paper);
+  border: var(--hair-w) solid var(--rule);
+  border-radius: var(--rad);
+  overflow: hidden;
+}
+
+/* Editor host. Width comes from the parent grid; height is fixed at
+   420px on desktop and clamped to 280px under 1024px in responsive.css. */
+.source-editor-frame {
+  height: 420px;
+}
+
+/* Pill — small status chip with a leading dot. Use `.pill .dot` for
+   the indicator; colour the dot via `--good`/`--warn`/`--accent`. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 0.8px solid var(--rule);
+  color: var(--ink);
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+}
+.pill .dot {
+  width: 6px;
+  height: 6px;
+  background: var(--good);
+  display: inline-block;
+}
+.pill .dot.warn {
+  background: var(--warn);
+}
+.pill .dot.accent {
+  background: var(--accent);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  display: inline-block;
+  border-radius: 50%;
+  background: var(--good);
+}
+.status-dot.warn {
+  background: var(--warn);
+}
+.status-dot.accent {
+  background: var(--accent);
+}
+
+/* Buttons. Tone choices:
+   - default = paper-on-ink hairline (most actions)
+   - .primary = inverted (Run / submit)
+   - .accent  = filled accent (Share, destructive)
+   - .ghost   = no border until hover (toolbar tertiary)
+   - .icon-only = tightened padding for icon-only triggers */
+.btn {
+  font-family: "Geist Variable", "Geist", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--hair-w) solid var(--rule);
+  padding: 6px 12px;
+  border-radius: var(--rad);
+  cursor: pointer;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 80ms ease;
+}
+.btn:hover:not(:disabled) {
+  background: var(--tint);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+.btn:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.btn.primary {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.btn.primary:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--ink) 88%, var(--paper));
+}
+.btn.accent {
+  background: var(--accent);
+  color: #fff8f1;
+  border-color: var(--accent);
+}
+.btn.ghost {
+  border-color: transparent;
+}
+.btn.ghost:hover:not(:disabled) {
+  border-color: var(--rule);
+  background: transparent;
+}
+.btn.icon-only {
+  padding: 6px 7px;
+}
+
+.kbd {
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  border: 0.8px solid var(--rule);
+  padding: 1px 4px;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+/* Token-themed select. Matches .btn metrics so toolbars line up. */
+.select-tokenized {
+  font-family: "Geist Mono", monospace;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--hair-w) solid var(--rule);
+  padding: 5px 10px;
+  border-radius: var(--rad);
+  cursor: pointer;
+}
+
+/* App header — paper-band with a hairline bottom rule. Sits inside the
+   existing `.app-root` padding for now; the shell-grid restructure
+   (Phase 2) will lift it to full-bleed. */
+.app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: var(--hair-w) solid var(--rule);
+  margin-bottom: 1rem;
+}
+.app-header .brand h1 {
+  font-family: "Geist Variable", "Geist", sans-serif;
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--ink);
+}
+.app-header .brand .lead {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+.app-header .brand .lead .serif {
+  color: var(--muted);
+}
+.app-header .header-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Run toolbar — sits above the editor frame. The label is a smallcaps
+   "SOURCE" tag in the v2 design; the right side packs the example
+   picker, debug-step controls, Run, and Share. */
+.run-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 12px;
+}
+.run-toolbar-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.share-toast {
+  color: var(--good);
+  font-family: "Geist Mono", monospace;
+  font-size: 12px;
+  margin-left: 4px;
+  min-width: 0;
+}
+
+/* Output region — sits below the editor frame. SOURCE/OUTPUT are sibling
+   smallcaps headers so the visual rhythm matches the v2 design. */
+.output-region {
+  margin-top: 1rem;
+}
+.output-region > .smallcaps {
+  display: block;
+  margin-bottom: 6px;
+}
+.output-stdout {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.75rem;
+  border: var(--hair-w) solid var(--rule);
+  border-radius: var(--rad);
+  min-height: 80px;
+  white-space: pre-wrap;
+  font-size: 13px;
+  margin: 0;
+}
+
+.status-banner {
+  margin-top: 6px;
+  padding: 0.5rem 0.7rem;
+  border: var(--hair-w) solid var(--rule);
+  border-radius: var(--rad);
+  font-family: "Geist Mono", monospace;
+  font-size: 13px;
+}
+.status-banner.halted {
+  background: color-mix(in oklch, var(--good) 14%, var(--paper));
+  border-color: var(--good);
+  color: var(--ink);
+}
+.status-banner.warn {
+  background: color-mix(in oklch, var(--warn) 14%, var(--paper));
+  border-color: var(--warn);
+  color: var(--ink);
+}
+.status-banner-title {
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.status-banner-hint {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.error-banner {
+  background: color-mix(in oklch, var(--accent) 12%, var(--paper));
+  border: var(--hair-w) solid var(--accent);
+  border-radius: var(--rad);
+  padding: 0.6rem 0.8rem;
+  margin-top: 0.5rem;
+  font-size: 13px;
+  color: var(--ink);
+}
+.error-banner-snippet {
+  margin-top: 6px;
+  margin-bottom: 0;
+  background: var(--paper);
+  padding: 0.4rem;
+  color: var(--ink);
+  font-family: "Geist Mono", monospace;
+  font-size: 12.5px;
+}
+
+.exit-line {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+.exit-line code {
+  color: var(--ink);
+  font-family: "Geist Mono", monospace;
+}
+
+.step-log {
+  margin-top: 1rem;
+}
+.step-log > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-family: "Geist Mono", monospace;
+}
+.step-log-pre {
+  background: var(--ink);
+  color: color-mix(in oklch, var(--paper) 80%, transparent);
+  padding: 0.5rem 0.75rem;
+  border: var(--hair-w) solid var(--rule);
+  border-radius: var(--rad);
+  max-height: 200px;
+  overflow: auto;
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+
+/* Aside region — registers, flags, devices, memory, debugger panels.
+   Each .aside-section is paper-on-hairline with a smallcaps header. */
+.aside-region {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.aside-section > .smallcaps {
+  display: block;
+  margin-bottom: 6px;
+}
+.aside-empty {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.reg-table {
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 4px;
+}
+.reg-table .reg-name {
+  padding: 2px 8px 2px 0;
+  color: var(--muted);
+}
+.reg-table .reg-val {
+  padding: 2px 0;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.flags-row {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+}
+.flag-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 0.6px solid var(--rule);
+  margin: -0.6px 0 0 -0.6px;
+  background: var(--paper);
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+.flag-badge.on {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.screen-row {
+  margin-top: 8px;
+}
+
+.memory-range-label {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.mem-hex {
+  background: var(--ink);
+  color: color-mix(in oklch, var(--paper) 86%, transparent);
+  padding: 0.5rem 0.6rem;
+  border: var(--hair-w) solid var(--rule);
+  border-radius: var(--rad);
+  font-size: 11px;
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  line-height: 1.55;
+}
+.mem-off {
+  color: var(--muted);
+}
+.mem-cell {
+  display: inline-block;
+}
+.mem-cell.changed {
+  background: color-mix(in oklch, var(--accent) 30%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+  padding: 0 2px;
+  margin: 0 -2px;
+}
+@supports not (color: oklch(0% 0 0)) {
+  .mem-cell.changed {
+    background: #f3e3da;
+  }
+  body.dark .mem-cell.changed {
+    background: #4a2a1a;
+  }
+}
+
+.breakpoint-hit {
+  margin-top: 6px;
+  color: var(--warn);
+  font-size: 12px;
+}
+
+.app-footer {
+  margin-top: 2rem;
+  padding-top: 12px;
+  border-top: var(--hair-w) solid var(--rule);
+  color: var(--muted);
+  font-size: 13px;
+}
+.app-footer a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--ink) 40%, transparent);
+  text-underline-offset: 3px;
+}
+.app-footer a:hover {
+  text-decoration-color: var(--accent);
+}
+
+/* Left rail — examples, file-drop hint. Phase 2 splits the IDE shell
+   into 3 columns; the left rail is the "where do programs come from"
+   surface so the editor toolbar can stay focused on Run/Step. */
+.left-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.left-rail .pane {
+  padding: 12px 14px;
+}
+.left-rail .smallcaps {
+  display: block;
+  margin-bottom: 8px;
+}
+.left-rail .full-width-select {
+  width: 100%;
+  font-family: "Geist Mono", monospace;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--hair-w) solid var(--rule);
+  padding: 6px 8px;
+  border-radius: var(--rad);
+  cursor: pointer;
+}
+.left-rail .drop-hint {
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  margin: 0;
+}
+.left-rail .drop-hint code {
+  color: var(--ink);
+  font-family: inherit;
+}
+
+/* Floater — draggable lab-bench window. Mirrors v2 floaters.jsx: 2px
+   ink-shadow + 12px blur, hairline edge, mono caps title bar. */
+.floater {
+  position: fixed;
+  z-index: 100;
+  background: var(--paper);
+  border: var(--hair-w) solid var(--rule);
+  box-shadow:
+    2px 2px 0 var(--ink),
+    0 12px 30px -12px color-mix(in oklch, var(--ink) 18%, transparent);
+  min-width: 160px;
+  user-select: none;
+}
+.floater.dragging {
+  box-shadow:
+    4px 4px 0 var(--ink),
+    0 24px 50px -10px color-mix(in oklch, var(--ink) 25%, transparent);
+}
+.floater-head {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: "Geist Mono", monospace;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  cursor: grab;
+}
+.floater-head:active {
+  cursor: grabbing;
+}
+.floater-head .title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.floater-head .x {
+  width: 16px;
+  height: 16px;
+  border: 0.6px solid var(--paper);
+  color: var(--paper);
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  line-height: 1;
+  padding: 0;
+  font-family: inherit;
+}
+.floater-head .x:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+.floater-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Pop-out trigger — small icon button shown beside a device when it's
+   eligible to be detached into a floating window. */
+.popout-btn {
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 0.6px solid var(--rule);
+  color: var(--muted);
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: var(--rad);
+}
+.popout-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+/* Inline slot for a device that can be popped out — keeps the
+   pop-out / dock control visually adjacent to its device. */
+.device-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* TweaksPanel — bottom-right floating control for density / layout /
+   accent / grain. Closed state is a small gear button; open state is
+   a panel. State + values persist via the component itself
+   (localStorage emu8086.tweaks). */
+.tweaks-trigger {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 200;
+  width: 32px;
+  height: 32px;
+  background: var(--paper);
+  color: var(--ink);
+  border: var(--hair-w) solid var(--rule);
+  border-radius: var(--rad);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: 2px 2px 0 var(--ink);
+  font-family: "Geist Mono", monospace;
+}
+.tweaks-trigger:hover {
+  background: var(--tint);
+}
+
+.tweaks-panel {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 200;
+  width: 240px;
+  background: var(--paper);
+  border: var(--hair-w) solid var(--rule);
+  box-shadow:
+    2px 2px 0 var(--ink),
+    0 16px 36px -14px color-mix(in oklch, var(--ink) 22%, transparent);
+}
+.tweaks-head {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+.tweaks-head .title {
+  flex: 1;
+}
+.tweaks-head .x {
+  width: 16px;
+  height: 16px;
+  border: 0.6px solid var(--paper);
+  background: transparent;
+  color: var(--paper);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  line-height: 1;
+  padding: 0;
+  font-family: inherit;
+}
+.tweaks-head .x:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+.tweaks-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tweaks-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tweaks-label {
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.segmented {
+  display: flex;
+  border: 0.6px solid var(--rule);
+}
+.segmented-opt {
+  flex: 1;
+  background: var(--paper);
+  border: 0;
+  border-right: 0.6px solid var(--rule);
+  color: var(--muted);
+  padding: 5px 4px;
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  cursor: pointer;
+}
+.segmented-opt:last-child {
+  border-right: 0;
+}
+.segmented-opt.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+.segmented-opt:hover:not(.active) {
+  background: var(--tint);
+  color: var(--ink);
+}
+
+.accent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.accent-swatch {
+  width: 56px;
+  height: 24px;
+  border: 0.6px solid var(--rule);
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+}
+.accent-swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.accent-swatch::-webkit-color-swatch {
+  border: 0;
+}
+.reset-link {
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--muted) 40%, transparent);
+}
+.reset-link:hover {
+  color: var(--ink);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  color: var(--ink);
+}
+.toggle .toggle-thumb {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border: 0.6px solid var(--rule);
+  background: var(--paper);
+  display: inline-block;
+}
+.toggle .toggle-thumb::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 12px;
+  height: 12px;
+  background: var(--rule);
+  transition: transform 120ms ease;
+}
+.toggle.on .toggle-thumb {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.toggle.on .toggle-thumb::after {
+  background: var(--paper);
+  transform: translateX(12px);
+}
+.toggle-label {
+  letter-spacing: 0.04em;
+}

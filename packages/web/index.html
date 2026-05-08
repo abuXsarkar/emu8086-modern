@@ -7,16 +7,29 @@
     <meta name="description" content="Modern, open-source 8086 emulator and assembly IDE for students." />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <title>emu8086-modern</title>
-    <style>
-      .currentLineHighlight {
-        background: rgba(255, 200, 0, 0.10);
-      }
-      .currentLineGlyph {
-        background: #f0a000;
-        width: 3px !important;
-        margin-left: 3px;
-      }
-    </style>
+    <script>
+      // Pre-paint theme application. Reads the same key the React app
+      // writes; setting body.dark before first paint avoids a flash of
+      // light-themed content on cold load when the user picked dark.
+      (function () {
+        try {
+          var v = localStorage.getItem("emu8086.editor-theme");
+          if (v === "vs-dark" || v === null)
+            document.body && document.body.classList.add("dark");
+          // The script runs before <body> exists; queue the class swap
+          // for the next microtask so the body element is available.
+          if (!document.body) {
+            document.addEventListener("DOMContentLoaded", function () {
+              var v2 = localStorage.getItem("emu8086.editor-theme");
+              if (v2 === "vs-dark" || v2 === null)
+                document.body.classList.add("dark");
+            });
+          }
+        } catch (e) {
+          /* ignore quota / disabled-storage errors */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
