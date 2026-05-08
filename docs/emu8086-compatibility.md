@@ -110,7 +110,7 @@ All four common literal forms work today.
 | `*` | ✅ | |
 | `/`, `%` (`MOD`) | ❌ | [GAP-030](./lab-manual-audit.md#assembler--expression-operators) — PR 1 |
 | `<<`, `>>` | ❌ | [GAP-034](./lab-manual-audit.md#assembler--expression-operators) — PR 5 |
-| `&`, `|`, `^`, `~` | ❌ | [GAP-035](./lab-manual-audit.md#assembler--expression-operators) — PR 5 |
+| `&`, `\|`, `^`, `~` | ❌ | [GAP-035](./lab-manual-audit.md#assembler--expression-operators) — PR 5 |
 | Unary `-` (incl. inside `[bx-2]`) | ✅ | |
 | `OFFSET` | ❌ | [GAP-010](./lab-manual-audit.md#assembler--directives--pseudo-ops) — PR 1 |
 | `SEG` | ❌ | [GAP-031](./lab-manual-audit.md#assembler--expression-operators) — PR 4 |
