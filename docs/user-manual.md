@@ -42,7 +42,7 @@ The editor is Monaco with an 8086-asm language definition wired in:
 - **Syntax highlighting** for instructions, registers, directives,
   number literals, char literals, strings, and labels.
 - **Snippets** for the eight or so most-typed idioms (typing `mov`
-  + Tab cycles a few mnemonic templates).
+  then Tab cycles a few mnemonic templates).
 - **Hover docs** on most mnemonics — hover any instruction to see a
   one-line summary.
 - **Red squiggles** on assemble errors, with the message attached

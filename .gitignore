@@ -51,3 +51,6 @@ site/
 # Local design references (downloaded artifacts; not source of truth)
 .design
 .design/
+
+# Claude Code local state
+.claude/
