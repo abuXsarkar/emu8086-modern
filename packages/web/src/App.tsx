@@ -772,9 +772,9 @@ export function App() {
 
       {coreState.kind === "ready" && (
         <div className="app-layout">
-          <aside className="left-rail">
-            <div className="pane">
-              <strong className="smallcaps">{t.loadExample}</strong>
+          <aside className="left-rail" aria-label={t.loadExample}>
+            <div className="pane" aria-labelledby="hd-load-example">
+              <strong className="smallcaps" id="hd-load-example">{t.loadExample}</strong>
               <select
                 className="full-width-select"
                 aria-label={t.loadExample}
@@ -799,14 +799,14 @@ export function App() {
                 ))}
               </select>
             </div>
-            <div className="pane">
-              <strong className="smallcaps">{t.dropFileLabel}</strong>
+            <div className="pane" aria-labelledby="hd-drop-file">
+              <strong className="smallcaps" id="hd-drop-file">{t.dropFileLabel}</strong>
               <p className="drop-hint">{t.dropFileHint}</p>
             </div>
           </aside>
-          <section>
+          <section aria-labelledby="hd-source">
             <div className="run-toolbar">
-              <strong className="smallcaps">{t.source}</strong>
+              <strong className="smallcaps" id="hd-source">{t.source}</strong>
               <div className="run-toolbar-controls">
                 <button
                   type="button"
@@ -920,8 +920,8 @@ export function App() {
               />
             </div>
 
-            <div className="output-region">
-              <strong className="smallcaps">{t.output}</strong>
+            <div className="output-region" aria-labelledby="hd-output">
+              <strong className="smallcaps" id="hd-output">{t.output}</strong>
               <pre className="output-stdout mono">
                 {result?.stdout || (running ? t.running : t.noOutputYet)}
               </pre>
@@ -1000,9 +1000,9 @@ export function App() {
             </div>
           </section>
 
-          <aside className="aside-region">
-            <section className="aside-section">
-              <strong className="smallcaps">{t.registers}</strong>
+          <aside className="aside-region" aria-label={t.devices}>
+            <section className="aside-section" aria-labelledby="hd-registers">
+              <strong className="smallcaps" id="hd-registers">{t.registers}</strong>
               {result?.registers ? (
                 <table className="reg-table mono">
                   <tbody>
@@ -1031,8 +1031,8 @@ export function App() {
               )}
             </section>
 
-            <section className="aside-section">
-              <strong className="smallcaps">{t.flags}</strong>
+            <section className="aside-section" aria-labelledby="hd-flags">
+              <strong className="smallcaps" id="hd-flags">{t.flags}</strong>
               <div className="flags-row">
                 {result?.registers
                   ? FLAG_BITS.map(([name, mask]) =>
@@ -1042,8 +1042,8 @@ export function App() {
               </div>
             </section>
 
-            <section className="aside-section">
-              <strong className="smallcaps">{t.devices}</strong>
+            <section className="aside-section" aria-labelledby="hd-devices">
+              <strong className="smallcaps" id="hd-devices">{t.devices}</strong>
               <div className="device-row">
                 <DeviceSlot id="seg" title="7-SEG · port 199" defaultPos={{ x: 80, y: 100 }}>
                   <SevenSegment value={port199} />
@@ -1080,8 +1080,8 @@ export function App() {
             </section>
 
             {memHex && (
-              <section className="aside-section">
-                <strong className="smallcaps">
+              <section className="aside-section" aria-labelledby="hd-memory">
+                <strong className="smallcaps" id="hd-memory">
                   {t.memory}{" "}
                   <span className="memory-range-label">
                     {t.memoryRangeLabel}
