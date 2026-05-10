@@ -368,7 +368,7 @@ export function App() {
       base: "vs",
       inherit: true,
       rules: [
-        { token: "keyword", foreground: "c8521a", fontStyle: "bold" },
+        { token: "keyword", foreground: "7f1d1d", fontStyle: "bold" },
         { token: "number", foreground: "1f4a8a" },
         { token: "string", foreground: "2d8a4e" },
         { token: "comment", foreground: "5a5a55", fontStyle: "italic" },
@@ -385,7 +385,7 @@ export function App() {
       base: "vs-dark",
       inherit: true,
       rules: [
-        { token: "keyword", foreground: "e08a55", fontStyle: "bold" },
+        { token: "keyword", foreground: "c97f7f", fontStyle: "bold" },
         { token: "number", foreground: "8ab6e0" },
         { token: "string", foreground: "6cba88" },
         { token: "comment", foreground: "807c70", fontStyle: "italic" },

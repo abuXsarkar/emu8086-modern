@@ -28,8 +28,8 @@ DEFAULT_OUT_DIR = os.path.join(
     "icons",
 )
 
-# Paper-aesthetic terracotta; close to the IDE's `--accent` token.
-RGBA = (200, 80, 30, 255)
+# Ink blue; matches the IDE's `--accent` token (#1E3A8A).
+RGBA = (30, 58, 138, 255)
 
 
 def make_png(size: int, rgba: tuple) -> bytes:

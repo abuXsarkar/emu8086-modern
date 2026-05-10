@@ -411,10 +411,10 @@
 }
 @supports not (color: oklch(0% 0 0)) {
   .mem-cell.changed {
-    background: #f3e3da;
+    background: #e2e7f2;
   }
   body.dark .mem-cell.changed {
-    background: #4a2a1a;
+    background: #1f2742;
   }
 }
 
