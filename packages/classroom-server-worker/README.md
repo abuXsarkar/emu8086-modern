@@ -102,6 +102,20 @@ openssl rand -base64 32 \
 Drop `_PREVIOUS` again after one full session window (usually
 the next morning).
 
+## Free plan and SQLite-backed Durable Objects
+
+This worker's `wrangler.toml` uses `new_sqlite_classes` instead of
+the legacy `new_classes` migration. That's required on Workers
+**Free** — Cloudflare gates the in-memory-only DO backend behind a
+paid plan now, and a deploy with the older migration form fails
+with `code: 10097 — must create a namespace using a new_sqlite_classes
+migration`. SQLite-backed DOs are the recommended default for new
+code anyway: same `DurableObjectState` API, plus the option of
+real SQL queries against the per-DO storage if a future feature
+ever wants that. No code change required when you switch the
+migration; the existing `state.storage.put/get/setAlarm/...` calls
+work identically.
+
 ## Limits and trade-offs
 
 - **Single DO for all rooms.** Cloudflare DOs comfortably handle
