@@ -17,6 +17,7 @@ import {
   takeControl,
 } from "./actions";
 import { CommentThread } from "./CommentThread";
+import { downloadSessionCsv, printSessionSummary } from "./sessionReport";
 
 interface TeacherDrawerProps {
   /** Current editor source — used as the seed buffer when the
@@ -250,13 +251,57 @@ export function TeacherDrawer({ currentSource }: TeacherDrawerProps = {}) {
         )}
       </section>
 
-      <div className="classroom-drawer-footer">
-        <button type="button" className="btn ghost" onClick={leaveClassroom}>
-          {t.classroomLeave}
-        </button>
-        <button type="button" className="btn" onClick={onCloseRoom}>
-          {t.classroomTeacherCloseRoom}
-        </button>
+      <div className="classroom-drawer-footer-stack">
+        <div className="classroom-drawer-footer">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              const s = useClassroomStore.getState();
+              if (!s.roomId || !s.meta) return;
+              printSessionSummary(
+                {
+                  roomId: s.roomId,
+                  meta: s.meta,
+                  students: s.studentsForTeacher,
+                  submissions: s.submissions,
+                  comments: s.comments,
+                },
+                t,
+              );
+            }}
+          >
+            🖨 {t.classroomReportPrint}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              const s = useClassroomStore.getState();
+              if (!s.roomId || !s.meta) return;
+              downloadSessionCsv(
+                {
+                  roomId: s.roomId,
+                  meta: s.meta,
+                  students: s.studentsForTeacher,
+                  submissions: s.submissions,
+                  comments: s.comments,
+                },
+                t,
+              );
+            }}
+          >
+            ⤓ {t.classroomReportCsv}
+          </button>
+        </div>
+        <div className="classroom-drawer-footer">
+          <button type="button" className="btn ghost" onClick={leaveClassroom}>
+            {t.classroomLeave}
+          </button>
+          <button type="button" className="btn" onClick={onCloseRoom}>
+            {t.classroomTeacherCloseRoom}
+          </button>
+        </div>
       </div>
     </div>
   );

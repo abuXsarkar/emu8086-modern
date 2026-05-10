@@ -210,6 +210,20 @@ export interface Strings {
   // Classroom mode — reconnect attempt indicator
   classroomStatusReconnectingNth: (attempt: number) => string;
   classroomClosureDismiss: string;
+
+  // Classroom mode — session report + CSV export
+  classroomReportPrint: string;
+  classroomReportCsv: string;
+  classroomReportTitle: string;
+  classroomReportSubtitle: (date: string) => string;
+  classroomReportColRollNo: string;
+  classroomReportColName: string;
+  classroomReportColJoined: string;
+  classroomReportColHandUp: string;
+  classroomReportColSubmissions: string;
+  classroomReportColComments: string;
+  classroomReportColLastSubmit: string;
+  classroomReportPrintHint: string;
 }
 
 export type LocaleId =

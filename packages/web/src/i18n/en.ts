@@ -205,5 +205,18 @@ export const en: CompleteLocale = {
     classroomStatusReconnectingNth: (attempt) =>
       `Reconnecting (attempt ${attempt})…`,
     classroomClosureDismiss: "Dismiss",
+
+    classroomReportPrint: "Print summary",
+    classroomReportCsv: "Export CSV",
+    classroomReportTitle: "Lab session summary",
+    classroomReportSubtitle: (date) => `Session on ${date}`,
+    classroomReportColRollNo: "Roll No",
+    classroomReportColName: "Name",
+    classroomReportColJoined: "Joined",
+    classroomReportColHandUp: "Hand",
+    classroomReportColSubmissions: "Submissions",
+    classroomReportColComments: "Notes",
+    classroomReportColLastSubmit: "Latest submission",
+    classroomReportPrintHint: "Use your browser's Print dialog (Ctrl+P) to save as PDF.",
   },
 };
