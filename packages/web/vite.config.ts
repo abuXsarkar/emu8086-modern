@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -16,6 +17,18 @@ const BASE = process.env.VITE_BASE ?? "/";
 // default for a single-user pedagogical tool.
 export default defineConfig({
   base: BASE,
+  // Multi-page build: the IDE lives at `/`, the landing/about page
+  // at `/about/`. Vite picks both HTML entry points up here and
+  // emits separate JS bundles so the landing doesn't pull in
+  // Monaco (~250 KB) for what's essentially a marketing page.
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+        about: resolve(__dirname, "about.html"),
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({
