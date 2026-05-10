@@ -1200,6 +1200,8 @@ export function App() {
       <footer className="app-footer mono">
         <a href="./about/">about</a>
         {t.footerSeparator}
+        <a href="./docs/">docs</a>
+        {t.footerSeparator}
         <a href="https://github.com/abuXsarkar/emu8086-modern">{t.footerLink}</a>
         {t.footerSeparator}
         {t.footerNote}

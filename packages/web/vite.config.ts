@@ -18,14 +18,15 @@ const BASE = process.env.VITE_BASE ?? "/";
 export default defineConfig({
   base: BASE,
   // Multi-page build: the IDE lives at `/`, the landing/about page
-  // at `/about/`. Vite picks both HTML entry points up here and
-  // emits separate JS bundles so the landing doesn't pull in
-  // Monaco (~250 KB) for what's essentially a marketing page.
+  // at `/about/`, and the docs hub at `/docs/`. Vite emits separate
+  // JS bundles per entry so neither the landing nor the docs pulls
+  // in Monaco (~250 KB) for what's essentially static reading.
   build: {
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
         about: resolve(__dirname, "about.html"),
+        docs: resolve(__dirname, "docs.html"),
       },
     },
   },

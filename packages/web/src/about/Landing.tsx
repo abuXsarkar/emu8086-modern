@@ -84,6 +84,10 @@ export function Landing() {
             ↺ Open the IDE
           </a>
           <span aria-hidden>·</span>
+          <a className="landing-footer-link" href="./docs/">
+            Read the docs
+          </a>
+          <span aria-hidden>·</span>
           <a
             className="landing-footer-link"
             href="https://github.com/abuXsarkar/emu8086-modern"
