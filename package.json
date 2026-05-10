@@ -21,7 +21,9 @@
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
-    "format": "dprint fmt"
+    "format": "dprint fmt",
+    "desktop:dev": "pnpm --filter @emu8086/desktop dev",
+    "desktop:bundle": "pnpm --filter @emu8086/desktop bundle"
   },
   "devDependencies": {
     "dprint": "^0.47.0",

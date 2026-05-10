@@ -6,6 +6,7 @@ members = [
     "packages/devices/rust",
     "packages/cli",
     "packages/wasm-api",
+    "packages/desktop",
 ]
 
 [workspace.package]

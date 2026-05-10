@@ -3,3 +3,4 @@ packages:
   - "packages/devices/ts"
   - "packages/classroom-protocol"
   - "packages/classroom-server"
+  - "packages/desktop"

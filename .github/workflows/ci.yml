@@ -25,6 +25,25 @@ jobs:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+      - name: Install Tauri system deps (Linux only)
+        if: runner.os == 'Linux'
+        # webkit2gtk + GTK + dbus + svg/appindicator: the Tauri 2
+        # standard set. macOS + Windows runners ship the equivalents
+        # by default.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libdbus-1-dev \
+            pkg-config
       - name: Format check
         run: cargo fmt --all --check
       - name: Clippy

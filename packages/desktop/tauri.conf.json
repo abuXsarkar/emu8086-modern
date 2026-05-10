@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "emu8086-modern",
+  "version": "0.0.0",
+  "identifier": "com.cyberdude.emu8086-modern",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @emu8086/web dev",
+    "beforeBuildCommand": "pnpm --filter @emu8086/web build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "emu8086-modern",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "8086 emulator and assembly IDE.",
+    "longDescription": "A modern, open-source 8086 emulator and assembly IDE for students. Built on a Rust core + assembler, packaged here as a desktop app via Tauri.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
