@@ -1,24 +1,34 @@
-// ClassroomHubDO — the single Durable Object that owns all
-// classroom-mode rooms for this deployment. Mirrors the Node
-// adapter at `@emu8086/classroom-server/src/node.ts` move-for-move
-// in terms of message routing; the differences are:
+// ClassroomHubDO — single Durable Object hosting every classroom
+// in this deployment. Mirrors the Node adapter's routing logic
+// move-for-move; the difference is the I/O layer.
 //
-//   - WebSockets come from `WebSocketPair` instead of the `ws`
-//     npm library. The Web API uses `send()` and `addEventListener`
-//     (vs. Node `ws`'s `on(...)` shape) — same primitives, different
-//     spelling.
-//   - The connect → close → dispatch lifecycle is driven by the
-//     `accept()` + event listeners pattern; no per-process Map of
-//     sockets to register, but we keep our own per-room maps so
-//     the dispatch logic stays identical to Node.
-//   - Periodic tick (room reaping) runs on Cloudflare's alarm
-//     scheduler — no setInterval in DOs; `state.storage.setAlarm()`
-//     gives us the same effect.
+// **Why the Hibernation API.** SQLite-backed Durable Objects (the
+// only DO flavor available on Workers Free) can be evicted from
+// memory at any time. With the legacy `server.accept()` +
+// `addEventListener` pattern, the WebSocket dies when the DO is
+// evicted, manifesting as a "Network connection lost." error
+// immediately after the upgrade response. The fix is the
+// Hibernation API: `state.acceptWebSocket(ws)` registers the
+// socket with the runtime, and the runtime preserves the
+// connection across DO eviction/restart, waking the DO when a
+// message arrives. We replace the event listeners with the
+// `webSocketMessage` / `webSocketClose` / `webSocketError` class
+// methods Cloudflare invokes.
 //
-// Same security posture as the Node version: HMAC host token,
-// 1 MiB message cap, byte-clamped fields, no logging of buffer
-// content. The HMAC secret comes from env (set with `wrangler
-// secret put`).
+// **Per-connection state.** Without an in-memory `Map<WebSocket,
+// Conn>` (which would vanish if the DO restarts), we persist the
+// connection identity on the WebSocket itself via
+// `ws.serializeAttachment(...)`. Each `webSocketMessage`
+// invocation reads it back with `ws.deserializeAttachment()`.
+//
+// **Per-room state.** Currently kept in memory in `this.sessions`.
+// CF's recurring alarm (every 15s) keeps the DO active, so
+// in-memory state should survive across an active session. If a
+// rare restart wipes it, students see a clean `room_closed` and
+// can re-join — same UX as the Node target's reaping path. A
+// future revision will persist Room state to `state.storage` for
+// full restart resilience; the Room class is structured to support
+// it (toSerialized / fromSerialized).
 
 import {
   MAX_COMMENT_BYTES,
@@ -51,11 +61,6 @@ type ConnIdentity =
   | { kind: "teacher"; roomId: string }
   | { kind: "student"; roomId: string; rollNo: string };
 
-interface Conn {
-  ws: WebSocket;
-  identity: ConnIdentity;
-}
-
 class RoomSession {
   readonly room: Room;
   teacherWs: WebSocket | null = null;
@@ -87,8 +92,6 @@ class RoomSession {
 
 function sendIfOpen(ws: WebSocket | null | undefined, payload: string): void {
   // Web WebSocket has readyState values: CONNECTING=0, OPEN=1, etc.
-  // Use the literal 1 to avoid the type-defs requiring the global
-  // WebSocket constant at module-resolve time.
   if (ws && ws.readyState === 1) ws.send(payload);
 }
 
@@ -99,12 +102,10 @@ interface ResolvedSecrets {
 }
 
 function resolveSecrets(env: Env): ResolvedSecrets {
-  let primary = env.EMU8086_CLASSROOM_HMAC_SECRET;
-  if (!primary) {
-    // Last-resort fallback for first-time deploys without `wrangler
-    // secret put`. The secret is ephemeral — when the DO is evicted
-    // and re-instantiated, live host tokens become invalid. Logged
-    // so the operator notices.
+  let primary: string;
+  if (env.EMU8086_CLASSROOM_HMAC_SECRET) {
+    primary = env.EMU8086_CLASSROOM_HMAC_SECRET;
+  } else {
     primary = generateSecret();
     console.warn(
       "[classroom-worker] EMU8086_CLASSROOM_HMAC_SECRET not set; generated an ephemeral one.",
@@ -121,17 +122,19 @@ function resolveSecrets(env: Env): ResolvedSecrets {
 
 export class ClassroomHubDO {
   private readonly sessions = new Map<string, RoomSession>();
-  private readonly conns = new Map<WebSocket, Conn>();
   private readonly secrets: ResolvedSecrets;
   private readonly state: DurableObjectState;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.secrets = resolveSecrets(env);
-    // Schedule the first reap tick. The alarm handler re-arms itself
-    // on each invocation so the DO keeps ticking as long as it's
-    // alive.
     state.blockConcurrencyWhile(async () => {
+      // After a DO restart, reattach any WebSockets the hibernation
+      // API kept alive into our session bookkeeping. Without this,
+      // a teacher who stayed connected through a restart would see
+      // their roster drop because the new DO had no record of them.
+      this.rehydrateFromHibernatedSockets();
+
       const existing = await state.storage.getAlarm();
       if (existing === null) {
         await state.storage.setAlarm(Date.now() + REAP_TICK_MS);
@@ -146,13 +149,62 @@ export class ClassroomHubDO {
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
-    server.accept();
-    this.handleConnection(server);
+    // Hibernation API: registers the socket with the runtime so it
+    // outlives the fetch handler and survives DO eviction.
+    this.state.acceptWebSocket(server);
+    // Initial identity. The first inbound message (create / join)
+    // promotes it to `teacher` or `student`.
+    server.serializeAttachment({ kind: "pending" } satisfies ConnIdentity);
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  /** Cloudflare wakes the DO on the scheduled alarm. We re-arm and
-   *  walk the room set looking for reaping work. */
+  /** Hibernation-API entry: invoked by Cloudflare for each inbound
+   *  message. We re-derive the per-connection identity from the
+   *  WebSocket attachment so it survives DO eviction. */
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    const raw =
+      typeof message === "string" ? message : new TextDecoder().decode(message as ArrayBuffer);
+    if (raw.length > MAX_MESSAGE_BYTES) {
+      this.sendError(ws, "too_large", "message exceeds size cap");
+      return;
+    }
+    let parsed: ClientMsg;
+    try {
+      parsed = JSON.parse(raw) as ClientMsg;
+      if (typeof parsed !== "object" || parsed === null || typeof parsed.t !== "string") {
+        throw new Error("not a message");
+      }
+    } catch {
+      this.sendError(ws, "internal_error", "malformed message");
+      return;
+    }
+    const before = (ws.deserializeAttachment() as ConnIdentity | null) ?? { kind: "pending" };
+    const after = this.handleMessage(ws, before, parsed);
+    if (after !== before) {
+      ws.serializeAttachment(after);
+    }
+  }
+
+  async webSocketClose(
+    ws: WebSocket,
+    _code: number,
+    _reason: string,
+    _wasClean: boolean,
+  ): Promise<void> {
+    const identity = (ws.deserializeAttachment() as ConnIdentity | null) ?? { kind: "pending" };
+    this.handleDisconnect(ws, identity);
+  }
+
+  async webSocketError(_ws: WebSocket, error: unknown): Promise<void> {
+    const msg =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : JSON.stringify(error);
+    console.warn(`[classroom-worker] ws error: ${msg}`);
+  }
+
   async alarm(): Promise<void> {
     const now = Date.now();
     for (const [roomId, session] of this.sessions) {
@@ -167,190 +219,231 @@ export class ClassroomHubDO {
     await this.state.storage.setAlarm(Date.now() + REAP_TICK_MS);
   }
 
-  private handleConnection(ws: WebSocket): void {
-    const conn: Conn = { ws, identity: { kind: "pending" } };
-    this.conns.set(ws, conn);
+  // ---- Internals --------------------------------------------------------
 
-    ws.addEventListener("message", (event) => {
-      const data = event.data;
-      const raw = typeof data === "string" ? data : new TextDecoder().decode(data as ArrayBuffer);
-      if (raw.length > MAX_MESSAGE_BYTES) {
-        this.sendError(ws, "too_large", "message exceeds size cap");
-        return;
+  /** Walk every WebSocket the runtime is still holding for us and
+   *  rewire it into the in-memory session map. Called once during
+   *  the DO's blockConcurrencyWhile so every subsequent message
+   *  sees a coherent state. */
+  private rehydrateFromHibernatedSockets(): void {
+    const wss = this.state.getWebSockets();
+    for (const ws of wss) {
+      const identity = ws.deserializeAttachment() as ConnIdentity | null;
+      if (!identity || identity.kind === "pending") continue;
+      const session = this.sessions.get(identity.roomId);
+      if (!session) {
+        // The room itself is gone (in-memory state was lost across a
+        // restart and no persistence layer kicked in). Nothing
+        // sensible to do for this socket — close it cleanly so the
+        // client surfaces room_closed and the user re-joins.
+        ws.close(1000, "room state lost");
+        continue;
       }
-      let parsed: ClientMsg;
-      try {
-        parsed = JSON.parse(raw) as ClientMsg;
-        if (typeof parsed !== "object" || parsed === null || typeof parsed.t !== "string") {
-          throw new Error("not a message");
-        }
-      } catch {
-        this.sendError(ws, "internal_error", "malformed message");
-        return;
+      if (identity.kind === "teacher") {
+        session.teacherWs = ws;
+      } else {
+        session.studentWs.set(identity.rollNo, ws);
       }
-      this.handleMessage(ws, conn, parsed);
-    });
-
-    ws.addEventListener("close", () => {
-      const c = this.conns.get(ws);
-      if (!c) return;
-      this.conns.delete(ws);
-      this.handleDisconnect(c);
-    });
-
-    ws.addEventListener("error", (ev) => {
-      console.warn("[classroom-worker] ws error", String(ev));
-    });
+    }
   }
 
-  private handleMessage(ws: WebSocket, conn: Conn, msg: ClientMsg): void {
-    if (conn.identity.kind === "pending") {
-      if (msg.t === "create") return this.handleCreate(ws, conn, msg);
-      if (msg.t === "join") return this.handleJoin(ws, conn, msg);
+  private handleMessage(ws: WebSocket, conn: ConnIdentity, msg: ClientMsg): ConnIdentity {
+    if (conn.kind === "pending") {
+      if (msg.t === "create") return this.handleCreate(ws, msg);
+      if (msg.t === "join") return this.handleJoin(ws, msg);
       this.sendError(ws, "not_authorized", "join the room first");
-      return;
+      return conn;
     }
 
-    const session = this.sessions.get(conn.identity.roomId);
+    const session = this.sessions.get(conn.roomId);
     if (!session) {
       this.sendError(ws, "room_closed", "room is closed");
       ws.close(1000, "room closed");
-      return;
+      return conn;
     }
 
-    const isTeacher = conn.identity.kind === "teacher";
+    const isTeacher = conn.kind === "teacher";
     switch (msg.t) {
       case "leave":
         ws.close(1000, "client leave");
-        return;
+        return conn;
 
       case "set_hand": {
-        if (typeof msg.rollNo !== "string") return this.sendError(ws, "internal_error", "bad rollNo");
-        if (typeof msg.up !== "boolean") return this.sendError(ws, "internal_error", "bad up");
+        if (typeof msg.rollNo !== "string") {
+          this.sendError(ws, "internal_error", "bad rollNo");
+          return conn;
+        }
+        if (typeof msg.up !== "boolean") {
+          this.sendError(ws, "internal_error", "bad up");
+          return conn;
+        }
         if (isTeacher) {
           session.dispatch(session.room.setHand(msg.rollNo, msg.up, "teacher"));
-        } else if (conn.identity.kind === "student" && conn.identity.rollNo === msg.rollNo) {
+        } else if (conn.kind === "student" && conn.rollNo === msg.rollNo) {
           session.dispatch(session.room.setHand(msg.rollNo, msg.up, "self"));
         } else {
           this.sendError(ws, "not_authorized", "students may only set their own hand");
         }
-        return;
+        return conn;
       }
 
       case "buffer_update": {
-        if (isTeacher) return this.sendError(ws, "not_authorized", "teacher uses broadcast_update");
-        if (conn.identity.kind !== "student") return;
-        if (typeof msg.source !== "string") return;
+        if (isTeacher) {
+          this.sendError(ws, "not_authorized", "teacher uses broadcast_update");
+          return conn;
+        }
+        if (conn.kind !== "student") return conn;
+        if (typeof msg.source !== "string") return conn;
         session.dispatch(
-          session.room.studentBufferUpdate(conn.identity.rollNo, msg.source, Date.now()),
+          session.room.studentBufferUpdate(conn.rollNo, msg.source, Date.now()),
         );
-        return;
+        return conn;
       }
 
       case "submit": {
-        if (isTeacher) return this.sendError(ws, "not_authorized", "teacher cannot submit");
-        if (conn.identity.kind !== "student") return;
-        if (typeof msg.source !== "string") return;
-        session.dispatch(session.room.submit(conn.identity.rollNo, msg.source, Date.now()));
-        return;
+        if (isTeacher) {
+          this.sendError(ws, "not_authorized", "teacher cannot submit");
+          return conn;
+        }
+        if (conn.kind !== "student") return conn;
+        if (typeof msg.source !== "string") return conn;
+        session.dispatch(session.room.submit(conn.rollNo, msg.source, Date.now()));
+        return conn;
       }
 
       case "set_broadcast": {
-        if (!isTeacher) return this.sendError(ws, "not_authorized", "teacher only");
+        if (!isTeacher) {
+          this.sendError(ws, "not_authorized", "teacher only");
+          return conn;
+        }
         session.dispatch(session.room.setBroadcast(msg.on, msg.source));
-        return;
+        return conn;
       }
 
       case "broadcast_update": {
-        if (!isTeacher) return this.sendError(ws, "not_authorized", "teacher only");
+        if (!isTeacher) {
+          this.sendError(ws, "not_authorized", "teacher only");
+          return conn;
+        }
         session.dispatch(session.room.broadcastUpdate(msg.source));
-        return;
+        return conn;
       }
 
       case "take_control": {
-        if (!isTeacher) return this.sendError(ws, "not_authorized", "teacher only");
+        if (!isTeacher) {
+          this.sendError(ws, "not_authorized", "teacher only");
+          return conn;
+        }
         session.dispatch(session.room.takeControl(msg.rollNo));
-        return;
+        return conn;
       }
 
       case "release_control": {
-        if (!isTeacher) return this.sendError(ws, "not_authorized", "teacher only");
+        if (!isTeacher) {
+          this.sendError(ws, "not_authorized", "teacher only");
+          return conn;
+        }
         session.dispatch(session.room.releaseControl());
-        return;
+        return conn;
       }
 
       case "control_buffer": {
-        if (!isTeacher) return this.sendError(ws, "not_authorized", "teacher only");
+        if (!isTeacher) {
+          this.sendError(ws, "not_authorized", "teacher only");
+          return conn;
+        }
         session.dispatch(session.room.controlBufferFromTeacher(msg.source, Date.now()));
-        return;
+        return conn;
       }
 
       case "set_prompt": {
-        if (!isTeacher) return this.sendError(ws, "not_authorized", "teacher only");
+        if (!isTeacher) {
+          this.sendError(ws, "not_authorized", "teacher only");
+          return conn;
+        }
         const prompt = clamp(msg.prompt, MAX_PROMPT_BYTES);
         session.dispatch(session.room.setPrompt(prompt));
-        return;
+        return conn;
       }
 
       case "kick": {
-        if (!isTeacher) return this.sendError(ws, "not_authorized", "teacher only");
+        if (!isTeacher) {
+          this.sendError(ws, "not_authorized", "teacher only");
+          return conn;
+        }
         this.kickStudent(session, msg.rollNo, "kicked by teacher");
-        return;
+        return conn;
       }
 
       case "close_room": {
-        if (!isTeacher) return this.sendError(ws, "not_authorized", "teacher only");
+        if (!isTeacher) {
+          this.sendError(ws, "not_authorized", "teacher only");
+          return conn;
+        }
         session.dispatch(session.room.closeRoom());
         if (session.teacherWs) session.teacherWs.close(1000, "room closed");
         for (const studentWs of session.studentWs.values()) studentWs.close(1000, "room closed");
         this.sessions.delete(session.room.id);
-        return;
+        return conn;
       }
 
       case "add_comment": {
-        if (!isTeacher) return this.sendError(ws, "not_authorized", "teacher only");
+        if (!isTeacher) {
+          this.sendError(ws, "not_authorized", "teacher only");
+          return conn;
+        }
         if (typeof msg.rollNo !== "string" || typeof msg.body !== "string") {
-          return this.sendError(ws, "internal_error", "bad add_comment payload");
+          this.sendError(ws, "internal_error", "bad add_comment payload");
+          return conn;
         }
         const body = clamp(msg.body, MAX_COMMENT_BYTES);
-        if (!body) return;
+        if (!body) return conn;
         session.dispatch(session.room.addComment(msg.rollNo, body, Date.now()));
-        return;
+        return conn;
       }
 
       case "mark_comment_seen": {
         if (isTeacher) {
-          return this.sendError(ws, "not_authorized", "students dismiss their own comments");
+          this.sendError(ws, "not_authorized", "students dismiss their own comments");
+          return conn;
         }
-        if (conn.identity.kind !== "student") return;
-        if (typeof msg.commentId !== "string") return;
+        if (conn.kind !== "student") return conn;
+        if (typeof msg.commentId !== "string") return conn;
         session.dispatch(
-          session.room.markCommentSeen(conn.identity.rollNo, msg.commentId, Date.now()),
+          session.room.markCommentSeen(conn.rollNo, msg.commentId, Date.now()),
         );
-        return;
+        return conn;
       }
 
       default:
         this.sendError(ws, "internal_error", `unsupported message t=${(msg as ClientMsg).t}`);
+        return conn;
     }
   }
 
-  private handleCreate(ws: WebSocket, conn: Conn, msg: Extract<ClientMsg, { t: "create" }>): void {
+  private handleCreate(ws: WebSocket, msg: Extract<ClientMsg, { t: "create" }>): ConnIdentity {
     if (msg.protocolVersion !== PROTOCOL_VERSION) {
-      return this.sendError(ws, "protocol_mismatch", `expected protocol ${PROTOCOL_VERSION}`);
+      this.sendError(ws, "protocol_mismatch", `expected protocol ${PROTOCOL_VERSION}`);
+      return { kind: "pending" };
     }
     const meta = sanitizeMeta(msg.meta);
-    if (!meta) return this.sendError(ws, "course_required", "course and teacherName are required");
+    if (!meta) {
+      this.sendError(ws, "course_required", "course and teacherName are required");
+      return { kind: "pending" };
+    }
     const teacherName = clamp(msg.teacherDisplayName, MAX_NAME_BYTES);
-    if (!teacherName)
-      return this.sendError(ws, "teacher_name_required", "teacher display name is required");
+    if (!teacherName) {
+      this.sendError(ws, "teacher_name_required", "teacher display name is required");
+      return { kind: "pending" };
+    }
 
     const now = Date.now();
     let roomId: string;
     try {
       roomId = generateRoomCode((c) => this.sessions.has(c));
     } catch {
-      return this.sendError(ws, "internal_error", "no free room code");
+      this.sendError(ws, "internal_error", "no free room code");
+      return { kind: "pending" };
     }
 
     const room = new Room(roomId, meta, { now, graceMs: this.secrets.graceMs });
@@ -360,30 +453,42 @@ export class ClassroomHubDO {
     const hostToken = signHostToken({ roomId, createdAt: now }, this.secrets.primary);
     this.send(ws, { t: "created", roomId, hostToken, meta, createdAt: now });
 
-    conn.identity = { kind: "teacher", roomId };
     session.teacherWs = ws;
     session.dispatch(session.room.teacherJoin(teacherName));
+    return { kind: "teacher", roomId };
   }
 
-  private handleJoin(ws: WebSocket, conn: Conn, msg: Extract<ClientMsg, { t: "join" }>): void {
+  private handleJoin(ws: WebSocket, msg: Extract<ClientMsg, { t: "join" }>): ConnIdentity {
     if (msg.protocolVersion !== PROTOCOL_VERSION) {
-      return this.sendError(ws, "protocol_mismatch", `expected protocol ${PROTOCOL_VERSION}`);
+      this.sendError(ws, "protocol_mismatch", `expected protocol ${PROTOCOL_VERSION}`);
+      return { kind: "pending" };
     }
     if (!isPlausibleRoomCode(msg.roomId)) {
-      return this.sendError(ws, "room_not_found", "unknown room");
+      this.sendError(ws, "room_not_found", "unknown room");
+      return { kind: "pending" };
     }
     const session = this.sessions.get(msg.roomId);
     if (!session || session.room.isClosed()) {
-      return this.sendError(ws, "room_not_found", "unknown room");
+      this.sendError(ws, "room_not_found", "unknown room");
+      return { kind: "pending" };
     }
 
     const displayName = clamp(msg.displayName, MAX_NAME_BYTES);
-    if (!displayName) return this.sendError(ws, "display_name_required", "display name required");
+    if (!displayName) {
+      this.sendError(ws, "display_name_required", "display name required");
+      return { kind: "pending" };
+    }
 
     if (msg.hostToken) {
-      const verify = verifyHostToken(msg.hostToken, msg.roomId, this.secrets.primary, this.secrets.previous);
+      const verify = verifyHostToken(
+        msg.hostToken,
+        msg.roomId,
+        this.secrets.primary,
+        this.secrets.previous,
+      );
       if (!verify.ok) {
-        return this.sendError(ws, "host_token_invalid", "host token rejected");
+        this.sendError(ws, "host_token_invalid", "host token rejected");
+        return { kind: "pending" };
       }
       const prior = session.teacherWs;
       if (prior && prior !== ws) {
@@ -391,39 +496,40 @@ export class ClassroomHubDO {
         prior.close(1000, "replaced");
       }
       session.teacherWs = ws;
-      conn.identity = { kind: "teacher", roomId: msg.roomId };
       session.dispatch(session.room.teacherJoin(displayName));
-      return;
+      return { kind: "teacher", roomId: msg.roomId };
     }
 
     const rollNo = clamp(msg.rollNo, MAX_ROLL_NO_BYTES);
-    if (!rollNo) return this.sendError(ws, "roll_no_required", "roll no required");
+    if (!rollNo) {
+      this.sendError(ws, "roll_no_required", "roll no required");
+      return { kind: "pending" };
+    }
 
     const prior = session.studentWs.get(rollNo);
     if (prior && prior !== ws) {
       sendIfOpen(prior, JSON.stringify({ t: "replaced_elsewhere" } satisfies ServerMsg));
       prior.close(1000, "replaced");
-      this.conns.delete(prior);
     }
 
     session.studentWs.set(rollNo, ws);
-    conn.identity = { kind: "student", roomId: msg.roomId, rollNo };
     session.dispatch(session.room.studentJoin(rollNo, displayName, Date.now()));
+    return { kind: "student", roomId: msg.roomId, rollNo };
   }
 
-  private handleDisconnect(conn: Conn): void {
-    if (conn.identity.kind === "pending") return;
-    const session = this.sessions.get(conn.identity.roomId);
+  private handleDisconnect(ws: WebSocket, identity: ConnIdentity): void {
+    if (identity.kind === "pending") return;
+    const session = this.sessions.get(identity.roomId);
     if (!session) return;
-    if (conn.identity.kind === "teacher") {
-      if (session.teacherWs === conn.ws) {
+    if (identity.kind === "teacher") {
+      if (session.teacherWs === ws) {
         session.teacherWs = null;
         session.dispatch(session.room.teacherDisconnect(Date.now()));
       }
     } else {
-      if (session.studentWs.get(conn.identity.rollNo) === conn.ws) {
-        session.studentWs.delete(conn.identity.rollNo);
-        session.dispatch(session.room.studentLeave(conn.identity.rollNo));
+      if (session.studentWs.get(identity.rollNo) === ws) {
+        session.studentWs.delete(identity.rollNo);
+        session.dispatch(session.room.studentLeave(identity.rollNo));
       }
     }
   }
