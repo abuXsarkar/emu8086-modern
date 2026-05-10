@@ -1,3 +1,5 @@
 packages:
   - "packages/web"
   - "packages/devices/ts"
+  - "packages/classroom-protocol"
+  - "packages/classroom-server"
