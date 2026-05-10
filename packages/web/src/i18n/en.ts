@@ -167,6 +167,10 @@ export const en: CompleteLocale = {
       "App version mismatch — please refresh.",
     classroomErrorHostInvalid:
       "Host token rejected. Try starting a fresh session.",
+    classroomErrorServerUnreachable:
+      "Couldn't reach the classroom server. This deployment of the IDE doesn't include one — self-host with docker-compose, or set VITE_CLASSROOM_WS_URL at build time.",
+    classroomErrorConnectTimeout:
+      "The classroom server didn't respond in time. Check that it's running and reachable from your network.",
     classroomErrorGeneric: (message) => `Error: ${message}`,
 
     classroomDrawerCollapse: "Collapse",

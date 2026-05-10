@@ -25,6 +25,10 @@ export function localizeErrorCode(
     case "host_token_invalid":
     case "host_token_required":
       return t.classroomErrorHostInvalid;
+    case "server_unreachable":
+      return t.classroomErrorServerUnreachable;
+    case "connect_timeout":
+      return t.classroomErrorConnectTimeout;
     case "roll_no_required":
       return t.classroomJoinRollNoRequired;
     case "display_name_required":

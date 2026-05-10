@@ -214,7 +214,16 @@ export type ErrorCode =
   | "not_authorized"
   | "too_large"
   | "rate_limited"
-  | "internal_error";
+  | "internal_error"
+  /** Synthesised by the client when the WebSocket closes before the
+   *  server's `joined` ever arrived — usually means no classroom
+   *  server is running at the configured URL (the canonical case:
+   *  the IDE is deployed to GitHub Pages without a sidecar). Never
+   *  sent by the server; safe additive widening of the union. */
+  | "server_unreachable"
+  /** Synthesised by the client when the WebSocket fails to open
+   *  inside the connection timeout window. */
+  | "connect_timeout";
 
 // ---------- Hard limits -----------------------------------------------------
 

@@ -37,6 +37,13 @@ function defaultUrl(): string {
   return "ws://localhost:8787";
 }
 
+/** How long we wait for the first WS frame from the server (the
+ *  `created` / `joined` response) before declaring the host
+ *  unreachable. 5 seconds is generous on a LAN, snappy enough that
+ *  a deployment without a sidecar (e.g. GitHub Pages on its own)
+ *  shows the error immediately. */
+const CONNECT_TIMEOUT_MS = 5_000;
+
 class ClassroomConnection {
   private ws: WebSocket | null = null;
   private reconnectTimer: number | null = null;
@@ -50,6 +57,16 @@ class ClassroomConnection {
   /** Manually-requested close prevents the reconnect logic from firing. */
   private intentionalClose = false;
 
+  /** Flips true once the server has acknowledged our session.
+   *  Until then, a WS close is treated as a terminal connection
+   *  failure rather than a transient drop — the reconnect loop
+   *  only makes sense once we know the server is real. */
+  private everJoined = false;
+
+  /** Timeout id for the connection deadline. Cleared on first
+   *  server message or on close, whichever comes first. */
+  private connectTimer: number | null = null;
+
   isConnected(): boolean {
     return !!this.ws && this.ws.readyState === WebSocket.OPEN;
   }
@@ -57,6 +74,7 @@ class ClassroomConnection {
   /** Teacher-side: spin up the room. */
   start(meta: RoomMeta, teacherDisplayName: string, opts: ConnectOptions = {}): void {
     this.replay = { kind: "create", meta, teacherDisplayName };
+    this.everJoined = false;
     this.openSocket(opts.url ?? defaultUrl());
   }
 
@@ -69,6 +87,7 @@ class ClassroomConnection {
     opts: ConnectOptions = {},
   ): void {
     this.replay = { kind: "join", roomId, rollNo, displayName, hostToken };
+    this.everJoined = false;
     this.openSocket(opts.url ?? defaultUrl());
   }
 
@@ -76,6 +95,7 @@ class ClassroomConnection {
   leave(reason: CloseReason = "user_left"): void {
     this.intentionalClose = true;
     this.cancelReconnect();
+    this.cancelConnectTimer();
     this.ws?.close(1000, "client leave");
     this.ws = null;
     this.replay = null;
@@ -145,9 +165,23 @@ class ClassroomConnection {
 
     ws.addEventListener("close", () => {
       this.ws = null;
+      this.cancelConnectTimer();
       const s = classroomStore.get();
       if (this.intentionalClose) return;
       if (s.status === "closed") return; // server told us; don't reconnect
+      if (!this.everJoined) {
+        // We never got past the handshake on this attempt. Looping
+        // a reconnect against a host that almost certainly has no
+        // classroom server just hides the problem. Surface it.
+        this.intentionalClose = true;
+        this.replay = null;
+        classroomStore.set({
+          status: "idle",
+          errorCode: "server_unreachable",
+          errorMessage: "couldn't reach the classroom server",
+        });
+        return;
+      }
       this.scheduleReconnect();
     });
 
@@ -155,6 +189,36 @@ class ClassroomConnection {
       // The "close" event will fire next; let it handle reconnect logic
       // so the two paths don't race on a single failure.
     });
+
+    // Arm the connection deadline. If the open / first-message
+    // round-trip hasn't completed by then, close the socket; the
+    // close handler converts that into a clean errorCode the
+    // dialog can surface.
+    this.connectTimer = window.setTimeout(() => {
+      this.connectTimer = null;
+      if (this.everJoined) return;
+      if (!this.ws) return;
+      classroomStore.set({
+        status: "idle",
+        errorCode: "connect_timeout",
+        errorMessage: `no response in ${CONNECT_TIMEOUT_MS / 1000}s`,
+      });
+      this.intentionalClose = true;
+      this.replay = null;
+      try {
+        this.ws.close(4000, "connect timeout");
+      } catch {
+        /* ignore */
+      }
+      this.ws = null;
+    }, CONNECT_TIMEOUT_MS);
+  }
+
+  private cancelConnectTimer(): void {
+    if (this.connectTimer !== null) {
+      window.clearTimeout(this.connectTimer);
+      this.connectTimer = null;
+    }
   }
 
   private handleServerMsg(msg: ServerMsg): void {
@@ -182,6 +246,8 @@ class ClassroomConnection {
       }
       case "joined": {
         const snap = msg.snapshot;
+        this.everJoined = true;
+        this.cancelConnectTimer();
         classroomStore.set({
           status: "joined",
           role: msg.role,
@@ -310,6 +376,7 @@ class ClassroomConnection {
         // the next message.
         if (s.status === "connecting" || s.status === "reconnecting") {
           this.intentionalClose = true;
+          this.cancelConnectTimer();
           classroomStore.set({
             status: "idle",
             errorCode: msg.code,
