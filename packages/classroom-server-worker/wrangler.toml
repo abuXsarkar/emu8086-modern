@@ -18,7 +18,14 @@ class_name = "ClassroomHubDO"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["ClassroomHubDO"]
+# `new_sqlite_classes` (not `new_classes`) is required for Durable
+# Objects on Cloudflare's Workers Free plan. Workers Paid permits
+# either; SQLite-backed is the recommended default for new code
+# regardless because it's strictly more capable than the legacy
+# KV-backed storage. From the DO's point of view the API is
+# identical — `state.storage.put/get/setAlarm/...` work the same;
+# only the backend is different. No code change in `do.ts` needed.
+new_sqlite_classes = ["ClassroomHubDO"]
 
 # The HMAC secret used to sign host tokens. Set with:
 #   wrangler secret put EMU8086_CLASSROOM_HMAC_SECRET
