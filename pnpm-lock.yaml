@@ -64,6 +64,9 @@ importers:
 
   packages/web:
     dependencies:
+      '@emu8086/classroom-protocol':
+        specifier: workspace:*
+        version: link:../classroom-protocol
       '@fontsource-variable/geist':
         specifier: ^5.2.8
         version: 5.2.8

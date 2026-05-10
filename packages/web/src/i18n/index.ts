@@ -1,12 +1,20 @@
 // Locale registry + the `useStrings()` hook. To add a new language:
 //
-//   1. Copy `en.ts` to e.g. `fr.ts` and translate the values.
+//   1. Copy `en.ts` to e.g. `fr.ts`, translate as much as you want
+//      (everything is optional — see below).
 //   2. Add the new id to `LocaleId` in `types.ts`.
 //   3. Import the new file here and append to `LOCALES`.
 //
 // The hook persists the selected locale in localStorage so a refresh
 // keeps the user's choice. On first load we honour the browser's
 // `navigator.language` if it matches a supported locale.
+//
+// Graceful fallback: every non-English locale ships
+// `Partial<Strings>`. `useStrings()` merges English on top of the
+// active locale at runtime, so a missing key shows the English
+// value rather than `undefined` or a missing-key placeholder. This
+// means contributors can land translations incrementally without
+// the build breaking when a new key is introduced upstream.
 
 import { useEffect, useState } from "react";
 import type { Locale, LocaleId, Strings } from "./types";
@@ -68,16 +76,26 @@ export function setLocale(id: LocaleId): void {
 
 /// React hook returning the active strings table. Re-renders the
 /// component whenever the locale changes via `setLocale()`.
+///
+/// The returned object always carries every `Strings` key, even
+/// when the active locale is sparse: missing keys come from
+/// English. The merge is recomputed only when the locale changes.
 export function useStrings(): Strings {
-  const [, setTick] = useState(0);
+  const [merged, setMerged] = useState<Strings>(() => mergeWithEnglish(current));
   useEffect(() => {
-    const fn = () => setTick((n) => n + 1);
+    const fn = (l: Locale) => setMerged(mergeWithEnglish(l));
     listeners.push(fn);
     return () => {
       listeners = listeners.filter((f) => f !== fn);
     };
   }, []);
-  return current.strings;
+  return merged;
+}
+
+function mergeWithEnglish(locale: Locale): Strings {
+  // English first, locale on top — locale's keys win, but every
+  // missing key falls through to the English value.
+  return { ...en.strings, ...locale.strings };
 }
 
 /// Hook for a language-picker UI. Returns the active locale id and a

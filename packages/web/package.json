@@ -15,6 +15,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@emu8086/classroom-protocol": "workspace:*",
     "@fontsource-variable/geist": "^5.2.8",
     "@fontsource/geist-mono": "^5.2.7",
     "@fontsource/instrument-serif": "^5.2.8",
