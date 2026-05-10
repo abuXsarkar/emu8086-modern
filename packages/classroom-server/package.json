@@ -1,6 +1,6 @@
 {
   "name": "@emu8086/classroom-server",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Classroom-mode WebSocket relay (Node + ws). Runtime-agnostic Room state machine paired with a Node entry point.",
   "license": "MIT",
