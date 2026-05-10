@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Floater } from "./Floater";
 
@@ -37,14 +37,35 @@ export function DeviceSlot({ id, title, defaultPos, children }: DeviceSlotProps)
     }
   }, [storageKey, popped]);
 
+  // Track previous popped state so we can restore focus to the popout
+  // button when the user closes a floater. Without this, browser
+  // default behaviour drops focus on body when the floater unmounts.
+  const popoutBtnRef = useRef<HTMLButtonElement | null>(null);
+  const dockBtnRef = useRef<HTMLButtonElement | null>(null);
+  const prevPoppedRef = useRef(popped);
+  useEffect(() => {
+    const wasPopped = prevPoppedRef.current;
+    prevPoppedRef.current = popped;
+    if (wasPopped === popped) return;
+    // Skip the first render's no-op transition; only react to user-driven flips.
+    if (popped) {
+      dockBtnRef.current?.focus();
+    } else {
+      popoutBtnRef.current?.focus();
+    }
+  }, [popped]);
+
   return (
     <div className="device-slot">
       {popped ? (
         <button
+          ref={dockBtnRef}
           type="button"
           className="popout-btn"
           onClick={() => setPopped(false)}
           title={`Dock ${title} back into the device gallery`}
+          aria-expanded="true"
+          aria-label={`Dock ${title} back into the device gallery`}
         >
           {title} ↩ dock
         </button>
@@ -52,10 +73,13 @@ export function DeviceSlot({ id, title, defaultPos, children }: DeviceSlotProps)
         <>
           {children}
           <button
+            ref={popoutBtnRef}
             type="button"
             className="popout-btn"
             onClick={() => setPopped(true)}
             title="Pop out into a draggable window"
+            aria-expanded="false"
+            aria-label={`Pop out ${title} into a draggable window`}
           >
             ↗ pop out
           </button>

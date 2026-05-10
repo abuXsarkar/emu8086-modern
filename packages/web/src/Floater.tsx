@@ -57,6 +57,15 @@ export function Floater({
   });
   const posRef = useRef<Pos>(pos);
   posRef.current = pos;
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    // Pull focus into the floater when it opens so a keyboard user
+    // can dismiss it without hunting via Tab. The close button is the
+    // most obvious anchor; if the user prefers to drag instead, they
+    // can Shift+Tab once to reach the head.
+    closeBtnRef.current?.focus();
+  }, []);
 
   function persist(next: Pos) {
     const all = loadAll();
@@ -124,12 +133,21 @@ export function Floater({
     persist(next);
   }
 
+  function onFrameKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      onClose();
+    }
+  }
+
   return (
     <div
       className={`floater${dragging ? " dragging" : ""}`}
       style={{ left: pos.x, top: pos.y }}
       role="dialog"
       aria-label={title}
+      aria-modal="false"
+      onKeyDown={onFrameKeyDown}
     >
       <div
         className="floater-head"
@@ -141,6 +159,7 @@ export function Floater({
       >
         <span className="title">{title}</span>
         <button
+          ref={closeBtnRef}
           type="button"
           className="x"
           onClick={onClose}

@@ -21,6 +21,7 @@ import { TweaksPanel } from "./TweaksPanel";
 import { LOCALES, useLocaleId, useStrings } from "./i18n";
 import type { RunRegisters } from "./registers";
 import { formatValue, evaluate } from "./debugExpr";
+import { recordEvent } from "./metrics";
 
 const STORAGE_KEY = "emu8086-modern.source";
 
@@ -285,6 +286,7 @@ export function App() {
   }
 
   function onShare() {
+    recordEvent("share");
     const fragment = encodeShareFragment(source);
     const url = `${window.location.origin}${window.location.pathname}#code=${fragment}`;
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -454,6 +456,7 @@ export function App() {
 
   const onRun = () => {
     if (coreState.kind !== "ready") return;
+    recordEvent("run");
     setRunning(true);
     setBreakpointHit("");
     try {
@@ -465,6 +468,7 @@ export function App() {
       const loadJson = emuRef.current.load_source(source);
       const loadParsed = JSON.parse(loadJson) as RunResultJson;
       if (!loadParsed.ok || loadParsed.error) {
+        recordEvent("assemble_error");
         setResult(loadParsed);
         applyDiagnostic(loadParsed.error);
         lineMapRef.current = [];
@@ -516,6 +520,9 @@ export function App() {
         origin: loadParsed.origin,
         line_map: loadParsed.line_map,
       };
+      if (hit) recordEvent("run_breakpoint");
+      else if (halted) recordEvent("run_halted");
+      else recordEvent("run_out_of_steps");
       setResult(synthesized);
       applyDiagnostic(null);
       setStepLog("");
@@ -544,6 +551,7 @@ export function App() {
       }
       return;
     } catch (e) {
+      recordEvent("runtime_error");
       const err: RunErrorJson = {
         stage: "host",
         message: e instanceof Error ? e.message : String(e),
@@ -605,6 +613,7 @@ export function App() {
   // staged, before React has flushed the `setSource` update.
   const onReset = (srcOverride?: string) => {
     if (coreState.kind !== "ready") return;
+    if (srcOverride === undefined) recordEvent("reset");
     const src = srcOverride ?? source;
     if (!emuRef.current) emuRef.current = new Emulator();
     const json = emuRef.current.load_source(src);
@@ -641,6 +650,7 @@ export function App() {
       flashToast(t.nothingToUndo);
       return;
     }
+    recordEvent("back");
     // The core has already truncated cpu.stdout to the pre-step length;
     // pull the synced view so the output panel un-prints any byte that
     // the rolled-back instruction had emitted.
@@ -672,6 +682,7 @@ export function App() {
       return;
     }
     if (!emuRef.current) return;
+    recordEvent("step");
     const json = emuRef.current.step();
     const parsed = JSON.parse(json) as StepResult;
     setResult((prev) => {
@@ -735,6 +746,7 @@ export function App() {
             value={editorTheme}
             onChange={(e) => {
               const v = e.target.value === "vs" ? "vs" : "vs-dark";
+              recordEvent("theme_change");
               setEditorTheme(v);
               try {
                 localStorage.setItem("emu8086.editor-theme", v);
@@ -751,9 +763,10 @@ export function App() {
             className="select-tokenized"
             aria-label={t.languageLabel}
             value={localeId}
-            onChange={(e) =>
-              setLocaleIdValue(e.target.value as typeof localeId)
-            }
+            onChange={(e) => {
+              recordEvent("language_change");
+              setLocaleIdValue(e.target.value as typeof localeId);
+            }}
             title={t.languageLabel}
           >
             {LOCALES.map((l) => (
@@ -772,9 +785,9 @@ export function App() {
 
       {coreState.kind === "ready" && (
         <div className="app-layout">
-          <aside className="left-rail">
-            <div className="pane">
-              <strong className="smallcaps">{t.loadExample}</strong>
+          <aside className="left-rail" aria-label={t.loadExample}>
+            <div className="pane" aria-labelledby="hd-load-example">
+              <strong className="smallcaps" id="hd-load-example">{t.loadExample}</strong>
               <select
                 className="full-width-select"
                 aria-label={t.loadExample}
@@ -782,6 +795,7 @@ export function App() {
                 onChange={(e) => {
                   const ex = EXAMPLES.find((x) => x.id === e.target.value);
                   if (ex) {
+                    recordEvent("example_loaded");
                     setSource(ex.source);
                     onReset(ex.source);
                     e.currentTarget.value = "";
@@ -799,14 +813,14 @@ export function App() {
                 ))}
               </select>
             </div>
-            <div className="pane">
-              <strong className="smallcaps">{t.dropFileLabel}</strong>
+            <div className="pane" aria-labelledby="hd-drop-file">
+              <strong className="smallcaps" id="hd-drop-file">{t.dropFileLabel}</strong>
               <p className="drop-hint">{t.dropFileHint}</p>
             </div>
           </aside>
-          <section>
+          <section aria-labelledby="hd-source">
             <div className="run-toolbar">
-              <strong className="smallcaps">{t.source}</strong>
+              <strong className="smallcaps" id="hd-source">{t.source}</strong>
               <div className="run-toolbar-controls">
                 <button
                   type="button"
@@ -920,8 +934,8 @@ export function App() {
               />
             </div>
 
-            <div className="output-region">
-              <strong className="smallcaps">{t.output}</strong>
+            <div className="output-region" aria-labelledby="hd-output">
+              <strong className="smallcaps" id="hd-output">{t.output}</strong>
               <pre className="output-stdout mono">
                 {result?.stdout || (running ? t.running : t.noOutputYet)}
               </pre>
@@ -1000,9 +1014,9 @@ export function App() {
             </div>
           </section>
 
-          <aside className="aside-region">
-            <section className="aside-section">
-              <strong className="smallcaps">{t.registers}</strong>
+          <aside className="aside-region" aria-label={t.devices}>
+            <section className="aside-section" aria-labelledby="hd-registers">
+              <strong className="smallcaps" id="hd-registers">{t.registers}</strong>
               {result?.registers ? (
                 <table className="reg-table mono">
                   <tbody>
@@ -1031,8 +1045,8 @@ export function App() {
               )}
             </section>
 
-            <section className="aside-section">
-              <strong className="smallcaps">{t.flags}</strong>
+            <section className="aside-section" aria-labelledby="hd-flags">
+              <strong className="smallcaps" id="hd-flags">{t.flags}</strong>
               <div className="flags-row">
                 {result?.registers
                   ? FLAG_BITS.map(([name, mask]) =>
@@ -1042,8 +1056,8 @@ export function App() {
               </div>
             </section>
 
-            <section className="aside-section">
-              <strong className="smallcaps">{t.devices}</strong>
+            <section className="aside-section" aria-labelledby="hd-devices">
+              <strong className="smallcaps" id="hd-devices">{t.devices}</strong>
               <div className="device-row">
                 <DeviceSlot id="seg" title="7-SEG · port 199" defaultPos={{ x: 80, y: 100 }}>
                   <SevenSegment value={port199} />
@@ -1080,8 +1094,8 @@ export function App() {
             </section>
 
             {memHex && (
-              <section className="aside-section">
-                <strong className="smallcaps">
+              <section className="aside-section" aria-labelledby="hd-memory">
+                <strong className="smallcaps" id="hd-memory">
                   {t.memory}{" "}
                   <span className="memory-range-label">
                     {t.memoryRangeLabel}
