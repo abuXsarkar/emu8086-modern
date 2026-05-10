@@ -6,3 +6,4 @@ packages:
   - "packages/desktop"
   - "packages/plugin-sdk"
   - "packages/plugins/*"
+  - "packages/cli-npm"
