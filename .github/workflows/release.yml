@@ -1,0 +1,98 @@
+name: Release
+
+# Runs on every `v*.*.*` tag pushed to the repo. Builds the
+# emu8086-cli native binary for four platforms and uploads them
+# (plus a checksums.txt) to the matching GitHub Release.
+#
+# Tag flow:
+#   git tag -a v1.0.0 -m "release 1.0.0"
+#   git push origin v1.0.0
+# Then `gh release create v1.0.0 …` from a maintainer machine; this
+# workflow picks the release up and attaches binaries.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build CLI (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            asset: emu8086-linux-x86_64.tar.gz
+            exe: emu8086
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            asset: emu8086-macos-x86_64.tar.gz
+            exe: emu8086
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            asset: emu8086-macos-aarch64.tar.gz
+            exe: emu8086
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            asset: emu8086-windows-x86_64.zip
+            exe: emu8086.exe
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --release -p emu8086-cli --target ${{ matrix.target }}
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/${{ matrix.exe }} dist/${{ matrix.exe }}
+          cd dist
+          if [[ "${{ matrix.asset }}" == *.zip ]]; then
+            7z a "${{ matrix.asset }}" "${{ matrix.exe }}"
+          else
+            tar -czf "${{ matrix.asset }}" "${{ matrix.exe }}"
+          fi
+          rm "${{ matrix.exe }}"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          retention-days: 7
+
+  checksums-and-release:
+    name: Checksums + attach to Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten + checksum
+        run: |
+          mkdir -p out
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} out/ \;
+          cd out
+          sha256sum * > checksums.txt
+          cat checksums.txt
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/*.tar.gz
+            out/*.zip
+            out/checksums.txt
+          fail_on_unmatched_files: true

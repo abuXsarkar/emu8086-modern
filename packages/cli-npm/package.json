@@ -1,0 +1,39 @@
+{
+  "name": "@emu8086/cli",
+  "version": "1.0.0",
+  "description": "Node-shim distribution of the emu8086-modern CLI. Downloads the native Rust binary for your platform on install.",
+  "license": "MIT",
+  "author": "Abu Sufian Sarkar <abu@cyberdude.com>",
+  "homepage": "https://github.com/abuXsarkar/emu8086-modern",
+  "bugs": "https://github.com/abuXsarkar/emu8086-modern/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abuXsarkar/emu8086-modern.git",
+    "directory": "packages/cli-npm"
+  },
+  "type": "module",
+  "main": "bin/emu8086.js",
+  "bin": {
+    "emu8086": "bin/emu8086.js"
+  },
+  "files": [
+    "bin",
+    "scripts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}
