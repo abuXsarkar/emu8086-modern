@@ -1,0 +1,60 @@
+name: Deploy classroom worker to Cloudflare
+
+# Auto-deploys the classroom-server-worker package to Cloudflare on
+# pushes to main that touch its source or wrangler config. Gated on
+# a repo *variable* (CF_DEPLOY_ENABLED) and two secrets
+# (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID) — same toggle pattern
+# the rest of the workflows use. Until the toggle is flipped on, this
+# workflow is a no-op so it's safe to land before the secrets exist.
+#
+# Manual run is also wired up via workflow_dispatch for the case
+# where the maintainer wants to redeploy without a code change (e.g.
+# rotating the HMAC secret or after a wrangler config tweak).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/classroom-server-worker/**"
+      - "packages/classroom-server/**"
+      - "packages/classroom-protocol/**"
+      - ".github/workflows/cf-worker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cf-worker
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: wrangler deploy
+    # Toggle off until the maintainer has populated the secrets.
+    # `vars` can be used in `if:` conditions; `secrets` cannot.
+    if: vars.CF_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9.12.0"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy
+        working-directory: packages/classroom-server-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm cf-deploy
