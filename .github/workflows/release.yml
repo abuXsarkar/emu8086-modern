@@ -225,3 +225,43 @@ jobs:
           files: |
             out/*
           fail_on_unmatched_files: true
+
+  publish-npm:
+    name: Publish @emu8086/cli to npm
+    needs: [checksums-and-release]
+    # Gated on a repo *variable*, not a secret — `secrets` cannot be
+    # referenced in `if:`. Flip `vars.NPM_PUBLISH_ENABLED = "true"` in
+    # Settings → Secrets and variables → Actions → Variables once the
+    # NPM_TOKEN secret is populated, and the next tag publishes
+    # automatically. Keeps the workflow inert on forks and on first
+    # release until the maintainer is ready.
+    if: vars.NPM_PUBLISH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - name: Read tag version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      # The cli-npm shim is a thin Node wrapper that downloads the
+      # right native binary on `npm install`. Keep its version in
+      # lock-step with the tag so the postinstall script fetches the
+      # matching asset from the just-published GitHub Release.
+      - name: Sync package.json version to the tag
+        working-directory: packages/cli-npm
+        run: npm version "${{ steps.ver.outputs.version }}" --no-git-tag-version --allow-same-version
+      - name: Publish
+        working-directory: packages/cli-npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # `--access public` is required for scoped packages on the
+        # free npm tier. `--provenance` attaches an in-toto signed
+        # SLSA-style provenance statement to the published tarball
+        # so consumers can verify it really came from this CI run.
+        run: npm publish --access public --provenance
