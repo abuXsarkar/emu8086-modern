@@ -20,6 +20,7 @@ import { DeviceSlot } from "./DeviceSlot";
 import { TweaksPanel } from "./TweaksPanel";
 import { ClassroomLayer, ClassroomPill } from "./classroom/ClassroomPanel";
 import { useClassroomEditor } from "./classroom/useClassroomEditor";
+import { TutorialPanel } from "./tutorials/TutorialPanel";
 import { LOCALES, useLocaleId, useStrings } from "./i18n";
 import type { RunRegisters } from "./registers";
 import { formatValue, evaluate } from "./debugExpr";
@@ -1186,6 +1187,12 @@ export function App() {
       </footer>
       <TweaksPanel />
       <ClassroomLayer currentSource={source} />
+      <TutorialPanel
+        onLoadCode={(src) => {
+          setSource(src);
+          onReset(src);
+        }}
+      />
     </main>
   );
 }
