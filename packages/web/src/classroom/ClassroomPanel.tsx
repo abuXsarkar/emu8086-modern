@@ -10,17 +10,30 @@
 // Components for the per-role drawers live next to this file so
 // the routing stays declarative.
 
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { useStrings } from "../i18n";
 import type { Strings } from "../i18n/types";
 import { useClassroomStore, type CloseReason } from "./store";
-import { ConsentModal } from "./ConsentModal";
-import { Drawer } from "./Drawer";
-import { StartJoinDialog } from "./StartJoinDialog";
-import { TeacherDrawer } from "./TeacherDrawer";
-import { StudentDrawer } from "./StudentDrawer";
 import { hasConsented, recordConsent } from "./persist";
 import { leaveClassroom } from "./actions";
+
+// Heavy classroom UI components are loaded only when the user
+// actually engages with the feature — keeps them out of the
+// first-paint bundle. The pill stays eager (it's a tiny button
+// that the user clicks to trigger everything else).
+const StartJoinDialog = lazy(() =>
+  import("./StartJoinDialog").then((m) => ({ default: m.StartJoinDialog })),
+);
+const ConsentModal = lazy(() =>
+  import("./ConsentModal").then((m) => ({ default: m.ConsentModal })),
+);
+const Drawer = lazy(() => import("./Drawer").then((m) => ({ default: m.Drawer })));
+const TeacherDrawer = lazy(() =>
+  import("./TeacherDrawer").then((m) => ({ default: m.TeacherDrawer })),
+);
+const StudentDrawer = lazy(() =>
+  import("./StudentDrawer").then((m) => ({ default: m.StudentDrawer })),
+);
 
 /**
  * The pill: belongs in the app header (near the language picker).
@@ -128,35 +141,41 @@ export function ClassroomLayer({ currentSource }: ClassroomLayerProps = {}) {
   return (
     <>
       {dialogOpen ? (
-        <StartJoinDialog
-          initialRoomId={initialRoomFromUrl ?? undefined}
-          onClose={() => setDialogOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <StartJoinDialog
+            initialRoomId={initialRoomFromUrl ?? undefined}
+            onClose={() => setDialogOpen(false)}
+          />
+        </Suspense>
       ) : null}
 
       {needsConsent && roomId && rollNo && consentKey ? (
-        <ConsentModal
-          teacherName={meta?.teacherName ?? "Your teacher"}
-          rollNo={rollNo}
-          onAccept={() => {
-            recordConsent(roomId, rollNo);
-            setAcceptedHere((prev) => {
-              const next = new Set(prev);
-              next.add(consentKey);
-              return next;
-            });
-          }}
-        />
+        <Suspense fallback={null}>
+          <ConsentModal
+            teacherName={meta?.teacherName ?? "Your teacher"}
+            rollNo={rollNo}
+            onAccept={() => {
+              recordConsent(roomId, rollNo);
+              setAcceptedHere((prev) => {
+                const next = new Set(prev);
+                next.add(consentKey);
+                return next;
+              });
+            }}
+          />
+        </Suspense>
       ) : null}
 
       {status === "joined" && roomId && meta ? (
-        <Drawer roomId={roomId} meta={meta}>
-          {role === "teacher" ? (
-            <TeacherDrawer currentSource={currentSource} />
-          ) : (
-            <StudentDrawer currentSource={currentSource} />
-          )}
-        </Drawer>
+        <Suspense fallback={null}>
+          <Drawer roomId={roomId} meta={meta}>
+            {role === "teacher" ? (
+              <TeacherDrawer currentSource={currentSource} />
+            ) : (
+              <StudentDrawer currentSource={currentSource} />
+            )}
+          </Drawer>
+        </Suspense>
       ) : null}
 
       {status === "closed" && closeReason ? (
