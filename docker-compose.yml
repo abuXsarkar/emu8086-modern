@@ -1,0 +1,33 @@
+services:
+  # The static web IDE — built from the root Dockerfile, served by
+  # nginx. Runs the React + Vite + Monaco bundle plus the wasm core.
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: emu8086-modern-web
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  # Classroom-mode WebSocket relay. Optional — only needed if the
+  # institute wants the live-classroom features. The web IDE works
+  # standalone when this isn't running.
+  #
+  # The HMAC secret defaults to an ephemeral one (logged at startup);
+  # for any persistent deployment, set EMU8086_CLASSROOM_HMAC_SECRET
+  # in a .env file alongside this compose file. Use:
+  #   pnpm --filter @emu8086/classroom-server gen-secret
+  # to mint a fresh value.
+  classroom:
+    build:
+      context: .
+      dockerfile: packages/classroom-server/Dockerfile
+    image: emu8086-modern-classroom
+    ports:
+      - "8787:8787"
+    environment:
+      EMU8086_CLASSROOM_HMAC_SECRET: ${EMU8086_CLASSROOM_HMAC_SECRET:-}
+      EMU8086_CLASSROOM_HMAC_SECRET_PREVIOUS: ${EMU8086_CLASSROOM_HMAC_SECRET_PREVIOUS:-}
+      EMU8086_CLASSROOM_GRACE_MS: ${EMU8086_CLASSROOM_GRACE_MS:-1800000}
+    restart: unless-stopped
