@@ -88,6 +88,12 @@ export function ClassroomLayer() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [initialRoomFromUrl, setInitialRoomFromUrl] = useState<string | null>(null);
+  // In-memory record of (roomId|rollNo) pairs accepted in this React
+  // tree's lifetime. Mirrors the localStorage record kept by
+  // `recordConsent`, but is also a reactive value so dismissing the
+  // modal triggers a re-render — `hasConsented` alone reads
+  // localStorage with no subscription.
+  const [acceptedHere, setAcceptedHere] = useState<Set<string>>(() => new Set());
 
   // Open the dialog when ?room=... is present at first load, or
   // when ClassroomPill calls openStartJoinDialog().
@@ -102,12 +108,13 @@ export function ClassroomLayer() {
     return off;
   }, []);
 
+  const consentKey = roomId && rollNo ? `${roomId}|${rollNo}` : null;
   const needsConsent =
     status === "joined" &&
     role === "student" &&
-    roomId !== null &&
-    rollNo !== null &&
-    !hasConsented(roomId, rollNo);
+    consentKey !== null &&
+    !acceptedHere.has(consentKey) &&
+    !hasConsented(roomId!, rollNo!);
 
   return (
     <>
@@ -118,11 +125,18 @@ export function ClassroomLayer() {
         />
       ) : null}
 
-      {needsConsent && roomId && rollNo ? (
+      {needsConsent && roomId && rollNo && consentKey ? (
         <ConsentModal
           teacherName={meta?.teacherName ?? "Your teacher"}
           rollNo={rollNo}
-          onAccept={() => recordConsent(roomId, rollNo)}
+          onAccept={() => {
+            recordConsent(roomId, rollNo);
+            setAcceptedHere((prev) => {
+              const next = new Set(prev);
+              next.add(consentKey);
+              return next;
+            });
+          }}
         />
       ) : null}
 
