@@ -93,7 +93,11 @@ class ClassroomConnection {
 
   private openSocket(url: string): void {
     this.intentionalClose = false;
-    classroomStore.set({ status: "connecting", errorMessage: null });
+    classroomStore.set({
+      status: "connecting",
+      errorMessage: null,
+      errorCode: null,
+    });
     let ws: WebSocket;
     try {
       ws = new WebSocket(url);
@@ -296,12 +300,32 @@ class ClassroomConnection {
         });
         return;
       }
-      case "error":
-        classroomStore.set({
-          errorMessage: msg.message,
-          status: msg.code === "protocol_mismatch" ? "error" : classroomStore.get().status,
-        });
+      case "error": {
+        const s = classroomStore.get();
+        // Errors during the join handshake are fatal for the
+        // current attempt: reset to idle so the dialog can
+        // re-prompt with corrected inputs (typically roll_no_taken,
+        // course_required, etc.). After "joined", treat them as
+        // transient toasts — the connection is live and useful for
+        // the next message.
+        if (s.status === "connecting" || s.status === "reconnecting") {
+          this.intentionalClose = true;
+          classroomStore.set({
+            status: "idle",
+            errorCode: msg.code,
+            errorMessage: msg.message,
+          });
+          this.ws?.close(1000, "rejected by server");
+          this.replay = null;
+        } else {
+          classroomStore.set({
+            errorCode: msg.code,
+            errorMessage: msg.message,
+            status: msg.code === "protocol_mismatch" ? "error" : s.status,
+          });
+        }
         return;
+      }
     }
   }
 

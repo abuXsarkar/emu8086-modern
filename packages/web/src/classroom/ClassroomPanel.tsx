@@ -31,6 +31,7 @@ export function ClassroomPill() {
   const t = useStrings();
   const status = useClassroomStore((s) => s.status);
   const roomId = useClassroomStore((s) => s.roomId);
+  const reconnectAttempt = useClassroomStore((s) => s.reconnectAttempt);
 
   if (status === "joined" && roomId) {
     return (
@@ -47,14 +48,16 @@ export function ClassroomPill() {
     );
   }
   if (status === "connecting" || status === "reconnecting") {
+    const label =
+      status === "reconnecting"
+        ? reconnectAttempt > 1
+          ? t.classroomStatusReconnectingNth(reconnectAttempt)
+          : t.classroomStatusReconnecting
+        : t.classroomStatusConnecting;
     return (
       <button type="button" className="classroom-pill connecting" disabled>
         <span className="classroom-pill-dot warn" />
-        <span className="classroom-pill-label">
-          {status === "reconnecting"
-            ? t.classroomStatusReconnecting
-            : t.classroomStatusConnecting}
-        </span>
+        <span className="classroom-pill-label">{label}</span>
       </button>
     );
   }
@@ -157,7 +160,21 @@ export function ClassroomLayer({ currentSource }: ClassroomLayerProps = {}) {
       ) : null}
 
       {status === "closed" && closeReason ? (
-        <ClosureBanner reason={closeReason} message={errorMessage} />
+        <ClosureBanner
+          reason={closeReason}
+          message={errorMessage}
+          onDismiss={() => {
+            // Resetting status back to idle clears the toast and lets
+            // the user re-engage via the pill.
+            useClassroomStore.setState((s) => ({
+              ...s,
+              status: "idle",
+              closeReason: null,
+              errorCode: null,
+              errorMessage: null,
+            }));
+          }}
+        />
       ) : null}
     </>
   );
@@ -184,14 +201,24 @@ function subscribeToOpenDialog(fn: Listener): () => void {
 interface ClosureBannerProps {
   reason: CloseReason;
   message: string | null;
+  onDismiss: () => void;
 }
-function ClosureBanner({ reason, message }: ClosureBannerProps) {
+function ClosureBanner({ reason, message, onDismiss }: ClosureBannerProps) {
   const t = useStrings();
   const text = closureText(reason, message, t);
   if (text === null) return null;
   return (
     <div className="classroom-closure" role="status">
-      {text}
+      <span>{text}</span>
+      <button
+        type="button"
+        className="classroom-closure-dismiss"
+        onClick={onDismiss}
+        aria-label={t.classroomClosureDismiss}
+        title={t.classroomClosureDismiss}
+      >
+        ×
+      </button>
     </div>
   );
 }
