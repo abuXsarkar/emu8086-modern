@@ -1,0 +1,17 @@
+{
+  "name": "@emu8086/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Native desktop shell (Tauri 2) for the emu8086-modern web IDE.",
+  "license": "MIT",
+  "author": "Abu Sufian Sarkar <abu@cyberdude.com>",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "bundle": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}
