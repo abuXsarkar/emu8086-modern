@@ -2,12 +2,14 @@
 
 ## Supported versions
 
-`emu8086-modern` is pre-1.0. During this period, only the `main` branch receives security fixes. Once 1.0 ships, this table will be updated to list the supported minor versions.
+Security fixes land on the latest released minor of the latest released major. The full versioning policy lives in [`SEMVER.md`](SEMVER.md).
 
-| Version | Supported          |
-|---------|--------------------|
-| `main`  | yes                |
-| < 1.0   | n/a (pre-release)  |
+| Version | Supported |
+|---|---|
+| `main` | yes (rolling) |
+| latest `1.x` | yes |
+| older `1.x` | best-effort, critical-only |
+| `0.x` | end-of-life once `1.0.0` GA ships |
 
 ## Reporting a vulnerability
 

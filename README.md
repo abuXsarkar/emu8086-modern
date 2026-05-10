@@ -184,6 +184,8 @@ Full architecture in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - [`BUILD_PLAN.md`](BUILD_PLAN.md) — week-by-week build schedule, risks, DoD
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to set up the repo and submit changes
 - [`SECURITY.md`](SECURITY.md) — vulnerability disclosure policy
+- [`SEMVER.md`](SEMVER.md) — versioning policy: what's a breaking change for each surface
+- [`docs/release-process.md`](docs/release-process.md) — maintainer checklist for cutting a release
 - [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — community standards
 - [`docs/pain-points.md`](docs/pain-points.md) — detailed legacy comparison
 - [`docs/lab-manual-audit.md`](docs/lab-manual-audit.md) — public-search lab-manual audit, per-manual run-status, full gap list, 8-PR close-out plan
