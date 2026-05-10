@@ -466,28 +466,137 @@ The full happy-path checklist plus:
 
 ---
 
-## Open implementation questions
+## Implementation decisions
 
-These don't block the design but will need answers before/during the
-implementation work:
+These were left open in an earlier design pass and have since been
+resolved.
 
-1. **HMAC secret rotation**: how do self-hosters rotate the server
-   secret without invalidating live rooms? Probably accept stale
-   tokens during a 1-hour overlap window.
-2. **Logo URL**: do we fetch on the client or proxy through the
-   server? Client-only fetch is simpler but exposes student IPs to
-   the logo's host. Recommendation: client-only, document the
-   trade-off.
-3. **Submission size cap**: an `.asm` file is small but a malicious
-   client could send a 100 MB payload as a "submission". Cap at 256
-   KB per message. Reject larger with `error.code = "too_large"`.
-4. **Concurrent submissions**: if a student submits twice during the
-   same session, does the second overwrite the first or accumulate?
-   Recommendation: accumulate, both end up in the zip with different
-   timestamps — gives teachers an audit trail.
-5. **i18n for the classroom UI**: all 13 locales need new strings.
-   Plan an `addStrings()` migration so a missing locale falls back to
-   English, not a runtime error. Should land before P2.
+### 1. HMAC secret rotation — primary + previous overlap
+
+Two environment variables on the server:
+
+```
+EMU8086_CLASSROOM_HMAC_SECRET           # required; new tokens signed with this
+EMU8086_CLASSROOM_HMAC_SECRET_PREVIOUS  # optional; verify-only
+```
+
+- **Sign** new tokens with `_HMAC_SECRET`.
+- **Verify** by trying `_HMAC_SECRET` first, then `_HMAC_SECRET_PREVIOUS`
+  if present. Either match is accepted.
+- **To rotate**: copy the current secret into `_PREVIOUS`, set a fresh
+  value in `_HMAC_SECRET`, restart. Live rooms keep working because
+  their tokens still verify against `_PREVIOUS`. Drop `_PREVIOUS` after
+  one full session window (the next morning is fine for a daily
+  rotation cadence, weekly is normal in practice).
+- **No secret configured**: server generates a random one at startup
+  and logs a one-line warning. Restarting the server invalidates all
+  live tokens — fine for self-hosters who rarely restart mid-class,
+  and the warning makes the implication visible.
+- **Helper**: `pnpm --filter @emu8086/classroom-server gen-secret` prints
+  a fresh 32-byte base64url value the operator can paste into their
+  env. One command, hard to misuse.
+
+This is the standard JWT-with-rotation pattern, scaled down. No DB,
+no clock-skew handling beyond the usual minute-level tolerance.
+
+### 2. Logo URL — client-fetched
+
+The teacher's `logoUrl` is loaded by each participant's browser
+directly via an `<img src>`. The server only stores and rebroadcasts
+the URL string. No proxy.
+
+**Trade-off documented in the teacher-facing UI**: a small caption
+under the logo URL field reads *"loaded by every participant from the
+URL above; their IPs will be visible to that host. Use a logo on the
+same domain as the IDE, or a CDN your institute already uses."*
+
+Self-hosting institutes can sidestep the IP-exposure entirely by
+hosting the logo on the same Docker image's static asset path —
+that's where `logoUrl: "/logos/buet.png"` lands and nothing leaves
+the campus network.
+
+### 3. Submission and message size cap — 1 MB
+
+A single WebSocket frame is rejected by the server with
+`error.code = "too_large"` if it exceeds **1 MB**. This applies
+uniformly to all message types — `submit`, `buffer_update`,
+`control_buffer`, `broadcast_update`. A typical `.asm` lab is
+well under 32 KB, so 1 MB leaves headroom for unusual cases (long
+data segments, multi-file inlined assemblies) without inviting abuse.
+
+The client validates the same cap before sending so a student who
+pastes a giant blob gets an immediate inline toast instead of a
+silent disconnect.
+
+### 4. Concurrent submissions — accumulate
+
+If a student hits Submit more than once during a session, every
+submission is kept. The teacher's submissions tab lists them all,
+sorted by rollNo and then by timestamp. The zip preserves all
+versions:
+
+```
+EEE304_2026-05-10_Lab3/
+  CSE-22-001__Aisha_Khan__1715342400000.asm
+  CSE-22-001__Aisha_Khan__1715342730000.asm   # second submit
+  CSE-22-002__Bilal_Ahmed__1715342901000.asm
+  ...
+```
+
+This gives teachers an audit trail (did the student submit broken
+work then a fix? did they try to game the system after seeing a
+classmate's hint?) without forcing any judgement at submit time.
+
+If a teacher prefers a "latest wins" view, the in-app submissions
+tab will offer a toggle — but the zip always carries the full
+history.
+
+### 5. i18n for the classroom UI — Partial locales with English fallback
+
+All non-English locales become `Partial<Strings>` at the type level;
+`useStrings()` merges the active locale on top of English at runtime.
+Adding a new key to `Strings` requires translating to English only;
+the other twelve locales fall through to the English value
+automatically until someone fills them in. No runtime crash, no
+build break, no "string key not found" placeholder.
+
+```ts
+// types.ts
+export interface Locale {
+  id: LocaleId;
+  name: string;
+  strings: Partial<Strings>;   // was: Strings
+}
+
+// index.ts
+export function useStrings(): Strings {
+  const locale = useActiveLocale();
+  // English is the source of truth and is always complete; merging
+  // keeps the return type honest even when the active locale is sparse.
+  return { ...en.strings, ...locale.strings };
+}
+```
+
+The `en` locale is constrained to the full `Strings` shape via a
+narrower local type:
+
+```ts
+// en.ts
+import type { Strings } from "./types";
+export const en: { id: "en"; name: string; strings: Strings } = { ... };
+```
+
+This is the standard pattern of every mature i18n library
+(`i18next`, FormatJS). The contributor flow becomes:
+
+1. Add the key to `Strings` in `types.ts`.
+2. Add the English value to `en.ts`.
+3. Optionally translate to any other locale; missing ones fall
+   through to English automatically.
+
+The migration to land in P2: change one type, change one helper,
+the existing 12 non-English files stay valid because they currently
+*are* complete and `Partial<Strings>` accepts the complete shape.
 
 ---
 
