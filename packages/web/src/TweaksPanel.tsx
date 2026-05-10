@@ -140,7 +140,7 @@ export function TweaksPanel() {
             <input
               type="color"
               className="accent-swatch"
-              value={tweaks.accent || "#c8521a"}
+              value={tweaks.accent || "#1e3a8a"}
               onChange={(e) => update("accent", e.target.value)}
               aria-label="Pick accent color"
             />
