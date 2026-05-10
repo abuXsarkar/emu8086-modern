@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "emu8086-modern",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "identifier": "com.cyberdude.emu8086-modern",
   "build": {
     "beforeDevCommand": "pnpm --filter @emu8086/web dev",
@@ -18,7 +18,11 @@
         "minWidth": 800,
         "minHeight": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "shadow": true,
+        "skipTaskbar": false
       }
     ],
     "security": {
@@ -29,14 +33,43 @@
     "active": true,
     "targets": "all",
     "category": "DeveloperTool",
+    "publisher": "Abu Sufian Sarkar",
+    "homepage": "https://github.com/abuXsarkar/emu8086-modern",
+    "copyright": "© Abu Sufian Sarkar. MIT-licensed.",
+    "license": "MIT",
     "shortDescription": "8086 emulator and assembly IDE.",
-    "longDescription": "A modern, open-source 8086 emulator and assembly IDE for students. Built on a Rust core + assembler, packaged here as a desktop app via Tauri.",
+    "longDescription": "A modern, open-source 8086 microprocessor emulator and assembly IDE for students. Edit and step through 8086 assembly with a time-travel debugger, drive eight live virtual peripherals, share programs via URL fragments, and run live classroom sessions. Built on a Rust + WebAssembly core; packaged here as a native desktop application.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "exceptionDomain": null
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      }
+    },
+    "createUpdaterArtifacts": false
+  },
+  "plugins": {
+    "updater": {
+      "active": false,
+      "endpoints": [
+        "https://github.com/abuXsarkar/emu8086-modern/releases/latest/download/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": ""
+    }
   }
 }
