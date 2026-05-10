@@ -7,6 +7,8 @@ import { useEffect, useId, useState } from "react";
 import type { RoomMeta } from "@emu8086/classroom-protocol";
 import { useStrings } from "../i18n";
 import { joinClassroom, startClassroom } from "./actions";
+import { useClassroomStore } from "./store";
+import { localizeErrorCode } from "./errorMessages";
 import {
   type ClassroomTemplate,
   deleteTemplate,
@@ -93,6 +95,9 @@ const TODAY = () => new Date().toISOString().slice(0, 10);
 function StartForm({ onClose }: { onClose: () => void }) {
   const t = useStrings();
   const headingId = useId();
+  const status = useClassroomStore((s) => s.status);
+  const errorCode = useClassroomStore((s) => s.errorCode);
+  const errorMessage = useClassroomStore((s) => s.errorMessage);
   const [meta, setMeta] = useState<RoomMeta>(() => ({
     course: "",
     teacherName: getLastDisplayName(),
@@ -101,6 +106,21 @@ function StartForm({ onClose }: { onClose: () => void }) {
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templates, setTemplates] = useState<ClassroomTemplate[]>(() => listTemplates());
   const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  // Close on success; surface server errors inline. The store flips
+  // to "idle" with errorCode set when the server rejects the create.
+  useEffect(() => {
+    if (!submitted) return;
+    if (status === "joined") {
+      onClose();
+      return;
+    }
+    if (status === "idle" && errorCode) {
+      setError(localizeErrorCode(errorCode, errorMessage ?? "", t));
+      setSubmitted(false);
+    }
+  }, [submitted, status, errorCode, errorMessage, t, onClose]);
 
   function patch<K extends keyof RoomMeta>(key: K, value: RoomMeta[K]): void {
     setMeta((m) => ({ ...m, [key]: value }));
@@ -145,8 +165,10 @@ function StartForm({ onClose }: { onClose: () => void }) {
       });
     }
     setLastDisplayName(meta.teacherName);
+    setError(null);
+    setSubmitted(true);
     startClassroom(meta, meta.teacherName);
-    onClose();
+    // Don't onClose here — the effect above closes on `joined`.
   }
 
   return (
@@ -289,11 +311,11 @@ function StartForm({ onClose }: { onClose: () => void }) {
       {error ? <div className="classroom-form-error">{error}</div> : null}
 
       <div className="classroom-form-actions">
-        <button type="button" className="btn ghost" onClick={onClose}>
+        <button type="button" className="btn ghost" onClick={onClose} disabled={submitted}>
           {t.classroomStartCancel}
         </button>
-        <button type="submit" className="btn primary">
-          {t.classroomStartSubmit}
+        <button type="submit" className="btn primary" disabled={submitted}>
+          {submitted ? t.classroomStatusConnecting : t.classroomStartSubmit}
         </button>
       </div>
     </form>
@@ -311,10 +333,14 @@ function JoinForm({
 }) {
   const t = useStrings();
   const headingId = useId();
+  const status = useClassroomStore((s) => s.status);
+  const errorCode = useClassroomStore((s) => s.errorCode);
+  const errorMessage = useClassroomStore((s) => s.errorMessage);
   const [roomId, setRoomId] = useState(initialRoomId);
   const [rollNo, setRollNo] = useState(getLastRollNo());
   const [displayName, setDisplayName] = useState(getLastDisplayName());
   const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   // If the URL changes underneath us (rare, but possible during dev),
   // honour the new value.
@@ -322,6 +348,20 @@ function JoinForm({
     if (initialRoomId && initialRoomId !== roomId) setRoomId(initialRoomId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialRoomId]);
+
+  // Close on success; show error inline on rejection (most likely
+  // roll_no_taken or room_not_found).
+  useEffect(() => {
+    if (!submitted) return;
+    if (status === "joined") {
+      onClose();
+      return;
+    }
+    if (status === "idle" && errorCode) {
+      setError(localizeErrorCode(errorCode, errorMessage ?? "", t));
+      setSubmitted(false);
+    }
+  }, [submitted, status, errorCode, errorMessage, t, onClose]);
 
   function onSubmit(e: React.FormEvent): void {
     e.preventDefault();
@@ -339,8 +379,10 @@ function JoinForm({
     }
     setLastRollNo(rollNo);
     setLastDisplayName(displayName);
+    setError(null);
+    setSubmitted(true);
     joinClassroom(roomId.trim(), rollNo.trim(), displayName.trim());
-    onClose();
+    // The effect above handles success/failure transitions.
   }
 
   return (
@@ -374,11 +416,11 @@ function JoinForm({
       </Field>
       {error ? <div className="classroom-form-error">{error}</div> : null}
       <div className="classroom-form-actions">
-        <button type="button" className="btn ghost" onClick={onClose}>
+        <button type="button" className="btn ghost" onClick={onClose} disabled={submitted}>
           {t.classroomJoinCancel}
         </button>
-        <button type="submit" className="btn primary">
-          {t.classroomJoinSubmit}
+        <button type="submit" className="btn primary" disabled={submitted}>
+          {submitted ? t.classroomStatusConnecting : t.classroomJoinSubmit}
         </button>
       </div>
     </form>

@@ -206,6 +206,10 @@ export interface Strings {
   classroomTeacherReleaseControl: string;
   classroomTeacherControllingNow: (name: string) => string;
   classroomStudentBroadcastEmpty: string;
+
+  // Classroom mode — reconnect attempt indicator
+  classroomStatusReconnectingNth: (attempt: number) => string;
+  classroomClosureDismiss: string;
 }
 
 export type LocaleId =

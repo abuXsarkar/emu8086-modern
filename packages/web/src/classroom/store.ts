@@ -13,6 +13,7 @@
 import { create } from "zustand";
 import type {
   Comment,
+  ErrorCode,
   PeerCount,
   RoomMeta,
   StudentPublic,
@@ -69,6 +70,9 @@ export interface ClassroomState {
 
   /** Last user-facing error (translated by the consumer). */
   errorMessage: string | null;
+  /** Last error code; lets the UI swap in a localized string instead
+   *  of relying on the server-side English text. */
+  errorCode: ErrorCode | null;
   /** Reconnect attempt counter; resets on a successful re-join. */
   reconnectAttempt: number;
   /** Why the session ended; populated when status === "closed". */
@@ -94,6 +98,7 @@ const INITIAL: ClassroomState = {
   peers: null,
   comments: [],
   errorMessage: null,
+  errorCode: null,
   reconnectAttempt: 0,
   closeReason: null,
 };

@@ -201,5 +201,9 @@ export const en: CompleteLocale = {
     classroomTeacherControllingNow: (name) => `Controlling ${name}`,
     classroomStudentBroadcastEmpty:
       "Waiting for the teacher to start typing…",
+
+    classroomStatusReconnectingNth: (attempt) =>
+      `Reconnecting (attempt ${attempt})…`,
+    classroomClosureDismiss: "Dismiss",
   },
 };

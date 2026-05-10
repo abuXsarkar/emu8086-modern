@@ -1112,6 +1112,22 @@
   color: var(--ink);
   box-shadow: 1px 1px 0 var(--ink);
   max-width: 360px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.classroom-closure-dismiss {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.classroom-closure-dismiss:hover {
+  color: var(--accent);
 }
 
 /* Modal (Start/Join + Consent) */
