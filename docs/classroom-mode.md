@@ -427,7 +427,7 @@ packages/
 | **P4 — take control** | Server enforces `controlGrantedTo`; student editor locks read-only; teacher's edits stream; release path; teacher-disconnect-while-holding | 2 |
 | **P5 — robustness** | Reconnect with exponential backoff, replaced-elsewhere handling, server backpressure, error toasts on the client, kick flow | 3 |
 | **P6 — Docker integration** | Self-host server runs on port 8787 alongside the existing IDE; healthcheck endpoint; environment variables for HMAC secret | 1 |
-| **P7 — Cloudflare Worker** | ✅ shipped. Single-DO Hub; same protocol; same Room state machine; `wrangler deploy` to go live |
+| **P7 — Cloudflare Worker** | ✅ shipped. Single-DO Hub; same protocol; same Room state machine; `wrangler deploy` to go live | — |
 | **P8 — Session report + CSV** | Print-friendly summary; CSV export; templates UX polish | 2 |
 
 Total **P1–P6**: ~15 days. P7 and P8 are follow-up PRs.
