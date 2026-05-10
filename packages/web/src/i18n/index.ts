@@ -13,10 +13,20 @@ import type { Locale, LocaleId, Strings } from "./types";
 import { en } from "./en";
 import { es } from "./es";
 import { bn } from "./bn";
+import { as } from "./as";
+import { hi } from "./hi";
+import { ta } from "./ta";
+import { te } from "./te";
+import { gu } from "./gu";
+import { mr } from "./mr";
+import { kn } from "./kn";
+import { ml } from "./ml";
+import { pa } from "./pa";
+import { or } from "./or";
 
 const STORAGE_KEY = "emu8086-modern.locale";
 
-export const LOCALES: Locale[] = [en, es, bn];
+export const LOCALES: Locale[] = [en, es, bn, as, hi, ta, te, gu, mr, kn, ml, pa, or];
 
 const FALLBACK = en;
 
