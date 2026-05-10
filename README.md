@@ -178,6 +178,7 @@ Full architecture in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Documentation
 
+- [`docs/user-manual.md`](docs/user-manual.md) — single-page user reference covering the IDE, debugger, devices, CLI, and self-host
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — system design, module map, data flow
 - [`ROADMAP.md`](ROADMAP.md) — milestones M0 → M7 with exit criteria
 - [`BUILD_PLAN.md`](BUILD_PLAN.md) — week-by-week build schedule, risks, DoD
@@ -189,6 +190,7 @@ Full architecture in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - [`docs/emu8086-compatibility.md`](docs/emu8086-compatibility.md) — dialect compatibility matrix (every ❌ row links to a `GAP-NNN` in the audit)
 - [`docs/student-experience.md`](docs/student-experience.md) — UX principles
 - [`docs/educator-guide.md`](docs/educator-guide.md) — guide for institutes adopting the tool
+- [`docs/classroom-mode.md`](docs/classroom-mode.md) — live classroom feature design + protocol
 - [`docs/adr/0001-tech-stack.md`](docs/adr/0001-tech-stack.md) — architecture decision: Rust + wasm + React
 
 ---
