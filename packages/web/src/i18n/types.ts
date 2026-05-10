@@ -88,6 +88,90 @@ export interface Strings {
   nothingToUndo: string;
   fixErrorsFirst: string;
   resetDone: string;
+
+  // Classroom mode — header pill
+  classroomPill: string;
+  classroomPillHint: string;
+  classroomLeave: string;
+
+  // Classroom mode — start/join modal
+  classroomStartTab: string;
+  classroomJoinTab: string;
+
+  // Classroom mode — Start dialog (teacher creates a room)
+  classroomStartHeading: string;
+  classroomStartTemplate: string;
+  classroomStartTemplateNone: string;
+  classroomStartTemplateSave: string;
+  classroomStartCourse: string;
+  classroomStartCourseCode: string;
+  classroomStartSection: string;
+  classroomStartSemester: string;
+  classroomStartInstitute: string;
+  classroomStartDepartment: string;
+  classroomStartTeacherTitle: string;
+  classroomStartTeacherName: string;
+  classroomStartSessionTitle: string;
+  classroomStartDate: string;
+  classroomStartLogoUrl: string;
+  classroomStartLogoHelp: string;
+  classroomStartSubmit: string;
+  classroomStartCancel: string;
+  classroomStartCourseRequired: string;
+  classroomStartTeacherRequired: string;
+
+  // Classroom mode — Join dialog (student or teacher reconnect)
+  classroomJoinHeading: string;
+  classroomJoinRoomCode: string;
+  classroomJoinRollNo: string;
+  classroomJoinRollNoHint: string;
+  classroomJoinDisplayName: string;
+  classroomJoinSubmit: string;
+  classroomJoinCancel: string;
+  classroomJoinRollNoRequired: string;
+  classroomJoinDisplayNameRequired: string;
+  classroomJoinRoomCodeRequired: string;
+
+  // Classroom mode — Consent modal (shown to students at first join)
+  classroomConsentHeading: string;
+  classroomConsentBody: (teacherName: string, rollNo: string) => string;
+  classroomConsentContinue: string;
+
+  // Classroom mode — Banner
+  classroomBannerCopy: string;
+  classroomBannerCopied: string;
+
+  // Classroom mode — Teacher drawer
+  classroomTeacherRoster: string;
+  classroomTeacherSubmissions: string;
+  classroomTeacherPrompt: string;
+  classroomTeacherPromptHint: string;
+  classroomTeacherEmpty: string;
+  classroomTeacherHandsUp: (n: number) => string;
+  classroomTeacherCloseRoom: string;
+  classroomTeacherDownloadZip: string;
+
+  // Classroom mode — Student drawer
+  classroomStudentConnected: (name: string) => string;
+  classroomStudentRaiseHand: string;
+  classroomStudentLowerHand: string;
+  classroomStudentSubmit: string;
+  classroomStudentFollowingTeacher: string;
+  classroomStudentControlled: (teacherName: string) => string;
+  classroomStudentPeers: (n: number) => string;
+
+  // Classroom mode — connection status / errors
+  classroomStatusConnecting: string;
+  classroomStatusReconnecting: string;
+  classroomStatusReplacedElsewhere: string;
+  classroomStatusKicked: (reason: string) => string;
+  classroomStatusRoomClosed: string;
+  classroomStatusRoomReaped: string;
+  classroomErrorRoomNotFound: string;
+  classroomErrorRollNoTaken: string;
+  classroomErrorProtocolMismatch: string;
+  classroomErrorHostInvalid: string;
+  classroomErrorGeneric: (message: string) => string;
 }
 
 export type LocaleId =
@@ -105,8 +189,30 @@ export type LocaleId =
   | "pa"
   | "or";
 
+/**
+ * Locale registration used by every non-English language file. The
+ * `strings` map is `Partial<Strings>`: when a key is missing, the
+ * `useStrings` hook falls back to the English value at runtime. The
+ * net effect is that adding a new key only forces a translation in
+ * `en.ts`; other locales fill in over time without breaking the
+ * build or the app.
+ *
+ * The single English locale is typed more strictly via
+ * {@link CompleteLocale} so it's required to cover every key.
+ */
 export interface Locale {
   id: LocaleId;
+  name: string;
+  strings: Partial<Strings>;
+}
+
+/**
+ * The English locale's stricter type. Forces `en.ts` to provide a
+ * value for every `Strings` key — it's the source of truth that
+ * every other locale falls back to.
+ */
+export interface CompleteLocale {
+  id: "en";
   name: string;
   strings: Strings;
 }

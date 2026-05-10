@@ -1,6 +1,11 @@
-import type { Locale } from "./types";
+import type { CompleteLocale } from "./types";
 
-export const en: Locale = {
+// English is the source of truth: every key must be present here.
+// Other locales fall back to these values when they're missing a
+// translation, so leaving a key out elsewhere is graceful — leaving
+// one out here would compile-fail because the type is stricter than
+// the `Locale` shape used elsewhere.
+export const en: CompleteLocale = {
   id: "en",
   name: "English",
   strings: {
@@ -77,5 +82,91 @@ export const en: Locale = {
     nothingToUndo: "nothing to undo",
     fixErrorsFirst: "fix the errors before stepping",
     resetDone: "reset — back at instruction 0",
+
+    // Classroom mode
+    classroomPill: "Classroom",
+    classroomPillHint: "Start or join a live classroom",
+    classroomLeave: "Leave classroom",
+
+    classroomStartTab: "Start a classroom",
+    classroomJoinTab: "Join with code",
+
+    classroomStartHeading: "Start a new classroom session",
+    classroomStartTemplate: "Template",
+    classroomStartTemplateNone: "(no template — fill in below)",
+    classroomStartTemplateSave: "Save these details as a template for next time",
+    classroomStartCourse: "Course",
+    classroomStartCourseCode: "Course code",
+    classroomStartSection: "Section",
+    classroomStartSemester: "Semester",
+    classroomStartInstitute: "Institute / University",
+    classroomStartDepartment: "Department",
+    classroomStartTeacherTitle: "Title",
+    classroomStartTeacherName: "Your name",
+    classroomStartSessionTitle: "Lab title",
+    classroomStartDate: "Date",
+    classroomStartLogoUrl: "Logo URL (optional)",
+    classroomStartLogoHelp:
+      "Loaded by every participant from the URL above; their IPs become visible to that host. Use a logo on the same domain as the IDE, or your institute's CDN.",
+    classroomStartSubmit: "Start session",
+    classroomStartCancel: "Cancel",
+    classroomStartCourseRequired: "Course is required",
+    classroomStartTeacherRequired: "Your name is required",
+
+    classroomJoinHeading: "Join a classroom",
+    classroomJoinRoomCode: "Room code",
+    classroomJoinRollNo: "Roll No.",
+    classroomJoinRollNoHint:
+      "The student ID assigned by your institute (e.g. CSE-22-001).",
+    classroomJoinDisplayName: "Your name",
+    classroomJoinSubmit: "Join",
+    classroomJoinCancel: "Cancel",
+    classroomJoinRollNoRequired: "Roll number is required",
+    classroomJoinDisplayNameRequired: "Your name is required",
+    classroomJoinRoomCodeRequired: "Room code is required",
+
+    classroomConsentHeading: "Joining the lab",
+    classroomConsentBody: (teacherName, rollNo) =>
+      `${teacherName} can see your editor in real time and may take control to demonstrate. Your roll number ${rollNo} is visible to other participants.`,
+    classroomConsentContinue: "I understand — continue",
+
+    classroomBannerCopy: "Copy room link",
+    classroomBannerCopied: "Copied",
+
+    classroomTeacherRoster: "Roster",
+    classroomTeacherSubmissions: "Submissions",
+    classroomTeacherPrompt: "Prompt",
+    classroomTeacherPromptHint: "What students see for this exercise.",
+    classroomTeacherEmpty: "No students have joined yet — share the room code.",
+    classroomTeacherHandsUp: (n) =>
+      n === 1 ? "1 hand up" : `${n} hands up`,
+    classroomTeacherCloseRoom: "Close room",
+    classroomTeacherDownloadZip: "Download submissions (.zip)",
+
+    classroomStudentConnected: (name) => `Connected as ${name}`,
+    classroomStudentRaiseHand: "Raise hand",
+    classroomStudentLowerHand: "Lower hand",
+    classroomStudentSubmit: "Submit current code",
+    classroomStudentFollowingTeacher: "Following teacher's screen",
+    classroomStudentControlled: (teacherName) =>
+      `${teacherName} is editing your file`,
+    classroomStudentPeers: (n) =>
+      n === 1 ? "1 other student online" : `${n} other students online`,
+
+    classroomStatusConnecting: "Connecting…",
+    classroomStatusReconnecting: "Connection lost — reconnecting…",
+    classroomStatusReplacedElsewhere:
+      "You connected from another tab; this one is now disconnected.",
+    classroomStatusKicked: (reason) => `Removed from the room: ${reason}`,
+    classroomStatusRoomClosed: "The teacher has ended this session.",
+    classroomStatusRoomReaped: "Session timed out (teacher disconnected).",
+    classroomErrorRoomNotFound: "Room not found or already closed.",
+    classroomErrorRollNoTaken:
+      "That roll number is already in use in this room.",
+    classroomErrorProtocolMismatch:
+      "App version mismatch — please refresh.",
+    classroomErrorHostInvalid:
+      "Host token rejected. Try starting a fresh session.",
+    classroomErrorGeneric: (message) => `Error: ${message}`,
   },
 };

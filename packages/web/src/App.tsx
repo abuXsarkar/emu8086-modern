@@ -18,6 +18,7 @@ import { Robot } from "./Robot";
 import { DebuggerListPanel } from "./DebuggerListPanel";
 import { DeviceSlot } from "./DeviceSlot";
 import { TweaksPanel } from "./TweaksPanel";
+import { ClassroomLayer, ClassroomPill } from "./classroom/ClassroomPanel";
 import { LOCALES, useLocaleId, useStrings } from "./i18n";
 import type { RunRegisters } from "./registers";
 import { formatValue, evaluate } from "./debugExpr";
@@ -775,6 +776,7 @@ export function App() {
               </option>
             ))}
           </select>
+          <ClassroomPill />
         </div>
       </header>
 
@@ -1175,6 +1177,7 @@ export function App() {
         {t.footerNote}
       </footer>
       <TweaksPanel />
+      <ClassroomLayer />
     </main>
   );
 }

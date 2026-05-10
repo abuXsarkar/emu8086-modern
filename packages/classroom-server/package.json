@@ -15,9 +15,9 @@
     "build": "tsc -b",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "start": "node --experimental-strip-types src/node.ts",
+    "start": "pnpm build && node dist/src/node.js",
     "test": "vitest run",
-    "gen-secret": "node --experimental-strip-types src/gen-secret.ts"
+    "gen-secret": "pnpm build && node dist/src/gen-secret.js"
   },
   "dependencies": {
     "@emu8086/classroom-protocol": "workspace:*",
