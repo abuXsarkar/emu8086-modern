@@ -1,4 +1,11 @@
 import { useEffect, useState } from "react";
+import {
+  clearMetrics,
+  getMetrics,
+  isMetricsEnabled,
+  setMetricsEnabled,
+  subscribeMetrics,
+} from "./metrics";
 
 const STORAGE_KEY = "emu8086.tweaks";
 
@@ -155,7 +162,71 @@ export function TweaksPanel() {
             onChange={(v) => update("grain", v)}
           />
         </Section>
+
+        <Section label="Telemetry">
+          <MetricsBlock />
+        </Section>
       </div>
+    </div>
+  );
+}
+
+/// Local-only counters block. Disabled by default; once enabled,
+/// shows a small table of event-name → count, plus a reset link. No
+/// network. Renders inside the Tweaks panel so it sits next to the
+/// other personal-preference toggles.
+function MetricsBlock() {
+  const [enabled, setEnabled] = useState<boolean>(() => isMetricsEnabled());
+  const [, setTick] = useState(0);
+  useEffect(() => subscribeMetrics(() => setTick((n) => n + 1)), []);
+
+  const data = getMetrics();
+  const entries = Object.entries(data.counts).sort((a, b) => b[1] - a[1]);
+
+  return (
+    <div className="metrics-block">
+      <Toggle
+        label="Local-only metrics (no network)"
+        value={enabled}
+        onChange={(v) => {
+          setMetricsEnabled(v);
+          setEnabled(v);
+        }}
+      />
+      {enabled && (
+        <>
+          <div className="metrics-meta">
+            since <span className="mono">{data.since}</span>
+            {entries.length > 0 && (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  className="reset-link"
+                  onClick={() => clearMetrics()}
+                  title="Wipe local metrics"
+                >
+                  reset
+                </button>
+              </>
+            )}
+          </div>
+          {entries.length === 0 ? (
+            <div className="metrics-empty">no events yet</div>
+          ) : (
+            <table className="metrics-table mono">
+              <tbody>
+                {entries.map(([name, count]) => (
+                  <tr key={name}>
+                    <td className="metrics-name">{name}</td>
+                    <td className="metrics-count">{count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
     </div>
   );
 }

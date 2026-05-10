@@ -771,3 +771,38 @@
 .toggle-label {
   letter-spacing: 0.04em;
 }
+
+.metrics-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.metrics-meta {
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.metrics-empty {
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  color: var(--muted);
+  font-style: italic;
+}
+.metrics-table {
+  border-collapse: collapse;
+  font-size: 11px;
+  width: 100%;
+}
+.metrics-table td {
+  padding: 2px 0;
+  border-bottom: 0.4px solid color-mix(in oklch, var(--rule) 40%, transparent);
+}
+.metrics-name {
+  color: var(--ink);
+}
+.metrics-count {
+  color: var(--muted);
+  text-align: right;
+  padding-left: 12px;
+}

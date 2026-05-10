@@ -21,6 +21,7 @@ import { TweaksPanel } from "./TweaksPanel";
 import { LOCALES, useLocaleId, useStrings } from "./i18n";
 import type { RunRegisters } from "./registers";
 import { formatValue, evaluate } from "./debugExpr";
+import { recordEvent } from "./metrics";
 
 const STORAGE_KEY = "emu8086-modern.source";
 
@@ -285,6 +286,7 @@ export function App() {
   }
 
   function onShare() {
+    recordEvent("share");
     const fragment = encodeShareFragment(source);
     const url = `${window.location.origin}${window.location.pathname}#code=${fragment}`;
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -454,6 +456,7 @@ export function App() {
 
   const onRun = () => {
     if (coreState.kind !== "ready") return;
+    recordEvent("run");
     setRunning(true);
     setBreakpointHit("");
     try {
@@ -465,6 +468,7 @@ export function App() {
       const loadJson = emuRef.current.load_source(source);
       const loadParsed = JSON.parse(loadJson) as RunResultJson;
       if (!loadParsed.ok || loadParsed.error) {
+        recordEvent("assemble_error");
         setResult(loadParsed);
         applyDiagnostic(loadParsed.error);
         lineMapRef.current = [];
@@ -516,6 +520,9 @@ export function App() {
         origin: loadParsed.origin,
         line_map: loadParsed.line_map,
       };
+      if (hit) recordEvent("run_breakpoint");
+      else if (halted) recordEvent("run_halted");
+      else recordEvent("run_out_of_steps");
       setResult(synthesized);
       applyDiagnostic(null);
       setStepLog("");
@@ -544,6 +551,7 @@ export function App() {
       }
       return;
     } catch (e) {
+      recordEvent("runtime_error");
       const err: RunErrorJson = {
         stage: "host",
         message: e instanceof Error ? e.message : String(e),
@@ -605,6 +613,7 @@ export function App() {
   // staged, before React has flushed the `setSource` update.
   const onReset = (srcOverride?: string) => {
     if (coreState.kind !== "ready") return;
+    if (srcOverride === undefined) recordEvent("reset");
     const src = srcOverride ?? source;
     if (!emuRef.current) emuRef.current = new Emulator();
     const json = emuRef.current.load_source(src);
@@ -641,6 +650,7 @@ export function App() {
       flashToast(t.nothingToUndo);
       return;
     }
+    recordEvent("back");
     // The core has already truncated cpu.stdout to the pre-step length;
     // pull the synced view so the output panel un-prints any byte that
     // the rolled-back instruction had emitted.
@@ -672,6 +682,7 @@ export function App() {
       return;
     }
     if (!emuRef.current) return;
+    recordEvent("step");
     const json = emuRef.current.step();
     const parsed = JSON.parse(json) as StepResult;
     setResult((prev) => {
@@ -735,6 +746,7 @@ export function App() {
             value={editorTheme}
             onChange={(e) => {
               const v = e.target.value === "vs" ? "vs" : "vs-dark";
+              recordEvent("theme_change");
               setEditorTheme(v);
               try {
                 localStorage.setItem("emu8086.editor-theme", v);
@@ -751,9 +763,10 @@ export function App() {
             className="select-tokenized"
             aria-label={t.languageLabel}
             value={localeId}
-            onChange={(e) =>
-              setLocaleIdValue(e.target.value as typeof localeId)
-            }
+            onChange={(e) => {
+              recordEvent("language_change");
+              setLocaleIdValue(e.target.value as typeof localeId);
+            }}
             title={t.languageLabel}
           >
             {LOCALES.map((l) => (
@@ -782,6 +795,7 @@ export function App() {
                 onChange={(e) => {
                   const ex = EXAMPLES.find((x) => x.id === e.target.value);
                   if (ex) {
+                    recordEvent("example_loaded");
                     setSource(ex.source);
                     onReset(ex.source);
                     e.currentTarget.value = "";
