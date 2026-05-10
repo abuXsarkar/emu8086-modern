@@ -2,7 +2,7 @@
   "Classroom" pill that opens a Start/Join modal: teachers fill in
   course metadata (with reusable templates persisted in
   localStorage) to spin up a room; students enter the room code
-  + their roll number to join. Once joined, a slide-out drawer on
+  plus their roll number to join. Once joined, a slide-out drawer on
   the right shows the formal-lab banner (course code · section ·
   teacher · date · room code with copy-link), a roster view for
   the teacher and a status view for students, the live prompt
