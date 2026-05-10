@@ -36,22 +36,41 @@ export default defineConfig({
         short_name: "emu8086",
         description:
           "Modern, open-source 8086 emulator and assembly IDE for students.",
-        theme_color: "#0a7",
-        background_color: "#ffffff",
+        // Ink-blue brand accent — matches the IDE's --accent token so
+        // the OS chrome (Android nav bar, iOS standalone status bar,
+        // Chrome OS title bar) ties into the in-app palette.
+        theme_color: "#1E3A8A",
+        background_color: "#F8F4EE",
         display: "standalone",
         start_url: BASE,
         scope: BASE,
         icons: [
+          // SVG first — picked by browsers that support it for crisp
+          // rendering at every density.
           {
             src: "icon.svg",
             sizes: "any",
             type: "image/svg+xml",
             purpose: "any",
           },
+          // Raster fallbacks. Two PNG sizes + a maskable variant cover
+          // every install target Lighthouse cares about.
           {
-            src: "icon-maskable.svg",
-            sizes: "any",
-            type: "image/svg+xml",
+            src: "pwa-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "pwa-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "pwa-maskable-512.png",
+            sizes: "512x512",
+            type: "image/png",
             purpose: "maskable",
           },
         ],
