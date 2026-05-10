@@ -289,6 +289,29 @@ The classroom relay is optional — the IDE works on its own and
 only consults the relay when a teacher starts a session or a
 student joins via `?room=…`.
 
+### Classroom on GitHub Pages / Vercel: use the Cloudflare Worker
+
+Static hosts (GitHub Pages, Vercel's static deploy, Netlify…)
+can't run the Node sidecar themselves. For those, deploy the
+classroom server to Cloudflare Workers + Durable Objects
+instead — free tier, zero ops, same protocol:
+
+```bash
+pnpm --filter @emu8086/classroom-server-worker exec wrangler login
+openssl rand -base64 32 | pnpm --filter @emu8086/classroom-server-worker \
+  exec wrangler secret put EMU8086_CLASSROOM_HMAC_SECRET
+pnpm --filter @emu8086/classroom-server-worker deploy
+```
+
+That gives you a URL like
+`https://emu8086-classroom.<your-name>.workers.dev`. Set
+`VITE_CLASSROOM_WS_URL` as a GitHub Actions **repo variable** (no
+quoting — bare URL with the `wss://` scheme and `/ws` suffix:
+`wss://emu8086-classroom.<your-name>.workers.dev/ws`); the
+GitHub Pages deploy workflow picks it up automatically on the
+next push to `main`. Full details:
+[`packages/classroom-server-worker/README.md`](../packages/classroom-server-worker/README.md).
+
 ---
 
 ## 12. Where to file feedback

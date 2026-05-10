@@ -1,0 +1,25 @@
+{
+  "name": "@emu8086/classroom-server-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Workers + Durable Objects deployment of the classroom-mode WebSocket relay. Same Room state machine as the Node target; different I/O glue.",
+  "license": "MIT",
+  "author": "Abu Sufian Sarkar <abu@cyberdude.com>",
+  "type": "module",
+  "main": "src/worker.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "@emu8086/classroom-protocol": "workspace:*",
+    "@emu8086/classroom-server": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240903.0",
+    "typescript": "^5.5.0",
+    "wrangler": "^3.78.0"
+  }
+}

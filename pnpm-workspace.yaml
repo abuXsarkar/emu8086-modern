@@ -3,6 +3,7 @@ packages:
   - "packages/devices/ts"
   - "packages/classroom-protocol"
   - "packages/classroom-server"
+  - "packages/classroom-server-worker"
   - "packages/desktop"
   - "packages/plugin-sdk"
   - "packages/plugins/*"

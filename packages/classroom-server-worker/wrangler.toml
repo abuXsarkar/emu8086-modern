@@ -1,0 +1,30 @@
+name = "emu8086-classroom"
+main = "src/worker.ts"
+compatibility_date = "2024-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# All classroom rooms live inside a single Durable Object instance.
+# This mirrors the Node server's single-process model and keeps the
+# routing trivial: every connection lands in the same DO and the DO
+# owns the per-room state internally.
+#
+# If usage ever grows past a single DO's headroom (CF says ~10k
+# concurrent connections per DO is comfortable), the next step is to
+# shard by `idFromName(roomId)` and split the Hub DO into per-room
+# DOs. The Room class stays untouched; only the routing changes.
+[[durable_objects.bindings]]
+name = "HUB"
+class_name = "ClassroomHubDO"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["ClassroomHubDO"]
+
+# The HMAC secret used to sign host tokens. Set with:
+#   wrangler secret put EMU8086_CLASSROOM_HMAC_SECRET
+# To rotate, additionally set EMU8086_CLASSROOM_HMAC_SECRET_PREVIOUS
+# so live host tokens minted under the old secret keep validating
+# through the next session window.
+
+[observability]
+enabled = true
