@@ -10,19 +10,40 @@ import {
   closeRoom,
   kickStudent,
   leaveClassroom,
+  releaseControl,
+  setBroadcast,
   setHand,
   setPrompt,
+  takeControl,
 } from "./actions";
 import { CommentThread } from "./CommentThread";
 
-export function TeacherDrawer() {
+interface TeacherDrawerProps {
+  /** Current editor source — used as the seed buffer when the
+   *  teacher flips Broadcast on so students see something
+   *  immediately. */
+  currentSource?: string;
+}
+
+export function TeacherDrawer({ currentSource }: TeacherDrawerProps = {}) {
   const t = useStrings();
   const students = useClassroomStore((s) => s.studentsForTeacher);
   const submissions = useClassroomStore((s) => s.submissions);
   const comments = useClassroomStore((s) => s.comments);
   const prompt = useClassroomStore((s) => s.prompt);
+  const broadcasting = useClassroomStore((s) => s.broadcasting);
+  const controlGrantedTo = useClassroomStore((s) => s.controlGrantedTo);
   const [draftPrompt, setDraftPrompt] = useState(prompt);
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  const controlledStudent =
+    controlGrantedTo === null
+      ? null
+      : students.find((s) => s.rollNo === controlGrantedTo) ?? null;
+
+  function toggleBroadcast(): void {
+    setBroadcast(!broadcasting, broadcasting ? undefined : currentSource);
+  }
 
   // Keep the textarea in sync with server-side prompt changes from
   // a different teacher tab (rare but possible during a reconnect).
@@ -47,6 +68,33 @@ export function TeacherDrawer() {
 
   return (
     <div className="classroom-drawer-body">
+      <div className="classroom-actions">
+        <button
+          type="button"
+          className={`btn${broadcasting ? " accent" : ""}`}
+          onClick={toggleBroadcast}
+          aria-pressed={broadcasting}
+        >
+          <span aria-hidden>📡</span>{" "}
+          {broadcasting ? t.classroomTeacherBroadcastOn : t.classroomTeacherBroadcastOff}
+        </button>
+        {controlledStudent ? (
+          <button
+            type="button"
+            className="btn accent"
+            onClick={releaseControl}
+            title={t.classroomTeacherControllingNow(controlledStudent.displayName)}
+          >
+            ⤺ {t.classroomTeacherReleaseControl}
+          </button>
+        ) : null}
+      </div>
+      {controlledStudent ? (
+        <p className="classroom-status-line">
+          {t.classroomTeacherControllingNow(controlledStudent.displayName)}
+        </p>
+      ) : null}
+
       <section className="classroom-drawer-section" aria-labelledby="cls-roster">
         <header className="classroom-drawer-header">
           <h3 className="smallcaps" id="cls-roster">
@@ -104,6 +152,34 @@ export function TeacherDrawer() {
                     ) : null}
                     {s.online ? null : (
                       <span className="classroom-roster-offline">offline</span>
+                    )}
+                    {controlGrantedTo === s.rollNo ? (
+                      <button
+                        type="button"
+                        className="classroom-roster-action accent"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          releaseControl();
+                        }}
+                        title={t.classroomTeacherReleaseControl}
+                        aria-label={`${t.classroomTeacherReleaseControl} ${s.displayName}`}
+                      >
+                        ⤺
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="classroom-roster-action"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          takeControl(s.rollNo);
+                        }}
+                        title={t.classroomTeacherTakeControl}
+                        aria-label={`${t.classroomTeacherTakeControl} ${s.displayName}`}
+                        disabled={!s.online}
+                      >
+                        ✎
+                      </button>
                     )}
                     <button
                       type="button"

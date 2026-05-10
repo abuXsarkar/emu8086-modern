@@ -149,7 +149,7 @@ export function ClassroomLayer({ currentSource }: ClassroomLayerProps = {}) {
       {status === "joined" && roomId && meta ? (
         <Drawer roomId={roomId} meta={meta}>
           {role === "teacher" ? (
-            <TeacherDrawer />
+            <TeacherDrawer currentSource={currentSource} />
           ) : (
             <StudentDrawer currentSource={currentSource} />
           )}

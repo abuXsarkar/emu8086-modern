@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useStrings } from "../i18n";
 import { useClassroomStore } from "./store";
 import { leaveClassroom, setHand, submit } from "./actions";
+import { BroadcastPane } from "./BroadcastPane";
 import { CommentThread } from "./CommentThread";
 
 interface StudentDrawerProps {
@@ -23,6 +24,7 @@ export function StudentDrawer({ currentSource }: StudentDrawerProps = {}) {
   const meta = useClassroomStore((s) => s.meta);
   const myRollNo = useClassroomStore((s) => s.rollNo);
   const studentsForTeacher = useClassroomStore((s) => s.studentsForTeacher);
+  const broadcastBuffer = useClassroomStore((s) => s.broadcastBuffer);
   const comments = useClassroomStore((s) => s.comments);
 
   const isControlled = controlGrantedTo !== null && controlGrantedTo === myRollNo;
@@ -71,9 +73,14 @@ export function StudentDrawer({ currentSource }: StudentDrawerProps = {}) {
       ) : null}
 
       {broadcasting && !isControlled ? (
-        <div className="classroom-status-banner accent" role="status">
-          {t.classroomStudentFollowingTeacher}
-        </div>
+        <section className="classroom-drawer-section" aria-labelledby="cls-broadcast-s">
+          <header className="classroom-drawer-header">
+            <h3 className="smallcaps" id="cls-broadcast-s">
+              {t.classroomStudentFollowingTeacher}
+            </h3>
+          </header>
+          <BroadcastPane source={broadcastBuffer} />
+        </section>
       ) : null}
 
       <div className="classroom-actions">

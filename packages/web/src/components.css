@@ -1478,6 +1478,34 @@
   color: var(--accent);
   border-color: var(--accent);
 }
+.classroom-roster-action.accent {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 12%, var(--paper));
+}
+.classroom-roster-action[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Broadcast follow pane on the student side */
+.classroom-broadcast-pane {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 10px 12px;
+  border: var(--hair-w) solid var(--rule);
+  border-radius: var(--rad);
+  font-size: 12px;
+  line-height: 1.45;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  margin: 0;
+}
+.classroom-broadcast-empty {
+  color: color-mix(in oklch, var(--paper) 70%, var(--ink) 30%);
+  font-style: italic;
+}
 
 /* Comment thread (per-student notes) */
 .classroom-comment-thread {

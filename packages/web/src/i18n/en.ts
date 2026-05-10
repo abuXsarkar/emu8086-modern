@@ -193,5 +193,13 @@ export const en: CompleteLocale = {
     classroomCommentMarkSeen: "Mark as read",
     classroomCommentNew: (n) => (n === 1 ? "1 new note" : `${n} new notes`),
     classroomCommentFromTeacher: "from your teacher",
+
+    classroomTeacherBroadcastOn: "Stop broadcasting",
+    classroomTeacherBroadcastOff: "Broadcast my screen",
+    classroomTeacherTakeControl: "Take control",
+    classroomTeacherReleaseControl: "Release control",
+    classroomTeacherControllingNow: (name) => `Controlling ${name}`,
+    classroomStudentBroadcastEmpty:
+      "Waiting for the teacher to start typing…",
   },
 };

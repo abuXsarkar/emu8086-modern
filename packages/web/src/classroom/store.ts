@@ -52,6 +52,11 @@ export interface ClassroomState {
   broadcasting: boolean;
   broadcastBuffer: string | null;
   controlGrantedTo: string | null;
+  /** Teacher's current keystrokes while controlling a student.
+   *  The controlled student's editor mirrors this; everyone else
+   *  ignores it. Distinct from broadcastBuffer because control is a
+   *  per-student override and broadcasting is a public stream. */
+  controlBuffer: string | null;
   /** Teacher-only: full per-student visibility. */
   studentsForTeacher: StudentPublic[];
   studentBuffers: Record<string, StudentBufferEntry>;
@@ -82,6 +87,7 @@ const INITIAL: ClassroomState = {
   broadcasting: false,
   broadcastBuffer: null,
   controlGrantedTo: null,
+  controlBuffer: null,
   studentsForTeacher: [],
   studentBuffers: {},
   submissions: [],
