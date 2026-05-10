@@ -41,7 +41,7 @@ and ships the static bundle inside the native binary.
 
 ## Bundle artifacts
 
-After `tauri build`:
+After `pnpm desktop:bundle`:
 
 | Platform | Output |
 |---|---|
@@ -49,17 +49,46 @@ After `tauri build`:
 | macOS | `target/release/bundle/dmg/*.dmg` and `macos/*.app` |
 | Windows | `target/release/bundle/msi/*.msi` and `nsis/*.exe` |
 
+CI builds all of these automatically on every `v*.*.*` tag push —
+see `.github/workflows/release.yml`. Locally you only need to run
+the bundle script when iterating on packaging or testing a release.
+
+## Polish that's already wired
+
+- **Window state persistence.** Size, position, and maximised state
+  survive a quit/relaunch via `tauri-plugin-window-state`.
+- **Native application menu.** File / Edit / View / Help with
+  platform-native predefined items (Cmd+Q vs Ctrl+Q etc.); the View
+  menu exposes Reload and (in dev builds only) Toggle Developer
+  Tools; Help links to the README, the issues page, and About.
+- **Auto-update plugin compiled in.** Endpoint configured at
+  `releases/latest/download/latest.json`; `plugins.updater.active`
+  is currently `false` and `bundle.createUpdaterArtifacts` is also
+  `false`, so the runtime check is a no-op until both flags are
+  flipped together with a signing key. See "Signing" below.
+
+## Signing
+
 Code-signing keys (Apple Developer ID, Authenticode certificate)
-are out of scope for this scaffold; the bundles install but will
-trip the OS's "untrusted developer" gate. Production signing lands
-once a 1.0 release plan picks identities and a CI runner with
-secrets.
+are not yet wired. The release workflow already references the
+expected secret names; when these land in repo secrets the next
+tag picks them up automatically without a workflow change:
+
+- `APPLE_CERTIFICATE_P12`, `APPLE_CERTIFICATE_PASSWORD`
+- `APPLE_DEVELOPER_ID`
+- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
+- `WINDOWS_SIGN_CERT_P12`, `WINDOWS_SIGN_CERT_PASSWORD`
+
+Without these, bundles install but trip the OS "untrusted
+developer" gate. The auto-updater should stay disabled until both
+sets are in place — pushing unsigned updates to users is a worse
+outcome than no updates at all.
 
 ## Icons
 
-`icons/` ships placeholder solid-color terracotta blocks generated
-deterministically from `tools/gen-desktop-icons.py`. They satisfy
-the bundler today; replace with a real designed icon set before
-any public release. The script's output is reproducible so a
-designer can drop a single 1024×1024 source PNG into the script
+`icons/` currently ships placeholder solid-colour ink-blue blocks
+generated deterministically from `tools/gen-desktop-icons.py`.
+They satisfy the bundler today; replace with the designed icon set
+before any public release. The script's output is reproducible so
+a designer can drop a single 1024×1024 source PNG into the script
 later and re-emit all formats.
