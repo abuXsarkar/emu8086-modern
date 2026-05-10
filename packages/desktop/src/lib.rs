@@ -79,9 +79,7 @@ pub fn run() {
 /// items in a window menu bar. Most items use Tauri's predefined
 /// menu items so they pick up the OS-native labels and keyboard
 /// shortcuts automatically (Cmd+Q vs Ctrl+Q etc.).
-fn build_menu<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-) -> tauri::Result<tauri::menu::Menu<R>> {
+fn build_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri::menu::Menu<R>> {
     // App menu — macOS only; the OS injects an "Application" menu
     // before the first user menu using the bundle's CFBundleName,
     // populated with whatever PredefinedMenuItems we add here.

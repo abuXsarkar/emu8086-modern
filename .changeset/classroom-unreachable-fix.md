@@ -16,5 +16,5 @@
   protocol's `ErrorCode` union, so no `PROTOCOL_VERSION` bump is
   needed.
   English translations explain the cause and point at the self-host
-  + `VITE_CLASSROOM_WS_URL` workaround. Other locales fall through
+  or `VITE_CLASSROOM_WS_URL` workaround. Other locales fall through
   to English until someone translates.
