@@ -6,7 +6,7 @@
   "permissions": [
     "core:default",
     {
-      "identifier": "shell:allow-open",
+      "identifier": "opener:allow-open-url",
       "allow": [
         {
           "url": "https://github.com/abuXsarkar/emu8086-modern/**"

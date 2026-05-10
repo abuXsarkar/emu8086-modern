@@ -21,9 +21,9 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
-# tauri-plugin-shell: lets us open external URLs (Documentation,
-#   Report Issue, etc.) in the user's default browser without
-#   re-implementing a HTTP client.
+# tauri-plugin-opener: opens external URLs (Documentation, Report
+#   Issue, etc.) in the user's default browser. Successor to the
+#   deprecated `Shell::open` path on tauri-plugin-shell 2.x.
 # tauri-plugin-window-state: remembers window size, position, and
 #   maximised state across launches. Standard QoL — IDE users expect
 #   their window to come back where they left it.
@@ -32,7 +32,7 @@ tauri = { version = "2", features = [] }
 #   `updater.active` in tauri.conf.json; that flag flips to true
 #   only after Apple Developer ID + Authenticode signing land, so
 #   we don't ship a self-update that pushes unsigned binaries.
-tauri-plugin-shell = "2"
+tauri-plugin-opener = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }

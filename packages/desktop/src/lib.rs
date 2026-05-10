@@ -7,8 +7,10 @@
 // into `invoke_handler` here.
 //
 // Plugins:
-//   - tauri-plugin-shell:           open external URLs in the user's
-//                                   default browser.
+//   - tauri-plugin-opener:          open external URLs in the user's
+//                                   default browser. (Successor to
+//                                   tauri-plugin-shell's deprecated
+//                                   Shell::open path.)
 //   - tauri-plugin-window-state:    remember window size + position
 //                                   across launches.
 //   - tauri-plugin-updater:         auto-update from GitHub Releases.
@@ -21,7 +23,7 @@
 
 use tauri::menu::{AboutMetadataBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::Manager;
-use tauri_plugin_shell::ShellExt;
+use tauri_plugin_opener::OpenerExt;
 
 const DOCS_URL: &str = "https://github.com/abuXsarkar/emu8086-modern#readme";
 const ISSUES_URL: &str = "https://github.com/abuXsarkar/emu8086-modern/issues/new";
@@ -30,7 +32,7 @@ const REPO_URL: &str = "https://github.com/abuXsarkar/emu8086-modern";
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
@@ -39,16 +41,16 @@ pub fn run() {
             Ok(())
         })
         .on_menu_event(|app, event| {
-            let shell = app.shell();
+            let opener = app.opener();
             match event.id().as_ref() {
                 "documentation" => {
-                    let _ = shell.open(DOCS_URL, None);
+                    let _ = opener.open_url(DOCS_URL, None::<&str>);
                 }
                 "report_issue" => {
-                    let _ = shell.open(ISSUES_URL, None);
+                    let _ = opener.open_url(ISSUES_URL, None::<&str>);
                 }
                 "view_on_github" => {
-                    let _ = shell.open(REPO_URL, None);
+                    let _ = opener.open_url(REPO_URL, None::<&str>);
                 }
                 "reload" => {
                     if let Some(w) = app.get_webview_window("main") {
