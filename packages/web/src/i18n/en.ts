@@ -59,6 +59,10 @@ export const en: Locale = {
 
     memoryRangeLabel: "DS:0x100..1FF",
 
+    dropFileLabel: "Drop file",
+    dropFileHint:
+      "Drop an .asm source file onto the editor frame. Files larger than 1 MiB are rejected.",
+
     footerLink: "github",
     footerSeparator: " · ",
     footerNote:
