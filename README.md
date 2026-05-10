@@ -191,6 +191,7 @@ Full architecture in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - [`docs/student-experience.md`](docs/student-experience.md) — UX principles
 - [`docs/educator-guide.md`](docs/educator-guide.md) — guide for institutes adopting the tool
 - [`docs/classroom-mode.md`](docs/classroom-mode.md) — live classroom feature design + protocol
+- [`docs/plugin-sdk.md`](docs/plugin-sdk.md) — author custom device plugins (TS-only; ships with an example)
 - [`docs/adr/0001-tech-stack.md`](docs/adr/0001-tech-stack.md) — architecture decision: Rust + wasm + React
 
 ---

@@ -4,3 +4,5 @@ packages:
   - "packages/classroom-protocol"
   - "packages/classroom-server"
   - "packages/desktop"
+  - "packages/plugin-sdk"
+  - "packages/plugins/*"

@@ -21,6 +21,10 @@ import { TweaksPanel } from "./TweaksPanel";
 import { ClassroomLayer, ClassroomPill } from "./classroom/ClassroomPanel";
 import { useClassroomEditor } from "./classroom/useClassroomEditor";
 import { TutorialPanel } from "./tutorials/TutorialPanel";
+// Importing for side effects: each plugin self-registers via the SDK.
+// Adding a third-party plugin = `import "@vendor/plugin"` in `./plugins`.
+import "./plugins";
+import { PluginGallery } from "./PluginGallery";
 import { LOCALES, useLocaleId, useStrings } from "./i18n";
 import type { RunRegisters } from "./registers";
 import { formatValue, evaluate } from "./debugExpr";
@@ -253,6 +257,13 @@ export function App() {
       memHexPrevRef.current = prev;
       return hex;
     });
+  }
+
+  /** Stable port reader handed to plugins. Reads zero before the
+   *  emulator boots (registered plugins shouldn't crash on first
+   *  render). */
+  function readPort(n: number): number {
+    return emuRef.current ? emuRef.current.port_byte(n) : 0;
   }
 
   function refreshDevices() {
@@ -1101,6 +1112,12 @@ export function App() {
                 <DeviceSlot id="screen" title="SCREEN · int 10h" defaultPos={{ x: 80, y: 480 }}>
                   <Screen text={videoText} />
                 </DeviceSlot>
+              </div>
+              <div className="device-row">
+                <PluginGallery
+                  port={readPort}
+                  stepCount={result?.steps ?? 0}
+                />
               </div>
             </section>
 

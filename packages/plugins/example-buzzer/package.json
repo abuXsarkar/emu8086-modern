@@ -1,0 +1,27 @@
+{
+  "name": "@emu8086/plugin-example-buzzer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Example plugin: a port-200 buzzer. Copy this directory as a starting point for new device plugins.",
+  "license": "MIT",
+  "author": "Abu Sufian Sarkar <abu@cyberdude.com>",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  },
+  "dependencies": {
+    "@emu8086/plugin-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.10",
+    "react": "^18.3.1",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.1"
+  }
+}
