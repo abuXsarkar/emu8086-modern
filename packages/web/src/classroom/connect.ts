@@ -39,10 +39,12 @@ function defaultUrl(): string {
 
 /** How long we wait for the first WS frame from the server (the
  *  `created` / `joined` response) before declaring the host
- *  unreachable. 5 seconds is generous on a LAN, snappy enough that
- *  a deployment without a sidecar (e.g. GitHub Pages on its own)
- *  shows the error immediately. */
-const CONNECT_TIMEOUT_MS = 5_000;
+ *  unreachable. Generous enough to absorb a Cloudflare Workers /
+ *  Durable Object cold start on the very first connection of the
+ *  day, snappy enough that a deployment without a sidecar (e.g.
+ *  GitHub Pages on its own) still surfaces the error reasonably
+ *  fast. */
+const CONNECT_TIMEOUT_MS = 12_000;
 
 class ClassroomConnection {
   private ws: WebSocket | null = null;

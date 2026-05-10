@@ -91,8 +91,16 @@ class RoomSession {
 }
 
 function sendIfOpen(ws: WebSocket | null | undefined, payload: string): void {
-  // Web WebSocket has readyState values: CONNECTING=0, OPEN=1, etc.
-  if (ws && ws.readyState === 1) ws.send(payload);
+  // Don't gate on readyState — CF's hibernation-API WebSockets can
+  // report stale values right after acceptWebSocket(). Just try-
+  // send and swallow the error if the socket is genuinely closed;
+  // a closed socket throwing on .send() is cheap.
+  if (!ws) return;
+  try {
+    ws.send(payload);
+  } catch (e) {
+    console.warn("[do] send failed:", e instanceof Error ? e.message : String(e));
+  }
 }
 
 interface ResolvedSecrets {
@@ -146,6 +154,7 @@ export class ClassroomHubDO {
     if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("expected websocket upgrade", { status: 426 });
     }
+    console.log("[do] fetch — accepting new WebSocket");
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
@@ -178,8 +187,19 @@ export class ClassroomHubDO {
       this.sendError(ws, "internal_error", "malformed message");
       return;
     }
+    console.log(`[do] recv ${parsed.t} bytes=${raw.length}`);
     const before = (ws.deserializeAttachment() as ConnIdentity | null) ?? { kind: "pending" };
-    const after = this.handleMessage(ws, before, parsed);
+    let after: ConnIdentity;
+    try {
+      after = this.handleMessage(ws, before, parsed);
+    } catch (e) {
+      console.error(
+        `[do] handler threw on ${parsed.t}:`,
+        e instanceof Error ? e.stack ?? e.message : String(e),
+      );
+      this.sendError(ws, "internal_error", "handler threw");
+      return;
+    }
     if (after !== before) {
       ws.serializeAttachment(after);
     }
@@ -544,10 +564,19 @@ export class ClassroomHubDO {
   }
 
   private send(ws: WebSocket, msg: ServerMsg): void {
-    if (ws.readyState === 1) ws.send(JSON.stringify(msg));
+    try {
+      ws.send(JSON.stringify(msg));
+      console.log(`[do] sent ${msg.t}`);
+    } catch (e) {
+      console.warn(
+        `[do] failed to send ${msg.t}:`,
+        e instanceof Error ? e.message : String(e),
+      );
+    }
   }
 
   private sendError(ws: WebSocket, code: ErrorCode, message: string): void {
+    console.log(`[do] sending error code=${code} message=${message}`);
     this.send(ws, { t: "error", code, message });
   }
 }
