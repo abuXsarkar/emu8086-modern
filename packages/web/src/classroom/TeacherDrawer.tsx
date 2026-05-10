@@ -1,19 +1,28 @@
-// Teacher's view of the live room. P2 ships the structural pieces
-// — roster (read-only), submission count, prompt textarea — wired
-// to the store. The interactive bits (broadcast toggle,
-// take-control, kick, hand-lower) land in P3.
+// Teacher's view of the live room. Roster (with per-row actions:
+// lower-hand, kick, expand-to-comment), prompt textarea,
+// submissions list. Each row, when expanded, surfaces the comment
+// thread for that student plus a small composer.
 
 import { useState } from "react";
 import { useStrings } from "../i18n";
 import { useClassroomStore } from "./store";
-import { closeRoom, leaveClassroom, setPrompt } from "./actions";
+import {
+  closeRoom,
+  kickStudent,
+  leaveClassroom,
+  setHand,
+  setPrompt,
+} from "./actions";
+import { CommentThread } from "./CommentThread";
 
 export function TeacherDrawer() {
   const t = useStrings();
   const students = useClassroomStore((s) => s.studentsForTeacher);
   const submissions = useClassroomStore((s) => s.submissions);
+  const comments = useClassroomStore((s) => s.comments);
   const prompt = useClassroomStore((s) => s.prompt);
   const [draftPrompt, setDraftPrompt] = useState(prompt);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   // Keep the textarea in sync with server-side prompt changes from
   // a different teacher tab (rare but possible during a reconnect).
@@ -24,9 +33,15 @@ export function TeacherDrawer() {
   const handsUp = students.filter((s) => s.handUp).length;
 
   function onCloseRoom(): void {
-    if (window.confirm(t.classroomTeacherCloseRoom + "?")) {
+    if (window.confirm(t.classroomTeacherCloseRoomConfirm)) {
       closeRoom();
       leaveClassroom();
+    }
+  }
+
+  function onKick(rollNo: string, displayName: string): void {
+    if (window.confirm(t.classroomTeacherKickConfirm(displayName))) {
+      kickStudent(rollNo);
     }
   }
 
@@ -47,23 +62,72 @@ export function TeacherDrawer() {
           <p className="classroom-empty">{t.classroomTeacherEmpty}</p>
         ) : (
           <ul className="classroom-roster">
-            {students.map((s) => (
-              <li
-                key={s.rollNo}
-                className={`classroom-roster-row${s.handUp ? " hand-up" : ""}${s.online ? "" : " offline"}`}
-              >
-                <span className="classroom-roster-roll mono">{s.rollNo}</span>
-                <span className="classroom-roster-name">{s.displayName}</span>
-                {s.handUp ? (
-                  <span className="classroom-roster-hand" aria-label="hand up">
-                    ✋
-                  </span>
-                ) : null}
-                {s.online ? null : (
-                  <span className="classroom-roster-offline">offline</span>
-                )}
-              </li>
-            ))}
+            {students.map((s) => {
+              const studentComments = comments.filter((c) => c.rollNo === s.rollNo);
+              const isOpen = expanded === s.rollNo;
+              return (
+                <li
+                  key={s.rollNo}
+                  className={`classroom-roster-row${s.handUp ? " hand-up" : ""}${s.online ? "" : " offline"}${isOpen ? " expanded" : ""}`}
+                >
+                  <button
+                    type="button"
+                    className="classroom-roster-summary"
+                    onClick={() => setExpanded(isOpen ? null : s.rollNo)}
+                    aria-expanded={isOpen}
+                  >
+                    <span className="classroom-roster-roll mono">{s.rollNo}</span>
+                    <span className="classroom-roster-name">{s.displayName}</span>
+                    {studentComments.length > 0 ? (
+                      <span className="classroom-roster-badge mono" title={t.classroomCommentHeading}>
+                        💬 {studentComments.length}
+                      </span>
+                    ) : null}
+                    <span className="classroom-roster-chevron" aria-hidden>
+                      {isOpen ? "▾" : "▸"}
+                    </span>
+                  </button>
+                  <div className="classroom-roster-actions-row">
+                    {s.handUp ? (
+                      <button
+                        type="button"
+                        className="classroom-roster-action"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHand(s.rollNo, false);
+                        }}
+                        title={t.classroomTeacherLowerHand}
+                        aria-label={`${t.classroomTeacherLowerHand} ${s.displayName}`}
+                      >
+                        <span aria-hidden>✋</span>
+                      </button>
+                    ) : null}
+                    {s.online ? null : (
+                      <span className="classroom-roster-offline">offline</span>
+                    )}
+                    <button
+                      type="button"
+                      className="classroom-roster-action danger"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onKick(s.rollNo, s.displayName);
+                      }}
+                      title={t.classroomTeacherKick}
+                      aria-label={`${t.classroomTeacherKick} ${s.displayName}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  {isOpen ? (
+                    <CommentThread
+                      rollNo={s.rollNo}
+                      comments={studentComments}
+                      role="teacher"
+                    />
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

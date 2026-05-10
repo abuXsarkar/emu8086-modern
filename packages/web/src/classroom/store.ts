@@ -12,6 +12,7 @@
 
 import { create } from "zustand";
 import type {
+  Comment,
   PeerCount,
   RoomMeta,
   StudentPublic,
@@ -57,6 +58,9 @@ export interface ClassroomState {
   submissions: Submission[];
   /** Student-only: aggregated peer count. */
   peers: PeerCount | null;
+  /** Per-student comment list. Teacher receives all; student
+   *  receives only their own. Sorted by `at` ascending. */
+  comments: Comment[];
 
   /** Last user-facing error (translated by the consumer). */
   errorMessage: string | null;
@@ -82,6 +86,7 @@ const INITIAL: ClassroomState = {
   studentBuffers: {},
   submissions: [],
   peers: null,
+  comments: [],
   errorMessage: null,
   reconnectAttempt: 0,
   closeReason: null,

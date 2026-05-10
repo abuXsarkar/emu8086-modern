@@ -23,7 +23,9 @@
 // All public methods are pure functions of the current state plus
 // their inputs: easy to unit-test without spinning up a server.
 
+import { randomUUID } from "node:crypto";
 import type {
+  Comment,
   PeerCount,
   RoomMeta,
   RoomSnapshot,
@@ -82,6 +84,10 @@ export class Room {
 
   private readonly students = new Map<string, InternalStudent>();
   private readonly submissions: Submission[] = [];
+  /** Per-student comments. The full list is stored flat for ease of
+   *  filtering at snapshot time; only the targeted student receives
+   *  their own entries. */
+  private readonly comments: Comment[] = [];
 
   private closed: "open" | "teacher_closed" | "reaped" = "open";
 
@@ -213,7 +219,7 @@ export class Room {
           t: "joined",
           you: rollNo,
           role: "student",
-          snapshot: this.snapshotFor("student"),
+          snapshot: this.snapshotFor("student", rollNo),
         },
       },
       this.rosterChanged(),
@@ -412,6 +418,68 @@ export class Room {
     ];
   }
 
+  // ---- Per-student comments --------------------------------------------
+
+  /**
+   * Teacher leaves a private comment on a specific student. The
+   * comment is broadcast to the teacher (echo, so all teacher tabs
+   * stay in sync) and to the targeted student only. Empty bodies
+   * are dropped silently — the runtime should also clamp at the
+   * MAX_COMMENT_BYTES boundary.
+   */
+  addComment(rollNo: string, body: string, now: number): Outbound[] {
+    if (this.isClosed()) return [];
+    if (!this.students.has(rollNo)) return [];
+    const trimmed = body.trim();
+    if (trimmed.length === 0) return [];
+    const comment: Comment = {
+      id: randomUUID(),
+      rollNo,
+      body: trimmed,
+      at: now,
+      seenAt: null,
+    };
+    this.comments.push(comment);
+    return [
+      {
+        target: { kind: "teacher" },
+        msg: { t: "comment_added", comment },
+      },
+      {
+        target: { kind: "student", rollNo },
+        msg: { t: "comment_added", comment },
+      },
+    ];
+  }
+
+  /**
+   * Student dismisses the unread badge for a comment they received.
+   * Idempotent — calling twice on the same id leaves seenAt frozen
+   * to the first dismissal.
+   */
+  markCommentSeen(rollNo: string, commentId: string, now: number): Outbound[] {
+    const c = this.comments.find((x) => x.id === commentId);
+    if (!c) return [];
+    if (c.rollNo !== rollNo) return []; // can only dismiss your own
+    if (c.seenAt !== null) return [];
+    c.seenAt = now;
+    return [
+      {
+        target: { kind: "teacher" },
+        msg: { t: "comment_seen", commentId, rollNo, seenAt: now },
+      },
+      {
+        target: { kind: "student", rollNo },
+        msg: { t: "comment_seen", commentId, rollNo, seenAt: now },
+      },
+    ];
+  }
+
+  /** Test / runtime introspection only. */
+  commentsSnapshot(): ReadonlyArray<Comment> {
+    return this.comments.slice();
+  }
+
   // ---- Time -------------------------------------------------------------
 
   /**
@@ -493,7 +561,7 @@ export class Room {
     };
   }
 
-  private snapshotFor(role: "teacher" | "student"): RoomSnapshot {
+  private snapshotFor(role: "teacher" | "student", rollNo?: string): RoomSnapshot {
     const base: RoomSnapshot = {
       roomId: this.id,
       meta: this.meta,
@@ -505,8 +573,12 @@ export class Room {
     };
     if (role === "teacher") {
       base.studentsForTeacher = this.publicStudents();
+      base.comments = this.comments.slice();
     } else {
       base.peers = this.peerCount();
+      base.comments = rollNo
+        ? this.comments.filter((c) => c.rollNo === rollNo)
+        : [];
     }
     return base;
   }

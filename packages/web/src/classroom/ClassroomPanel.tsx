@@ -14,8 +14,8 @@ import { useEffect, useState } from "react";
 import { useStrings } from "../i18n";
 import type { Strings } from "../i18n/types";
 import { useClassroomStore, type CloseReason } from "./store";
-import { Banner } from "./Banner";
 import { ConsentModal } from "./ConsentModal";
+import { Drawer } from "./Drawer";
 import { StartJoinDialog } from "./StartJoinDialog";
 import { TeacherDrawer } from "./TeacherDrawer";
 import { StudentDrawer } from "./StudentDrawer";
@@ -76,8 +76,14 @@ export function ClassroomPill() {
  * closure toast. Mount this once at the app root. It reads the same
  * store the pill does and is fully self-contained.
  */
-export function ClassroomLayer() {
-  const t = useStrings();
+interface ClassroomLayerProps {
+  /** The IDE's current editor source. Forwarded to the student drawer
+   *  so its Submit button has something to send without reaching
+   *  back into App-level state. */
+  currentSource?: string;
+}
+
+export function ClassroomLayer({ currentSource }: ClassroomLayerProps = {}) {
   const status = useClassroomStore((s) => s.status);
   const role = useClassroomStore((s) => s.role);
   const roomId = useClassroomStore((s) => s.roomId);
@@ -141,10 +147,13 @@ export function ClassroomLayer() {
       ) : null}
 
       {status === "joined" && roomId && meta ? (
-        <aside className="classroom-drawer" aria-label={t.classroomPill}>
-          <Banner roomId={roomId} meta={meta} />
-          {role === "teacher" ? <TeacherDrawer /> : <StudentDrawer />}
-        </aside>
+        <Drawer roomId={roomId} meta={meta}>
+          {role === "teacher" ? (
+            <TeacherDrawer />
+          ) : (
+            <StudentDrawer currentSource={currentSource} />
+          )}
+        </Drawer>
       ) : null}
 
       {status === "closed" && closeReason ? (

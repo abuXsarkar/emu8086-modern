@@ -9,4 +9,4 @@
 // type, removes a field, renames a field, or tightens a constraint is
 // breaking (bump). Old clients connecting after a bump will see a
 // `protocol_mismatch` error and are expected to refresh.
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;

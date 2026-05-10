@@ -19,6 +19,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 import {
+  MAX_COMMENT_BYTES,
   MAX_MESSAGE_BYTES,
   MAX_NAME_BYTES,
   MAX_ROLL_NO_BYTES,
@@ -331,6 +332,29 @@ function handleMessage(
       if (session.teacherWs) session.teacherWs.close(1000, "room closed");
       for (const studentWs of session.studentWs.values()) studentWs.close(1000, "room closed");
       sessions.delete(session.room.id);
+      return;
+    }
+
+    case "add_comment": {
+      if (!isTeacher) return sendError(ws, "not_authorized", "teacher only");
+      if (typeof msg.rollNo !== "string" || typeof msg.body !== "string") {
+        return sendError(ws, "internal_error", "bad add_comment payload");
+      }
+      const body = clamp(msg.body, MAX_COMMENT_BYTES);
+      if (!body) return; // empty comments are dropped silently
+      session.dispatch(session.room.addComment(msg.rollNo, body, Date.now()));
+      return;
+    }
+
+    case "mark_comment_seen": {
+      if (isTeacher) {
+        return sendError(ws, "not_authorized", "students dismiss their own comments");
+      }
+      if (conn.identity.kind !== "student") return;
+      if (typeof msg.commentId !== "string") return;
+      session.dispatch(
+        session.room.markCommentSeen(conn.identity.rollNo, msg.commentId, Date.now()),
+      );
       return;
     }
 
