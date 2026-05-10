@@ -241,13 +241,19 @@ class ClassroomConnection {
         classroomStore.set({ broadcastBuffer: msg.source });
         return;
       case "control_change":
-        classroomStore.set({ controlGrantedTo: msg.rollNo });
+        classroomStore.set({
+          controlGrantedTo: msg.rollNo,
+          // Reset on either grant or release so a stale frame from a
+          // previous control session doesn't leak across.
+          controlBuffer: null,
+        });
         return;
       case "control_buffer":
-        // The student-side editor consumes this directly via a
-        // store subscription — we just stash the latest source so a
-        // late subscriber can pick up the current frame.
-        classroomStore.set({ broadcastBuffer: msg.source });
+        // Lands in its own slot so the controlled student's editor
+        // hook can subscribe and replace its source. Broadcast and
+        // control are conceptually separate — keep them in distinct
+        // fields rather than overloading broadcastBuffer.
+        classroomStore.set({ controlBuffer: msg.source });
         return;
       case "prompt_changed":
         classroomStore.set({ prompt: msg.prompt });

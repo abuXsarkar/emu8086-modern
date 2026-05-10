@@ -198,6 +198,14 @@ export interface Strings {
   classroomCommentMarkSeen: string;
   classroomCommentNew: (n: number) => string;
   classroomCommentFromTeacher: string;
+
+  // Classroom mode — broadcast + take-control affordances
+  classroomTeacherBroadcastOn: string;
+  classroomTeacherBroadcastOff: string;
+  classroomTeacherTakeControl: string;
+  classroomTeacherReleaseControl: string;
+  classroomTeacherControllingNow: (name: string) => string;
+  classroomStudentBroadcastEmpty: string;
 }
 
 export type LocaleId =

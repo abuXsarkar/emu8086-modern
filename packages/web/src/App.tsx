@@ -19,6 +19,7 @@ import { DebuggerListPanel } from "./DebuggerListPanel";
 import { DeviceSlot } from "./DeviceSlot";
 import { TweaksPanel } from "./TweaksPanel";
 import { ClassroomLayer, ClassroomPill } from "./classroom/ClassroomPanel";
+import { useClassroomEditor } from "./classroom/useClassroomEditor";
 import { LOCALES, useLocaleId, useStrings } from "./i18n";
 import type { RunRegisters } from "./registers";
 import { formatValue, evaluate } from "./debugExpr";
@@ -166,6 +167,12 @@ export function App() {
   });
   const [coreState, setCoreState] = useState<CoreState>({ kind: "loading" });
   const [source, setSource] = useState<string>(() => initialSource());
+  // Classroom editor bridge: streams student edits to the teacher
+  // (when joined), the teacher's edits to the broadcast channel
+  // (when broadcasting), or the teacher's edits as control_buffer
+  // (when controlling a student). Returns readOnly when this client
+  // is the controlled student so the editor locks until release.
+  const { readOnly: classroomReadOnly } = useClassroomEditor(source, setSource);
   const [result, setResult] = useState<RunResultJson | null>(null);
   const [running, setRunning] = useState<boolean>(false);
   const [stepLog, setStepLog] = useState<string>("");
@@ -932,6 +939,7 @@ export function App() {
                   wordWrap: "off",
                   tabSize: 4,
                   renderWhitespace: "selection",
+                  readOnly: classroomReadOnly,
                 }}
               />
             </div>
