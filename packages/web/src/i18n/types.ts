@@ -171,6 +171,8 @@ export interface Strings {
   classroomErrorRollNoTaken: string;
   classroomErrorProtocolMismatch: string;
   classroomErrorHostInvalid: string;
+  classroomErrorServerUnreachable: string;
+  classroomErrorConnectTimeout: string;
   classroomErrorGeneric: (message: string) => string;
 
   // Classroom mode — collapsible drawer
