@@ -1096,6 +1096,22 @@
   background: var(--paper);
   flex: 0 0 auto;
 }
+.classroom-drawer-footer-stack {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
+.classroom-drawer-footer-stack .classroom-drawer-footer {
+  border-top: 0.4px solid color-mix(in oklch, var(--rule) 50%, transparent);
+  padding: 8px 12px;
+}
+.classroom-drawer-footer-stack .classroom-drawer-footer:first-child {
+  border-top: var(--hair-w) solid var(--rule);
+}
+.classroom-drawer-footer-stack .btn {
+  flex: 1 1 auto;
+  font-size: 11.5px;
+}
 
 /* Closure banner shown after the room ends. */
 .classroom-closure {
