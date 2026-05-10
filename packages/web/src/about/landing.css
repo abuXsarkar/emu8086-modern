@@ -1,0 +1,679 @@
+/* Landing — slide-deck-style page for /about/. Separate from the
+   IDE's component CSS so the bundle stays lean and the visual
+   language can diverge slightly (more whitespace, larger type,
+   editorial register). Same palette tokens, same fonts.
+
+   Aesthetic: paper-and-pencil lab notebook scaled up. Hairlines,
+   generous whitespace, ink-blue accent, Instrument Serif italics
+   for editorial flourish. No gradients, no shadows beyond a
+   single 1-pixel offset, no motion beyond gentle fade+rise on
+   intersect.
+*/
+
+/* ---------- Tokens (mirror theme.css; duplicated so this page
+   stands alone if loaded standalone). ---------------------- */
+:root {
+  --paper: oklch(0.96 0.012 80);
+  --ink: oklch(0.16 0.014 60);
+  --muted: oklch(0.46 0.012 60);
+  --rule: oklch(0.82 0.014 80);
+  --tint: oklch(0.94 0.018 80);
+  --accent: oklch(0.31 0.13 264);
+  --accent-soft: oklch(0.94 0.025 264);
+
+  --hair-w: 1.2px;
+}
+
+@supports not (color: oklch(0% 0 0)) {
+  :root {
+    --paper: #f8f4ee;
+    --ink: #1a1816;
+    --muted: #5a5a55;
+    --rule: #d6cfc4;
+    --tint: #ebe8df;
+    --accent: #1e3a8a;
+    --accent-soft: #e2e7f2;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Geist Variable", "Geist", system-ui, sans-serif;
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
+  transition: border-color 120ms ease;
+}
+a:hover {
+  border-bottom-color: var(--accent);
+}
+.mono {
+  font-family: "Geist Mono", ui-monospace, monospace;
+}
+code,
+.mono {
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.92em;
+}
+
+/* ---------- Top bar -------------------------------------- */
+.landing-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: color-mix(in oklch, var(--paper) 85%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 0.4px solid var(--rule);
+}
+.landing-topbar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  border-bottom: 0;
+  font-weight: 600;
+}
+.landing-topbar-name {
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+.landing-topbar-nav {
+  display: flex;
+  gap: 22px;
+  font-size: 13px;
+}
+.landing-topbar-nav a {
+  color: var(--ink);
+  border-bottom: 0;
+  opacity: 0.7;
+  transition: opacity 120ms ease;
+}
+.landing-topbar-nav a:hover {
+  opacity: 1;
+}
+
+/* ---------- Slide container ------------------------------- */
+.landing-root {
+  min-height: 100vh;
+  position: relative;
+}
+.slides {
+  scroll-snap-type: y proximity;
+  /* Snap is proximity so a slow scroll past one slide doesn't get
+     yanked back; long sections breathe. */
+}
+.slide {
+  min-height: 100vh;
+  scroll-snap-align: start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 110px 32px 80px;
+  position: relative;
+}
+.slide:nth-child(even) {
+  background: color-mix(in oklch, var(--tint) 55%, var(--paper));
+}
+.slide-inner {
+  max-width: 880px;
+  width: 100%;
+}
+.slide-content {
+  /* Entrance animation: slides fade in + rise when they enter the
+     viewport. The is-active class is added by Slide.tsx's
+     IntersectionObserver. Pure CSS animation; no JS-driven
+     transforms after the fact. */
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 720ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 720ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.slide.is-active .slide-content,
+.slide.slide-active .slide-content {
+  opacity: 1;
+  transform: none;
+}
+
+/* The hero animates the title and lede on a slight stagger so the
+   eye lands on the mark first, then the wordmark, then the copy. */
+.slide.is-active .hero-mark {
+  animation: hero-mark-in 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.slide.is-active .hero-title {
+  animation: rise-in 900ms cubic-bezier(0.16, 1, 0.3, 1) 100ms both;
+}
+.slide.is-active .hero-lede {
+  animation: rise-in 900ms cubic-bezier(0.16, 1, 0.3, 1) 220ms both;
+}
+.slide.is-active .hero-actions {
+  animation: rise-in 900ms cubic-bezier(0.16, 1, 0.3, 1) 340ms both;
+}
+.slide.is-active .hero-meta {
+  animation: rise-in 900ms cubic-bezier(0.16, 1, 0.3, 1) 460ms both;
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes hero-mark-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide-content {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .slide.is-active .hero-mark,
+  .slide.is-active .hero-title,
+  .slide.is-active .hero-lede,
+  .slide.is-active .hero-actions,
+  .slide.is-active .hero-meta {
+    animation: none;
+  }
+}
+
+.slide-kicker {
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  margin: 0 0 18px;
+}
+.slide-heading {
+  font-family: "Geist Variable", "Geist", system-ui, sans-serif;
+  font-weight: 500;
+  font-size: clamp(34px, 5.5vw, 64px);
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  margin: 0 0 28px;
+}
+.slide-body {
+  font-size: clamp(16px, 1.7vw, 19px);
+  color: color-mix(in oklch, var(--ink) 88%, var(--paper));
+  max-width: 720px;
+}
+
+.prose-lede {
+  font-size: clamp(18px, 1.9vw, 22px);
+  line-height: 1.55;
+  margin: 0 0 24px;
+  color: var(--ink);
+}
+.prose-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.prose-list li {
+  position: relative;
+  padding-left: 26px;
+}
+.prose-list li::before {
+  content: "·";
+  position: absolute;
+  left: 0;
+  top: -2px;
+  font-size: 28px;
+  color: var(--accent);
+  line-height: 1;
+}
+.prose-list strong {
+  font-weight: 600;
+}
+
+/* ---------- For-the-curious disclosure -------------------- */
+.slide-curious {
+  margin-top: 36px;
+  border-top: 0.4px solid var(--rule);
+  padding-top: 18px;
+}
+.slide-curious > summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  user-select: none;
+}
+.slide-curious > summary::-webkit-details-marker {
+  display: none;
+}
+.slide-curious > summary:hover {
+  color: var(--ink);
+}
+.slide-curious-marker {
+  display: inline-block;
+  transition: transform 200ms ease;
+  font-size: 10px;
+}
+.slide-curious[open] .slide-curious-marker {
+  transform: rotate(90deg);
+}
+.slide-curious-body {
+  margin-top: 14px;
+  padding: 14px 16px 14px 18px;
+  border-left: 2px solid var(--accent);
+  background: color-mix(in oklch, var(--accent-soft) 50%, transparent);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+.slide-curious-body p {
+  margin: 0 0 10px;
+}
+.slide-curious-body p:last-child {
+  margin-bottom: 0;
+}
+
+/* ---------- Hero ----------------------------------------- */
+.hero-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 26px;
+  text-align: left;
+}
+.hero-mark {
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.hero-title {
+  font-family: "Geist Variable", "Geist", system-ui, sans-serif;
+  font-weight: 500;
+  font-size: clamp(40px, 7vw, 88px);
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  margin: 0;
+  color: var(--ink);
+}
+.hero-italic {
+  font-family: "Instrument Serif", "Iowan Old Style", "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.08em;
+  color: var(--accent);
+}
+.hero-lede {
+  font-size: clamp(17px, 1.9vw, 22px);
+  line-height: 1.55;
+  color: color-mix(in oklch, var(--ink) 80%, var(--paper));
+  max-width: 640px;
+  margin: 0;
+}
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
+.hero-cta {
+  display: inline-block;
+  font-family: "Geist Variable", "Geist", sans-serif;
+  font-weight: 500;
+  font-size: 15px;
+  padding: 12px 22px;
+  border: var(--hair-w) solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    transform 80ms ease;
+}
+.hero-cta:hover {
+  background: var(--tint);
+  border-bottom-color: var(--ink);
+}
+.hero-cta:active {
+  transform: translateY(0.5px);
+}
+.hero-cta.primary {
+  background: var(--accent);
+  color: var(--paper);
+  border-color: var(--accent);
+}
+.hero-cta.primary:hover {
+  background: color-mix(in oklch, var(--accent) 86%, var(--ink));
+}
+.hero-cta.ghost {
+  background: transparent;
+  border-color: var(--rule);
+}
+.hero-cta.ghost:hover {
+  border-color: var(--ink);
+}
+.hero-meta {
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 6px 0 0;
+}
+
+/* ---------- Devices grid --------------------------------- */
+.device-grid {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0;
+  border-top: 0.4px solid var(--rule);
+}
+.device-chip {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 14px 14px 14px 0;
+  border-bottom: 0.4px solid var(--rule);
+  border-right: 0.4px solid var(--rule);
+  padding-left: 14px;
+}
+.device-chip-label {
+  font-size: 14px;
+  color: var(--ink);
+}
+.device-chip-port {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ---------- Banner mock (Classroom slide) ---------------- */
+.banner-mock {
+  margin-top: 28px;
+  padding: 22px 24px;
+  border: var(--hair-w) solid var(--rule);
+  background: color-mix(in oklch, var(--accent-soft) 60%, var(--paper));
+  border-radius: 0;
+}
+.banner-mock-line {
+  font-family: "Geist Variable", "Geist", sans-serif;
+  font-size: 16px;
+  color: var(--ink);
+  line-height: 1.45;
+}
+.banner-mock-line strong {
+  font-weight: 600;
+}
+.banner-mock-line em {
+  font-family: "Instrument Serif", serif;
+  font-style: italic;
+  font-weight: 400;
+}
+.banner-mock-sub {
+  margin-top: 6px;
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* ---------- Get-started cards ---------------------------- */
+.get-started-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0;
+  margin-top: 28px;
+  border-top: 0.4px solid var(--rule);
+  border-left: 0.4px solid var(--rule);
+}
+.get-started-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 28px 26px;
+  border-right: 0.4px solid var(--rule);
+  border-bottom: 0.4px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  border-bottom-color: var(--rule);
+  transition: background 120ms ease;
+}
+a.get-started-card {
+  border-bottom: 0.4px solid var(--rule);
+}
+a.get-started-card:hover {
+  background: var(--tint);
+}
+.get-started-card.primary {
+  background: var(--accent);
+  color: var(--paper);
+}
+.get-started-card.primary:hover {
+  background: color-mix(in oklch, var(--accent) 86%, var(--ink));
+}
+.get-started-card.primary p {
+  color: color-mix(in oklch, var(--paper) 88%, transparent);
+}
+.get-started-card.primary .get-started-num {
+  color: color-mix(in oklch, var(--paper) 60%, transparent);
+}
+.get-started-num {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.get-started-card h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.get-started-card p {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: color-mix(in oklch, var(--ink) 80%, transparent);
+  margin: 0;
+}
+.get-started-cta {
+  margin-top: auto;
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- Credits -------------------------------------- */
+.credits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 36px 28px;
+  margin: 24px 0 36px;
+}
+.credits-block h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  margin: 0 0 10px;
+  font-weight: 500;
+}
+.credits-name {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.credits-meta {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+  font-family: "Geist Mono", monospace;
+}
+.credits-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+.credits-block p {
+  font-size: 14.5px;
+  line-height: 1.6;
+  margin: 0;
+  color: color-mix(in oklch, var(--ink) 88%, var(--paper));
+}
+.credits-tagline {
+  font-family: "Instrument Serif", "Iowan Old Style", serif;
+  font-style: italic;
+  font-size: clamp(20px, 2.5vw, 28px);
+  color: var(--ink);
+  text-align: center;
+  margin-top: 40px;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- Side rail ------------------------------------ */
+.side-rail {
+  position: fixed;
+  top: 50%;
+  right: 22px;
+  transform: translateY(-50%);
+  z-index: 25;
+  pointer-events: none;
+}
+.side-rail ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.side-rail li {
+  pointer-events: auto;
+}
+.side-rail a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-direction: row-reverse;
+  text-decoration: none;
+  border-bottom: 0;
+  color: var(--muted);
+  transition: color 160ms ease;
+}
+.side-rail a:hover {
+  color: var(--ink);
+}
+.side-rail-dot {
+  width: 8px;
+  height: 8px;
+  border: 1.2px solid currentColor;
+  border-radius: 50%;
+  background: transparent;
+  transition: background 160ms ease, transform 160ms ease;
+}
+.side-rail li.active .side-rail-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.25);
+}
+.side-rail li.active a {
+  color: var(--ink);
+}
+.side-rail-label {
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(8px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  pointer-events: none;
+}
+.side-rail li:hover .side-rail-label,
+.side-rail li.active .side-rail-label {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- Footer --------------------------------------- */
+.landing-footer {
+  border-top: var(--hair-w) solid var(--rule);
+  padding: 28px 32px;
+  background: var(--paper);
+}
+.landing-footer-inner {
+  max-width: 880px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.landing-footer-link {
+  color: var(--ink);
+  border-bottom: 0;
+  opacity: 0.75;
+  transition: opacity 120ms ease;
+}
+.landing-footer-link:hover {
+  opacity: 1;
+}
+.landing-footer-meta {
+  margin-left: auto;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- Responsive ----------------------------------- */
+@media (max-width: 760px) {
+  .slide {
+    padding: 96px 22px 64px;
+  }
+  .side-rail {
+    display: none;
+  }
+  .landing-topbar {
+    padding: 12px 18px;
+  }
+  .device-grid {
+    grid-template-columns: 1fr;
+  }
+}
