@@ -27,13 +27,20 @@ export default {
       return new Response("ok\n", { headers: { "content-type": "text/plain" } });
     }
 
-    if (url.pathname === "/ws") {
-      if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") {
-        return new Response("expected websocket upgrade", { status: 426 });
-      }
+    // Permissive WS routing. Original spec was `/ws`, but accept the
+    // upgrade on any path so a deploy whose VITE_CLASSROOM_WS_URL
+    // drops the trailing `/ws` (easy mistake when copy-pasting from
+    // the CF dashboard) still works.
+    const wantsUpgrade = req.headers.get("upgrade")?.toLowerCase() === "websocket";
+    if (wantsUpgrade) {
+      console.log(`[worker] WS upgrade path=${url.pathname}`);
       const id = env.HUB.idFromName("singleton");
       const stub = env.HUB.get(id);
       return stub.fetch(req);
+    }
+
+    if (url.pathname === "/ws") {
+      return new Response("this endpoint expects a WebSocket upgrade\n", { status: 426 });
     }
 
     return new Response("not found\n", { status: 404 });
