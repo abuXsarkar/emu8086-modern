@@ -1289,6 +1289,269 @@
   gap: 8px;
 }
 
+/* Collapse handle on the expanded drawer. Sits at the top-right
+   inside the drawer; clicking shrinks to the slim strip. */
+.classroom-drawer-collapse {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  border: 0.6px solid var(--rule);
+  border-radius: var(--rad);
+  cursor: pointer;
+  color: var(--muted);
+  font-family: "Geist Mono", monospace;
+  font-size: 14px;
+  line-height: 1;
+  z-index: 1;
+}
+.classroom-drawer-collapse:hover {
+  color: var(--ink);
+  background: var(--tint);
+}
+/* Drawer needs `position: relative` (well, fixed) for the absolute child. */
+.classroom-drawer {
+  position: fixed;
+}
+
+/* Collapsed strip — a slim vertical button anchored to the right edge.
+   Highly visible: a hairline column of mono text + counts that the
+   teacher / student can read at a glance without re-expanding. */
+.classroom-strip {
+  position: fixed;
+  top: 96px;
+  right: 0;
+  bottom: 16px;
+  width: 44px;
+  z-index: 50;
+  background: var(--paper);
+  border: var(--hair-w) solid var(--rule);
+  border-right: 0;
+  border-radius: var(--rad) 0 0 var(--rad);
+  box-shadow:
+    -1px 1px 0 var(--ink),
+    -4px 0 12px color-mix(in oklch, var(--ink) 14%, transparent);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0 14px;
+  font-family: "Geist Mono", monospace;
+  color: var(--ink);
+}
+.classroom-strip:hover {
+  background: color-mix(in oklch, var(--accent-soft) 28%, var(--paper));
+}
+.classroom-strip-chevron {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--muted);
+}
+.classroom-strip-room {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  font-weight: 500;
+  /* The two writing-mode + rotate gives bottom→top on the right side
+     instead of the default top→bottom. Reads better when the drawer
+     is on the right edge. */
+}
+.classroom-strip-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--ink);
+}
+.classroom-strip-stat-num {
+  font-size: 13px;
+  font-weight: 600;
+}
+.classroom-strip-stat-icon {
+  font-size: 13px;
+  opacity: 0.85;
+}
+.classroom-strip-stat.warn {
+  color: var(--warn);
+}
+.classroom-strip-stat.warn .classroom-strip-stat-icon {
+  opacity: 1;
+}
+
+/* Action row in the student drawer — hand-raise + submit side by side. */
+.classroom-actions {
+  display: flex;
+  gap: 8px;
+}
+.classroom-actions > .btn {
+  flex: 1 1 auto;
+}
+.classroom-hand-btn.up {
+  background: color-mix(in oklch, var(--warn) 22%, var(--paper));
+  border-color: var(--warn);
+}
+.classroom-flash {
+  margin: -4px 0 0;
+  font-size: 11px;
+  color: var(--good);
+  font-family: "Geist Mono", monospace;
+}
+
+/* Per-row teacher actions + expansion */
+.classroom-roster-row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0 6px;
+  border-bottom: 0.4px solid color-mix(in oklch, var(--rule) 40%, transparent);
+}
+.classroom-roster-row.expanded {
+  background: color-mix(in oklch, var(--accent-soft) 22%, var(--paper));
+  border: 0.6px solid var(--rule);
+  border-radius: var(--rad);
+  padding: 8px;
+  margin: 4px 0;
+}
+.classroom-roster-summary {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+}
+.classroom-roster-summary:hover {
+  color: var(--accent);
+}
+.classroom-roster-chevron {
+  font-size: 11px;
+  color: var(--muted);
+}
+.classroom-roster-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border: 0.6px solid var(--rule);
+  background: color-mix(in oklch, var(--accent-soft) 30%, var(--paper));
+  color: var(--ink);
+}
+.classroom-roster-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  align-items: center;
+}
+.classroom-roster-action {
+  background: transparent;
+  border: 0.6px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--rad);
+  padding: 0;
+}
+.classroom-roster-action:hover {
+  border-color: var(--rule);
+  color: var(--ink);
+  background: var(--tint);
+}
+.classroom-roster-action.danger:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Comment thread (per-student notes) */
+.classroom-comment-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.classroom-comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.classroom-comment {
+  background: var(--paper);
+  border: 0.6px solid var(--rule);
+  border-radius: var(--rad);
+  padding: 7px 9px;
+}
+.classroom-comment.unseen {
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent-soft) 50%, var(--paper));
+}
+.classroom-comment-body {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink);
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+.classroom-comment-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.classroom-comment-time {
+  font-size: 10px;
+}
+.classroom-comment-seen {
+  font-family: "Geist Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--good);
+}
+.classroom-comment-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.classroom-comment-input {
+  font-family: "Geist Variable", "Geist", sans-serif;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--hair-w) solid var(--rule);
+  border-radius: var(--rad);
+  padding: 6px 8px;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+.classroom-comment-composer .btn {
+  align-self: flex-end;
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
 /* Drawer collapses to overlay-style on narrow viewports. */
 @media (max-width: 1180px) {
   .classroom-drawer {
@@ -1304,6 +1567,27 @@
     width: auto;
     max-height: 70vh;
     border-radius: 0;
+  }
+  .classroom-strip {
+    top: auto;
+    bottom: 0;
+    right: 0;
+    width: auto;
+    height: 36px;
+    flex-direction: row;
+    padding: 0 12px;
+    gap: 18px;
+    border-radius: var(--rad) var(--rad) 0 0;
+    border: var(--hair-w) solid var(--rule);
+    border-bottom: 0;
+  }
+  .classroom-strip-room {
+    writing-mode: horizontal-tb;
+    transform: none;
+  }
+  .classroom-strip-stat {
+    flex-direction: row;
+    gap: 6px;
   }
   .classroom-startjoin {
     width: auto;

@@ -180,3 +180,57 @@ describe("Room — close", () => {
     expect(r.isClosed()).toBe(true);
   });
 });
+
+describe("Room — comments", () => {
+  it("addComment dispatches to teacher + targeted student only", () => {
+    const r = newRoom();
+    r.teacherJoin("T");
+    r.studentJoin("R-1", "Aisha", 100);
+    r.studentJoin("R-2", "Bilal", 110);
+    const out = r.addComment("R-1", "  please re-check the loop  ", 200);
+    expect(out).toHaveLength(2);
+    expect(out.map((o) => o.target)).toEqual([
+      { kind: "teacher" },
+      { kind: "student", rollNo: "R-1" },
+    ]);
+    const m0 = out[0].msg as Extract<ServerMsg, { t: "comment_added" }>;
+    expect(m0.comment.body).toBe("please re-check the loop"); // trimmed
+    expect(m0.comment.rollNo).toBe("R-1");
+    expect(m0.comment.seenAt).toBeNull();
+    expect(r.commentsSnapshot()).toHaveLength(1);
+  });
+
+  it("addComment to an unknown student or with empty body is a no-op", () => {
+    const r = newRoom();
+    r.teacherJoin("T");
+    r.studentJoin("R-1", "Aisha", 100);
+    expect(r.addComment("nobody", "hi", 200)).toEqual([]);
+    expect(r.addComment("R-1", "   ", 200)).toEqual([]);
+    expect(r.commentsSnapshot()).toEqual([]);
+  });
+
+  it("markCommentSeen flips seenAt and broadcasts to teacher + student", () => {
+    const r = newRoom();
+    r.teacherJoin("T");
+    r.studentJoin("R-1", "Aisha", 100);
+    const added = r.addComment("R-1", "good work", 200);
+    const id = (added[0].msg as Extract<ServerMsg, { t: "comment_added" }>).comment.id;
+    const seen = r.markCommentSeen("R-1", id, 300);
+    expect(seen).toHaveLength(2);
+    expect(
+      (seen[0].msg as Extract<ServerMsg, { t: "comment_seen" }>).seenAt,
+    ).toBe(300);
+    // Idempotent.
+    expect(r.markCommentSeen("R-1", id, 400)).toEqual([]);
+  });
+
+  it("markCommentSeen by a different student is rejected", () => {
+    const r = newRoom();
+    r.teacherJoin("T");
+    r.studentJoin("R-1", "Aisha", 100);
+    r.studentJoin("R-2", "Bilal", 110);
+    const added = r.addComment("R-1", "good work", 200);
+    const id = (added[0].msg as Extract<ServerMsg, { t: "comment_added" }>).comment.id;
+    expect(r.markCommentSeen("R-2", id, 300)).toEqual([]);
+  });
+});

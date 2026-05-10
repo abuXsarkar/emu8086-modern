@@ -172,6 +172,32 @@ export interface Strings {
   classroomErrorProtocolMismatch: string;
   classroomErrorHostInvalid: string;
   classroomErrorGeneric: (message: string) => string;
+
+  // Classroom mode — collapsible drawer
+  classroomDrawerCollapse: string;
+  classroomDrawerExpand: string;
+  classroomDrawerStudentsCount: (n: number) => string;
+
+  // Classroom mode — teacher per-student actions
+  classroomTeacherLowerHand: string;
+  classroomTeacherKick: string;
+  classroomTeacherKickConfirm: (name: string) => string;
+  classroomTeacherCloseRoomConfirm: string;
+
+  // Classroom mode — student submit confirmation
+  classroomStudentSubmitConfirm: string;
+  classroomStudentSubmitDone: string;
+
+  // Classroom mode — per-student comments
+  classroomCommentHeading: string;
+  classroomCommentEmpty: string;
+  classroomCommentEmptyTeacher: string;
+  classroomCommentPlaceholder: string;
+  classroomCommentSend: string;
+  classroomCommentSeen: string;
+  classroomCommentMarkSeen: string;
+  classroomCommentNew: (n: number) => string;
+  classroomCommentFromTeacher: string;
 }
 
 export type LocaleId =

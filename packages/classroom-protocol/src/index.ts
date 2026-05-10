@@ -67,6 +67,25 @@ export interface Submission {
 }
 
 /**
+ * Per-student note left by the teacher during the session. Comments
+ * are private to (the teacher, the targeted student) — other
+ * students never receive them. Lifetime is the room's lifetime:
+ * when the session is reaped or closed, comments go away with it.
+ */
+export interface Comment {
+  /** Server-generated stable id; used as the React key + seen-target. */
+  id: string;
+  /** rollNo of the student the comment is about. */
+  rollNo: string;
+  /** The comment text. Capped at MAX_COMMENT_BYTES on the server. */
+  body: string;
+  /** epoch ms of the comment's server-side timestamp. */
+  at: number;
+  /** epoch ms of when the student first dismissed the badge. null until seen. */
+  seenAt: number | null;
+}
+
+/**
  * Snapshot sent to a fresh joiner so they can render the room without
  * waiting for incremental updates. Teacher receives the full
  * `studentsForTeacher`; students receive only `peers`.
@@ -85,6 +104,9 @@ export interface RoomSnapshot {
   studentsForTeacher?: StudentPublic[];
   /** Populated for students only. */
   peers?: PeerCount;
+  /** All comments visible to this joiner — teacher sees everyone's,
+   *  the student sees only their own. */
+  comments?: Comment[];
 }
 
 // ---------- Client → server -------------------------------------------------
@@ -116,7 +138,11 @@ export type ClientMsg =
   | { t: "control_buffer"; source: string }
   | { t: "set_prompt"; prompt: string }
   | { t: "kick"; rollNo: string }
-  | { t: "close_room" };
+  | { t: "close_room" }
+  /** Teacher leaves a private note on a specific student. */
+  | { t: "add_comment"; rollNo: string; body: string }
+  /** Student dismisses the unread badge for a specific comment. */
+  | { t: "mark_comment_seen"; commentId: string };
 
 // ---------- Server → client -------------------------------------------------
 
@@ -157,6 +183,10 @@ export type ServerMsg =
       t: "room_closed";
       reason: "teacher_closed" | "reaped" | "error";
     }
+  /** Teacher (echo) + targeted student receive this when a comment lands. */
+  | { t: "comment_added"; comment: Comment }
+  /** Teacher + student see this when a comment is dismissed by the student. */
+  | { t: "comment_seen"; commentId: string; rollNo: string; seenAt: number }
   | {
       t: "error";
       code: ErrorCode;
@@ -196,3 +226,4 @@ export const MAX_NAME_BYTES = 128;
 export const MAX_ROLL_NO_BYTES = 32;
 export const MAX_PROMPT_BYTES = 4_096;
 export const MAX_META_FIELD_BYTES = 256;
+export const MAX_COMMENT_BYTES = 2_048;

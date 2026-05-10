@@ -1177,7 +1177,7 @@ export function App() {
         {t.footerNote}
       </footer>
       <TweaksPanel />
-      <ClassroomLayer />
+      <ClassroomLayer currentSource={source} />
     </main>
   );
 }

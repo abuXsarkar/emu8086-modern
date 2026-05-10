@@ -168,5 +168,30 @@ export const en: CompleteLocale = {
     classroomErrorHostInvalid:
       "Host token rejected. Try starting a fresh session.",
     classroomErrorGeneric: (message) => `Error: ${message}`,
+
+    classroomDrawerCollapse: "Collapse",
+    classroomDrawerExpand: "Expand classroom panel",
+    classroomDrawerStudentsCount: (n) =>
+      n === 1 ? "1 student" : `${n} students`,
+
+    classroomTeacherLowerHand: "Lower hand",
+    classroomTeacherKick: "Remove",
+    classroomTeacherKickConfirm: (name) => `Remove ${name} from the classroom?`,
+    classroomTeacherCloseRoomConfirm:
+      "Close the classroom? All students will be disconnected.",
+
+    classroomStudentSubmitConfirm:
+      "Send your current code to the teacher?",
+    classroomStudentSubmitDone: "Submitted",
+
+    classroomCommentHeading: "Notes",
+    classroomCommentEmpty: "Your teacher hasn't left any notes yet.",
+    classroomCommentEmptyTeacher: "No notes for this student yet.",
+    classroomCommentPlaceholder: "Leave a note for this student…",
+    classroomCommentSend: "Send",
+    classroomCommentSeen: "Seen",
+    classroomCommentMarkSeen: "Mark as read",
+    classroomCommentNew: (n) => (n === 1 ? "1 new note" : `${n} new notes`),
+    classroomCommentFromTeacher: "from your teacher",
   },
 };

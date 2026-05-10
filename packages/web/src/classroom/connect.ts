@@ -190,6 +190,7 @@ class ClassroomConnection {
           controlGrantedTo: snap.controlGrantedTo,
           studentsForTeacher: snap.studentsForTeacher ?? [],
           peers: snap.peers ?? null,
+          comments: snap.comments ?? [],
           errorMessage: null,
           reconnectAttempt: 0,
           closeReason: null,
@@ -273,6 +274,22 @@ class ClassroomConnection {
           closeReason: msg.reason,
         });
         return;
+      case "comment_added": {
+        const s = classroomStore.get();
+        // Skip duplicate ids (server may echo to multiple targets).
+        if (s.comments.some((c) => c.id === msg.comment.id)) return;
+        classroomStore.set({ comments: [...s.comments, msg.comment] });
+        return;
+      }
+      case "comment_seen": {
+        const s = classroomStore.get();
+        classroomStore.set({
+          comments: s.comments.map((c) =>
+            c.id === msg.commentId ? { ...c, seenAt: msg.seenAt } : c,
+          ),
+        });
+        return;
+      }
       case "error":
         classroomStore.set({
           errorMessage: msg.message,

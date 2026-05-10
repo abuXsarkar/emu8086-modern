@@ -68,6 +68,14 @@ export function closeRoom(): void {
   classroomConnection.send({ t: "close_room" });
 }
 
+export function addComment(rollNo: string, body: string): void {
+  classroomConnection.send({ t: "add_comment", rollNo, body });
+}
+
+export function markCommentSeen(commentId: string): void {
+  classroomConnection.send({ t: "mark_comment_seen", commentId });
+}
+
 /** Convenience for components that just want to know "are we live?". */
 export function isJoined(): boolean {
   const s = classroomStore.get();

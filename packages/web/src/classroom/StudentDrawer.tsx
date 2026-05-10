@@ -1,13 +1,19 @@
-// Student's view of the live room. P2 surfaces presence,
-// the teacher's prompt, peer count, control / broadcast banners,
-// and the leave action. The hand-raise + submit + follow-buffer
-// behaviours land in P3.
+// Student's view of the live room. Surfaces presence + prompt + peer
+// count + control/broadcast banners, and lets the student raise/lower
+// their hand and submit their current buffer to the teacher.
 
+import { useState } from "react";
 import { useStrings } from "../i18n";
 import { useClassroomStore } from "./store";
-import { leaveClassroom } from "./actions";
+import { leaveClassroom, setHand, submit } from "./actions";
+import { CommentThread } from "./CommentThread";
 
-export function StudentDrawer() {
+interface StudentDrawerProps {
+  /** Current editor buffer to send when the student presses Submit. */
+  currentSource?: string;
+}
+
+export function StudentDrawer({ currentSource }: StudentDrawerProps = {}) {
   const t = useStrings();
   const displayName = useClassroomStore((s) => s.displayName);
   const peers = useClassroomStore((s) => s.peers);
@@ -16,8 +22,41 @@ export function StudentDrawer() {
   const controlGrantedTo = useClassroomStore((s) => s.controlGrantedTo);
   const meta = useClassroomStore((s) => s.meta);
   const myRollNo = useClassroomStore((s) => s.rollNo);
+  const studentsForTeacher = useClassroomStore((s) => s.studentsForTeacher);
+  const comments = useClassroomStore((s) => s.comments);
 
   const isControlled = controlGrantedTo !== null && controlGrantedTo === myRollNo;
+  // The roster broadcast carries every student's handUp; the student
+  // itself can also derive its own handUp by looking up its rollNo.
+  // It's a fast O(N) walk on a ~30-item list — fine.
+  const myEntry =
+    myRollNo === null
+      ? null
+      : studentsForTeacher.find((s) => s.rollNo === myRollNo) ?? null;
+  // Students don't receive `roster_changed` directly (server filters by
+  // role), but `hand_changed` updates studentsForTeacher only on the
+  // teacher's side. So for students we keep optimistic local hand
+  // state and reconcile with hand_changed events via the store
+  // subscription if/when the protocol carries them. For now: track
+  // locally; the server is authoritative on broadcast back.
+  const [optimisticHandUp, setOptimisticHandUp] = useState(false);
+  const handUp = myEntry?.handUp ?? optimisticHandUp;
+  const [submitFlash, setSubmitFlash] = useState<string | null>(null);
+
+  function toggleHand(): void {
+    if (myRollNo === null) return;
+    const next = !handUp;
+    setOptimisticHandUp(next);
+    setHand(myRollNo, next);
+  }
+
+  function onSubmit(): void {
+    if (typeof currentSource !== "string") return;
+    if (!window.confirm(t.classroomStudentSubmitConfirm)) return;
+    submit(currentSource);
+    setSubmitFlash(t.classroomStudentSubmitDone);
+    window.setTimeout(() => setSubmitFlash(null), 1800);
+  }
 
   return (
     <div className="classroom-drawer-body">
@@ -37,6 +76,31 @@ export function StudentDrawer() {
         </div>
       ) : null}
 
+      <div className="classroom-actions">
+        <button
+          type="button"
+          className={`btn classroom-hand-btn${handUp ? " up" : ""}`}
+          onClick={toggleHand}
+          aria-pressed={handUp}
+        >
+          <span aria-hidden>✋</span>{" "}
+          {handUp ? t.classroomStudentLowerHand : t.classroomStudentRaiseHand}
+        </button>
+        <button
+          type="button"
+          className="btn primary"
+          onClick={onSubmit}
+          disabled={typeof currentSource !== "string"}
+        >
+          {t.classroomStudentSubmit}
+        </button>
+      </div>
+      {submitFlash ? (
+        <p className="classroom-flash" role="status">
+          {submitFlash}
+        </p>
+      ) : null}
+
       {prompt ? (
         <section className="classroom-drawer-section" aria-labelledby="cls-prompt-s">
           <header className="classroom-drawer-header">
@@ -45,6 +109,25 @@ export function StudentDrawer() {
             </h3>
           </header>
           <p className="classroom-prompt-readonly">{prompt}</p>
+        </section>
+      ) : null}
+
+      {myRollNo ? (
+        <section className="classroom-drawer-section" aria-labelledby="cls-comments-s">
+          <header className="classroom-drawer-header">
+            <h3 className="smallcaps" id="cls-comments-s">
+              {t.classroomCommentHeading}
+            </h3>
+            {(() => {
+              const unseen = comments.filter((c) => c.seenAt === null).length;
+              return unseen > 0 ? (
+                <span className="classroom-handsup-badge">
+                  {t.classroomCommentNew(unseen)}
+                </span>
+              ) : null;
+            })()}
+          </header>
+          <CommentThread rollNo={myRollNo} comments={comments} role="student" />
         </section>
       ) : null}
 
