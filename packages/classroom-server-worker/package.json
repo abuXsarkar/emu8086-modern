@@ -9,9 +9,10 @@
   "main": "src/worker.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
-    "tail": "wrangler tail"
+    "cf-deploy": "wrangler deploy",
+    "cf-dev": "wrangler dev",
+    "cf-tail": "wrangler tail",
+    "cf-secret": "wrangler secret put"
   },
   "dependencies": {
     "@emu8086/classroom-protocol": "workspace:*",
@@ -20,6 +21,6 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240903.0",
     "typescript": "^5.5.0",
-    "wrangler": "^3.78.0"
+    "wrangler": "^4.0.0"
   }
 }

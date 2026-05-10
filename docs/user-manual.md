@@ -300,7 +300,7 @@ instead — free tier, zero ops, same protocol:
 pnpm --filter @emu8086/classroom-server-worker exec wrangler login
 openssl rand -base64 32 | pnpm --filter @emu8086/classroom-server-worker \
   exec wrangler secret put EMU8086_CLASSROOM_HMAC_SECRET
-pnpm --filter @emu8086/classroom-server-worker deploy
+pnpm --filter @emu8086/classroom-server-worker cf-deploy
 ```
 
 That gives you a URL like

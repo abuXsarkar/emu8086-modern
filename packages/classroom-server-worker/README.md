@@ -45,8 +45,15 @@ openssl rand -base64 32 \
 # Deploy. The worker name defaults to `emu8086-classroom`, so the
 # resulting URL is roughly:
 #   https://emu8086-classroom.<your-name>.workers.dev
-pnpm --filter @emu8086/classroom-server-worker deploy
+pnpm --filter @emu8086/classroom-server-worker cf-deploy
 ```
+
+> **Note** — the script is named `cf-deploy` (not `deploy`) on
+> purpose: pnpm has a built-in `pnpm deploy` subcommand for
+> packaging workspace projects, and `pnpm --filter X deploy` is
+> interpreted as that built-in, not an npm script. Same reason
+> the dev / tail / secret-put helpers are `cf-dev`, `cf-tail`,
+> `cf-secret`.
 
 ## Wire the IDE to it
 
@@ -67,14 +74,14 @@ already forwards `vars.*` into the build environment.
 
 ```bash
 # Run the Worker against Cloudflare's local Miniflare runtime.
-pnpm --filter @emu8086/classroom-server-worker dev
+pnpm --filter @emu8086/classroom-server-worker cf-dev
 ```
 
 Then point the IDE at `ws://localhost:8787/ws` via
 `VITE_CLASSROOM_WS_URL=ws://localhost:8787/ws pnpm --filter @emu8086/web dev`.
 
-The Worker `dev` command listens on port 8787 by default — same
-port the Node server uses — so the IDE's dev-mode default works
+The Worker `cf-dev` command listens on port 8787 by default —
+same port the Node server uses — so the IDE's dev-mode default works
 unchanged. Switch between Node and Worker locally just by
 swapping which one you have running.
 
