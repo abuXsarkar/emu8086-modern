@@ -127,10 +127,28 @@ For a custom domain (or self-host via the bundled `Dockerfile`), the
 build also accepts `VITE_BASE=/` (the default), so any deployment
 served from the root works without extra config.
 
+### Self-host with classroom mode
+
+Bring up both the IDE and the classroom-mode WebSocket relay with
+the bundled compose file:
+
+```bash
+# Mint a stable HMAC secret for host-token signing (change on each
+# rotation, see docs/classroom-mode.md §"HMAC secret rotation").
+export EMU8086_CLASSROOM_HMAC_SECRET=$(openssl rand -base64 32)
+
+docker compose up --build
+# IDE:              http://localhost:8080
+# Classroom server: ws://localhost:8787  (also /healthz over HTTP)
+```
+
+The classroom-server is optional — the IDE works on its own at
+`:8080` and only consults the relay when a teacher starts a session
+or a student joins via `?room=…`.
+
 What is **not** built yet (planned, see [`ROADMAP.md`](ROADMAP.md)):
 
 - Memory-operand watches and breakpoints (e.g. `[BX+SI] == 0` predicates) — register / flag forms already ship.
-- Live-collaboration / classroom-mode broadcast (needs a websocket service).
 - LTI 1.3 launch (Moodle / Canvas).
 - Native desktop builds via Tauri (M7).
 - Plugin SDK 1.0, code-signed release artifacts, external accessibility audit, pilot-course validation — M6/M7 work that needs external infrastructure.

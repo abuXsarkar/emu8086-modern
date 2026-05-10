@@ -15,6 +15,8 @@ node_modules/
 packages/wasm-api/pkg/
 packages/web/dist/
 packages/devices/ts/dist/
+packages/classroom-protocol/dist/
+packages/classroom-server/dist/
 
 .git/
 .github/
