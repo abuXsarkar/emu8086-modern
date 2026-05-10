@@ -1,6 +1,6 @@
 {
   "name": "@emu8086/web",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Web IDE for emu8086-modern (React + Vite + Monaco).",
   "license": "MIT",

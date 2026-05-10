@@ -1,6 +1,6 @@
 {
   "name": "@emu8086/desktop",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Native desktop shell (Tauri 2) for the emu8086-modern web IDE.",
   "license": "MIT",

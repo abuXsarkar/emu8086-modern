@@ -1,6 +1,6 @@
 {
   "name": "@emu8086/devices",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "React components for virtual peripherals (paired with the Rust devices crate).",
   "license": "MIT",

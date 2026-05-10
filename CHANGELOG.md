@@ -6,6 +6,76 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-05-11
+
+First stable release. Everything documented in
+[`docs/user-manual.md`](docs/user-manual.md) is part of the
+[`SEMVER.md`](SEMVER.md) compatibility contract from this version
+onward.
+
+### Headlines
+
+- **Web IDE** — Monaco editor with 8086 syntax + snippets + hover
+  docs, 13 UI translations (en, es, bn, as, hi, ta, te, gu, mr, kn,
+  ml, pa, or) with graceful English fallback, paper / dark themes,
+  share-links via URL fragment, 1-million-step run cap with a
+  status banner that distinguishes halt vs step-limit vs error,
+  responsive layout for phones / tablets, opt-in local-only
+  metrics, accessible focus / role wiring throughout.
+- **Time-travel debugger** — Step / ◀ Back / Reset, watch
+  expressions, breakpoint predicates, source-line highlighting,
+  memory hex panel with per-step change diffing.
+- **Eight live peripherals** — traffic light, stepper motor, 8×8
+  LED matrix, 7-segment display, B800-mapped 80×25 text screen,
+  keyboard FIFO, LPT1 printer, 9×9 robot grid. Each pops out into
+  a draggable floater with persistent position.
+- **`emu8086` CLI** — `assemble`, `run`, `run-asm`, `trace` (JSON
+  per-instruction execution log), `grade` (YAML spec → JUnit XML),
+  `compat-report` (corpus check with `--exclude PATTERN`),
+  `version`. Distributed natively, plus an
+  [`@emu8086/cli`](packages/cli-npm) npm wrapper that auto-fetches
+  the right prebuilt binary per platform.
+- **Classroom mode** — start a live session with friendly word-pair
+  room codes (`blue-fox-42`), roll-number-based identity,
+  always-on teacher view with unilateral take-control, per-student
+  notes, broadcast pane on the student side, accumulated
+  submissions downloaded as a zip, A4 print-friendly session
+  summary plus CSV export. Self-hosted via the bundled
+  `docker-compose.yml`.
+- **Plugin SDK 1.0** — TypeScript-only authoring surface for
+  OUT-driven device plugins. One `registerDevicePlugin(...)` call;
+  the IDE renders the plugin in the device gallery alongside the
+  built-ins. Ships with an example buzzer plugin.
+- **Native desktop shell** — Tauri 2 wraps the same web IDE for
+  Linux, macOS, and Windows. `pnpm desktop:bundle` produces
+  DEB/AppImage, DMG/.app, MSI/NSIS.
+- **Self-host bundle** — single Docker image for the web IDE plus
+  an optional sidecar image for the classroom relay. HMAC secret
+  rotation, healthcheck endpoint, unprivileged runtime user.
+- **Lab-manual compatibility** — assembler accepts MASM idioms
+  used in the four major South Asian 8086 lab manuals: `db ?`,
+  `NAME DB`, implicit deref, `.MODEL` / `PROC` / `ENDP`, `SEGMENT`
+  / `ENDS`, `STRUC`, `LABEL`, `IF / ELSE / ENDIF`, `SEG` / `TYPE`
+  / `LENGTH` / `SIZE` operators, all the lab-manual `INT 21h` /
+  `INT 10h` / `INT 16h` / `INT 33h` subfunctions, virtual
+  filesystem with file-I/O subfunctions.
+- **In-app tutorials** — 10 hands-on lessons (Hello, Registers,
+  Memory + addressing modes, Arithmetic + flags, Stack, Procedures,
+  Interrupts, Devices, Time-travel debugger, Sharing + the
+  autograder) with starter-code drop-ins and per-step progress.
+- **User manual** — single-page reference at
+  [`docs/user-manual.md`](docs/user-manual.md).
+- **Governance** — [`SEMVER.md`](SEMVER.md) spells out what counts
+  as breaking; [`docs/release-process.md`](docs/release-process.md)
+  is the maintainer's checklist; [`SECURITY.md`](SECURITY.md) lays
+  out the post-1.0 support matrix.
+
+### Detail
+
+For the full per-PR detail since the post-handoff window, see the
+older `### Added (post-handoff)` entries below (preserved verbatim
+to keep the audit trail intact).
+
 ### Added (post-handoff)
 
 - **`SEGMENT`/`ENDS`, `LABEL`, `PUBLIC`/`EXTRN`, `STRUC`, `GROUP`, `IF`/`ELSE`/`ENDIF`, plus `SEG` / `TYPE` / `LENGTH` / `SIZE` operators** (closes audit gaps GAP-013, GAP-015 through GAP-018, GAP-020, GAP-031, GAP-032 — PR 4 of the lab-manual close-out plan; depends on PR 1's `ConstExpr` AST). The preprocessor's drop-list grows to cover linker concerns the manuals' multi-file sources name but our flat `.com` model doesn't track: `PUBLIC`, `EXTRN` / `EXTERN`, `GROUP`. Conditional-assembly markers — `IF` / `IFDEF` / `IFNDEF` / `IFB` / `IFNB` / `IFE` / `ELSEIF` / `ELSEIFDEF` / `ELSEIFNDEF` / `ELSEIFB` / `ELSEIFNB` / `ELSEIFE` / `ELSE` / `ENDIF` — are also dropped at the line level (we don't yet have a macro-time expression evaluator; the typical `IFDEF foo / inclusive body / ENDIF` library-protection pattern flows through correctly because its body would be included anyway). The full-segment form (`name SEGMENT [PUBLIC ALIGN ...]` ... `name ENDS`) lex-and-drops the markers and lets the body pass through to the parser, so M2 and M3 sources that use this form instead of `.MODEL SMALL` now assemble. `name STRUC` ... `name ENDS` is recognised as a record-type declaration and the entire block (including any field declarations inside) is dropped, since we don't model record types and the body would otherwise emit garbage bytes. `name LABEL <type>` becomes `name:` — we don't track per-label sizes separately yet, so the type byte (BYTE/WORD/DWORD) is consumed but not used. The parser's constant-expression primary now recognises `SEG label` (returns 0 — every segment register holds the same base in our flat model), `TYPE` / `LENGTH` / `SIZE` / `LENGTHOF` / `SIZEOF label` (return 1 each — best-effort default that lets sources assemble; multi-element-array correctness is tracked separately in the compatibility doc). 7 new encoder tests cover SEGMENT/ENDS pair-and-drop, PUBLIC / EXTRN / GROUP no-op behaviour, LABEL ↔ `:` equivalence, STRUC body-skipping, IF/ELSE/ENDIF inclusion, `SEG foo` returning 0, and all five MASM info operators returning 1. The encoder test harness also picks up the preprocessor in its pipeline, matching what `assemble()` does end-to-end.

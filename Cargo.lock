@@ -791,7 +791,7 @@ checksum = "4ef6b89e5b37196644d8796de5268852ff179b44e96276cf4290264843743bb7"
 
 [[package]]
 name = "emu8086-assembler"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "emu8086-core",
  "serde",
@@ -800,7 +800,7 @@ dependencies = [
 
 [[package]]
 name = "emu8086-cli"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -813,7 +813,7 @@ dependencies = [
 
 [[package]]
 name = "emu8086-core"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "proptest",
  "serde",
@@ -824,7 +824,7 @@ dependencies = [
 
 [[package]]
 name = "emu8086-desktop"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -835,7 +835,7 @@ dependencies = [
 
 [[package]]
 name = "emu8086-devices"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "emu8086-core",
  "serde",
@@ -843,7 +843,7 @@ dependencies = [
 
 [[package]]
 name = "emu8086-wasm-api"
-version = "0.0.0"
+version = "1.0.0"
 dependencies = [
  "emu8086-assembler",
  "emu8086-core",
