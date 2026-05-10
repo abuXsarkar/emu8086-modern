@@ -143,12 +143,25 @@ jobs:
       - name: Build wasm-api pkg (needed by the web build that Tauri bundles)
         run: wasm-pack build packages/wasm-api --target web --out-dir pkg --release
 
-      - name: Tauri build
+      # Two parallel steps so we don't pass empty signing env vars
+      # to tauri-action — which (counter-intuitively) treats an
+      # empty APPLE_CERTIFICATE as "please try to sign" and then
+      # fails on keychain import. Use repository VARIABLES (not
+      # secrets) as the toggle, since `secrets` can't be used in
+      # `if:` conditionals — set vars.SIGNING_ENABLED = "true"
+      # once the corresponding secrets are populated and the next
+      # tag picks up the signed path.
+      - name: Tauri build (unsigned)
+        if: vars.SIGNING_ENABLED != 'true'
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: packages/desktop
+          args: ${{ matrix.platform.args }}
+
+      - name: Tauri build (signed)
+        if: vars.SIGNING_ENABLED == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
-          # Signing secrets land here once configured. Absent → the
-          # action ships unsigned bundles that still install but trip
-          # the OS untrusted-developer gate.
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_ID }}
