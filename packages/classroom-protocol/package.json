@@ -1,0 +1,29 @@
+{
+  "name": "@emu8086/classroom-protocol",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared TypeScript types for the classroom-mode WebSocket protocol.",
+  "license": "MIT",
+  "author": "Abu Sufian Sarkar <abu@cyberdude.com>",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -b",
+    "prepare": "tsc -b",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.1"
+  }
+}
