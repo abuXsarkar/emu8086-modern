@@ -68,11 +68,51 @@ importers:
         specifier: ^2.1.1
         version: 2.1.9(@types/node@22.19.18)(terser@5.46.2)
 
+  packages/plugin-sdk:
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.10
+        version: 18.3.28
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.1
+        version: 2.1.9(@types/node@22.19.18)(terser@5.46.2)
+
+  packages/plugins/example-buzzer:
+    dependencies:
+      '@emu8086/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../plugin-sdk
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.10
+        version: 18.3.28
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.1
+        version: 2.1.9(@types/node@22.19.18)(terser@5.46.2)
+
   packages/web:
     dependencies:
       '@emu8086/classroom-protocol':
         specifier: workspace:*
         version: link:../classroom-protocol
+      '@emu8086/plugin-example-buzzer':
+        specifier: workspace:*
+        version: link:../plugins/example-buzzer
+      '@emu8086/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
       '@fontsource-variable/geist':
         specifier: ^5.2.8
         version: 5.2.8

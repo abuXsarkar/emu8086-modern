@@ -122,6 +122,9 @@ program writes to its port:
 | Printer (LPT1) | 0x378 | Append-only paper roll |
 | Robot | 0x12 | 9×9 grid; bytes are commands |
 | Text screen | mem-mapped B800:0000 | 80×25 monochrome via INT 10h |
+| Buzzer (example plugin) | 200 (0xC8) | Pulses on write; optional sound |
+
+Want to add another device? See [`docs/plugin-sdk.md`](plugin-sdk.md) — TypeScript-only, no Rust changes.
 
 Each device has an **↗ pop out** button to detach into a draggable
 floating window. The window's position persists per device. Arrow

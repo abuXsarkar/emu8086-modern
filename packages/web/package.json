@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@emu8086/classroom-protocol": "workspace:*",
+    "@emu8086/plugin-sdk": "workspace:*",
+    "@emu8086/plugin-example-buzzer": "workspace:*",
     "@fontsource-variable/geist": "^5.2.8",
     "@fontsource/geist-mono": "^5.2.7",
     "@fontsource/instrument-serif": "^5.2.8",
