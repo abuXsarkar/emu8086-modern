@@ -35,7 +35,7 @@ The design below is shaped by that audience.
 | Decision | Value |
 |---|---|
 | Transport | WebSocket relay (not WebRTC P2P) |
-| Hosting | Node + `ws` for self-host; Cloudflare Worker + Durable Objects in a follow-up |
+| Hosting | Node + `ws` for self-host; **Cloudflare Worker + Durable Objects shipped** in `@emu8086/classroom-server-worker` for zero-cost hosted use |
 | Identity | Room code + HMAC-signed host token; no accounts |
 | Room code format | `color-animal-NN`, e.g. `blue-fox-42` |
 | Live buffer share | Always-on for teacher view (no student-side toggle) |
@@ -65,10 +65,14 @@ The room state machine is portable. It will be wrapped twice:
 1. **`packages/classroom-server/src/node.ts`** — Node + the `ws`
    library. Drops into the existing M6 Docker image as a sidecar
    service on port 8787. This is what self-hosting institutes get.
-2. **`packages/classroom-server/src/worker.ts`** *(deferred)* —
-   Cloudflare Worker + Durable Objects (one DO per room). Free tier
-   handles thousands of concurrent rooms. For users who don't want to
-   host anything.
+2. **`packages/classroom-server-worker/`** — Cloudflare Workers +
+   Durable Objects. A single `ClassroomHubDO` owns all rooms (same
+   in-memory shape as the Node server); sharding by
+   `idFromName(roomId)` is a v2 enhancement the `Room` class is
+   already structured for. Free tier handles thousands of
+   concurrent rooms. **Recommended pairing for GitHub Pages /
+   Vercel-hosted IDEs** since neither host can run the Node
+   sidecar themselves.
 
 Both wrappers consume the same `Room` class from `room.ts`. The state
 machine never imports a runtime-specific API.
@@ -384,8 +388,13 @@ packages/
       room.ts                     # Room state machine — runtime-agnostic
       host-token.ts               # HMAC sign/verify
       wordlist.ts                 # color/animal lists for room codes
+      protocol-helpers.ts         # clamp + sanitizeMeta, shared with worker
       node.ts                     # Node + ws entry
-      worker.ts                   # CF Worker entry (Phase deferred)
+  classroom-server-worker/        NEW
+    src/
+      worker.ts                   # Cloudflare Workers fetch entry
+      do.ts                       # ClassroomHubDO (Durable Object)
+    wrangler.toml
     Dockerfile
     package.json
   web/
@@ -418,7 +427,7 @@ packages/
 | **P4 — take control** | Server enforces `controlGrantedTo`; student editor locks read-only; teacher's edits stream; release path; teacher-disconnect-while-holding | 2 |
 | **P5 — robustness** | Reconnect with exponential backoff, replaced-elsewhere handling, server backpressure, error toasts on the client, kick flow | 3 |
 | **P6 — Docker integration** | Self-host server runs on port 8787 alongside the existing IDE; healthcheck endpoint; environment variables for HMAC secret | 1 |
-| **P7 — Cloudflare Worker** | Same protocol, Durable Objects backend; deploy script | 2 |
+| **P7 — Cloudflare Worker** | ✅ shipped. Single-DO Hub; same protocol; same Room state machine; `wrangler deploy` to go live |
 | **P8 — Session report + CSV** | Print-friendly summary; CSV export; templates UX polish | 2 |
 
 Total **P1–P6**: ~15 days. P7 and P8 are follow-up PRs.

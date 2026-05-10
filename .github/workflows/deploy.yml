@@ -60,9 +60,19 @@ jobs:
         # GitHub Pages serves project sites under /<repo>/. Vite needs
         # the matching `base` so script + wasm fetches resolve. The
         # PWA manifest scope/start_url derive from the same env var.
+        #
+        # VITE_CLASSROOM_WS_URL is honored from a repo variable if set
+        # (Settings → Secrets and variables → Actions → Variables);
+        # without it the IDE shows a "couldn't reach the classroom
+        # server" inline error when a teacher tries to start a session,
+        # which is the correct degraded behavior for a static-only
+        # deployment. Point it at a deployed
+        # `@emu8086/classroom-server-worker` URL (CF Workers, free) or
+        # any self-hosted relay you control.
         run: pnpm --filter @emu8086/web build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_CLASSROOM_WS_URL: ${{ vars.VITE_CLASSROOM_WS_URL }}
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

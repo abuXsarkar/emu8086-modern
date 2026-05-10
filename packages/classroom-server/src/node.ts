@@ -24,16 +24,15 @@ import {
   MAX_NAME_BYTES,
   MAX_ROLL_NO_BYTES,
   MAX_PROMPT_BYTES,
-  MAX_META_FIELD_BYTES,
   PROTOCOL_VERSION,
   type ClientMsg,
   type ErrorCode,
-  type RoomMeta,
   type ServerMsg,
 } from "@emu8086/classroom-protocol";
 import { Room, type Outbound, TEACHER_GRACE_MS } from "./room.js";
 import { generateSecret, signHostToken, verifyHostToken } from "./host-token.js";
 import { generateRoomCode, isPlausibleRoomCode } from "./wordlist.js";
+import { clamp, sanitizeMeta } from "./protocol-helpers.js";
 
 // ---------- Config ----------------------------------------------------------
 
@@ -510,43 +509,8 @@ function sendError(ws: WebSocket, code: ErrorCode, message: string): void {
   send(ws, { t: "error", code, message });
 }
 
-function clamp(s: unknown, max: number): string {
-  if (typeof s !== "string") return "";
-  const trimmed = s.trim();
-  if (trimmed.length === 0) return "";
-  // Byte-limit; for ASCII names this is the same as char count, for
-  // Devanagari etc. it falls back to a UTF-8 byte cap which is the
-  // closest approximation to "fits in a database column" we have.
-  const bytes = Buffer.byteLength(trimmed, "utf8");
-  if (bytes <= max) return trimmed;
-  // Truncate to max bytes safely. Scan back to a clean code-point boundary.
-  const buf = Buffer.from(trimmed, "utf8").subarray(0, max);
-  return buf.toString("utf8");
-}
-
-function sanitizeMeta(meta: unknown): RoomMeta | null {
-  if (typeof meta !== "object" || meta === null) return null;
-  const m = meta as Partial<RoomMeta>;
-  const course = clamp(m.course, MAX_META_FIELD_BYTES);
-  const teacherName = clamp(m.teacherName, MAX_NAME_BYTES);
-  if (!course || !teacherName) return null;
-
-  const out: RoomMeta = {
-    course,
-    teacherName,
-    date: clamp(m.date, MAX_META_FIELD_BYTES) || new Date().toISOString().slice(0, 10),
-  };
-  // Optional fields — preserve only well-formed strings; clamp each.
-  if (m.courseCode) out.courseCode = clamp(m.courseCode, MAX_META_FIELD_BYTES);
-  if (m.section) out.section = clamp(m.section, MAX_META_FIELD_BYTES);
-  if (m.semester) out.semester = clamp(m.semester, MAX_META_FIELD_BYTES);
-  if (m.institute) out.institute = clamp(m.institute, MAX_META_FIELD_BYTES);
-  if (m.department) out.department = clamp(m.department, MAX_META_FIELD_BYTES);
-  if (m.teacherTitle) out.teacherTitle = clamp(m.teacherTitle, MAX_META_FIELD_BYTES);
-  if (m.sessionTitle) out.sessionTitle = clamp(m.sessionTitle, MAX_META_FIELD_BYTES);
-  if (m.logoUrl) out.logoUrl = clamp(m.logoUrl, 1024);
-  return out;
-}
+// `clamp` and `sanitizeMeta` moved to `./protocol-helpers.ts` so the
+// Cloudflare-Worker adapter can share them.
 
 // ---------- entrypoint ------------------------------------------------------
 

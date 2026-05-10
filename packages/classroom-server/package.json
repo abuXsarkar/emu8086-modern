@@ -6,7 +6,34 @@
   "license": "MIT",
   "author": "Abu Sufian Sarkar <abu@cyberdude.com>",
   "type": "module",
-  "main": "src/node.ts",
+  "main": "dist/src/node.js",
+  "exports": {
+    ".": {
+      "types": "./dist/src/node.d.ts",
+      "import": "./dist/src/node.js",
+      "default": "./dist/src/node.js"
+    },
+    "./room": {
+      "types": "./dist/src/room.d.ts",
+      "import": "./dist/src/room.js",
+      "default": "./dist/src/room.js"
+    },
+    "./host-token": {
+      "types": "./dist/src/host-token.d.ts",
+      "import": "./dist/src/host-token.js",
+      "default": "./dist/src/host-token.js"
+    },
+    "./wordlist": {
+      "types": "./dist/src/wordlist.d.ts",
+      "import": "./dist/src/wordlist.js",
+      "default": "./dist/src/wordlist.js"
+    },
+    "./protocol-helpers": {
+      "types": "./dist/src/protocol-helpers.d.ts",
+      "import": "./dist/src/protocol-helpers.js",
+      "default": "./dist/src/protocol-helpers.js"
+    }
+  },
   "bin": {
     "emu8086-classroom-server": "dist/src/node.js",
     "emu8086-classroom-gen-secret": "dist/src/gen-secret.js"
