@@ -21,12 +21,21 @@ export default defineConfig({
   // at `/about/`, and the docs hub at `/docs/`. Vite emits separate
   // JS bundles per entry so neither the landing nor the docs pulls
   // in Monaco (~250 KB) for what's essentially static reading.
+  //
+  // The entry HTMLs live in their own folders (`about/index.html`,
+  // `docs/index.html`) — not flat `about.html` / `docs.html` — so
+  // the static host serves `/about/` and `/docs/` as directory
+  // indexes. Flat HTMLs would require either explicit `.html`
+  // suffixes in links or a host-side rewrite, neither of which
+  // GitHub Pages does for us. The PWA service worker's navigation
+  // fallback would otherwise send `/about/` to `/index.html` and
+  // the user lands back on the IDE.
   build: {
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
-        about: resolve(__dirname, "about.html"),
-        docs: resolve(__dirname, "docs.html"),
+        about: resolve(__dirname, "about/index.html"),
+        docs: resolve(__dirname, "docs/index.html"),
       },
     },
   },
