@@ -25,7 +25,7 @@ use tauri::menu::{AboutMetadataBuilder, MenuBuilder, MenuItemBuilder, SubmenuBui
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 
-const DOCS_URL: &str = "https://github.com/abuXsarkar/emu8086-modern#readme";
+const DOCS_URL: &str = "https://abuxsarkar.github.io/emu8086-modern/docs/";
 const ISSUES_URL: &str = "https://github.com/abuXsarkar/emu8086-modern/issues/new";
 const REPO_URL: &str = "https://github.com/abuXsarkar/emu8086-modern";
 

@@ -169,6 +169,15 @@
   border-bottom: var(--hair-w) solid var(--rule);
   margin-bottom: 1rem;
 }
+.app-header .brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.app-header .brand .brand-text {
+  display: flex;
+  flex-direction: column;
+}
 .app-header .brand h1 {
   font-family: "Geist Variable", "Geist", sans-serif;
   font-weight: 600;
