@@ -16,6 +16,7 @@
 // where the payload is `{ roomId, createdAt }` JSON. Compact, easy
 // to inspect from a browser dev console without tooling.
 
+import { Buffer } from "node:buffer";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 interface HostTokenPayload {
