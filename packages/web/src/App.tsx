@@ -26,6 +26,7 @@ import { TutorialPanel } from "./tutorials/TutorialPanel";
 import "./plugins";
 import { PluginGallery } from "./PluginGallery";
 import { LOCALES, useLocaleId, useStrings } from "./i18n";
+import { Mark } from "./about/Landing";
 import type { RunRegisters } from "./registers";
 import { formatValue, evaluate } from "./debugExpr";
 import { recordEvent } from "./metrics";
@@ -752,12 +753,15 @@ export function App() {
     >
       <header className="app-header">
         <div className="brand">
-          <h1>{t.appTitle}</h1>
-          <p className="lead">
-            {t.appLead}
-            <strong>{t.appLeadRunVerb}</strong>
-            {".  "}
-          </p>
+          <Mark size={36} />
+          <div className="brand-text">
+            <h1>{t.appTitle}</h1>
+            <p className="lead">
+              {t.appLead}
+              <strong>{t.appLeadRunVerb}</strong>
+              {".  "}
+            </p>
+          </div>
         </div>
         <div className="header-controls">
           <select
