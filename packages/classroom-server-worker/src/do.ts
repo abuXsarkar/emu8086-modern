@@ -41,7 +41,12 @@ import {
   type ErrorCode,
   type ServerMsg,
 } from "@emu8086/classroom-protocol";
-import { Room, type Outbound, TEACHER_GRACE_MS } from "@emu8086/classroom-server/room";
+import {
+  Room,
+  type Outbound,
+  type SerializedRoom,
+  TEACHER_GRACE_MS,
+} from "@emu8086/classroom-server/room";
 import {
   generateSecret,
   signHostToken,
@@ -55,6 +60,7 @@ import { clamp, sanitizeMeta } from "@emu8086/classroom-server/protocol-helpers"
 import type { Env } from "./worker.js";
 
 const REAP_TICK_MS = 15_000;
+const STORAGE_ROOM_PREFIX = "room:";
 
 type ConnIdentity =
   | { kind: "pending" }
@@ -137,10 +143,17 @@ export class ClassroomHubDO {
     this.state = state;
     this.secrets = resolveSecrets(env);
     state.blockConcurrencyWhile(async () => {
-      // After a DO restart, reattach any WebSockets the hibernation
-      // API kept alive into our session bookkeeping. Without this,
-      // a teacher who stayed connected through a restart would see
-      // their roster drop because the new DO had no record of them.
+      // 1. Load any persisted rooms from durable storage. Without
+      // this, a teacher who creates a room and then the DO gets
+      // evicted before the student joins sees `room_not_found` on
+      // the join because the in-memory sessions map is empty.
+      await this.loadSessionsFromStorage();
+
+      // 2. Reattach any WebSockets the hibernation API kept alive
+      // into our (now-rehydrated) session bookkeeping. Order
+      // matters: sessions must exist before we walk the sockets,
+      // otherwise rehydrateFromHibernatedSockets closes the
+      // teacher's connection with reason "room state lost".
       this.rehydrateFromHibernatedSockets();
 
       const existing = await state.storage.getAlarm();
@@ -148,6 +161,41 @@ export class ClassroomHubDO {
         await state.storage.setAlarm(Date.now() + REAP_TICK_MS);
       }
     });
+  }
+
+  private async loadSessionsFromStorage(): Promise<void> {
+    const stored = await this.state.storage.list<SerializedRoom>({
+      prefix: STORAGE_ROOM_PREFIX,
+    });
+    for (const [, ser] of stored) {
+      try {
+        const room = Room.fromJSON(ser);
+        this.sessions.set(room.id, new RoomSession(room));
+      } catch (e) {
+        console.warn(
+          `[do] failed to rehydrate room ${ser.id ?? "?"}:`,
+          e instanceof Error ? e.message : String(e),
+        );
+      }
+    }
+  }
+
+  /** Write a room's current state to durable storage. Called after
+   *  every successful mutating handler so an eviction-induced
+   *  restart can pick up where we left off. */
+  private persistRoom(roomId: string): void {
+    const session = this.sessions.get(roomId);
+    if (!session) return;
+    // Fire-and-forget: CF's runtime guarantees in-flight writes
+    // complete before the DO is evicted again.
+    void this.state.storage.put<SerializedRoom>(
+      `${STORAGE_ROOM_PREFIX}${roomId}`,
+      session.room.toJSON(),
+    );
+  }
+
+  private deletePersistedRoom(roomId: string): void {
+    void this.state.storage.delete(`${STORAGE_ROOM_PREFIX}${roomId}`);
   }
 
   async fetch(req: Request): Promise<Response> {
@@ -203,6 +251,19 @@ export class ClassroomHubDO {
     if (after !== before) {
       ws.serializeAttachment(after);
     }
+    // Persist the affected room. handleMessage may have moved us
+    // from `pending` to teacher/student (create/join), or mutated
+    // an already-joined room. Either way, the room id we care
+    // about is whichever identity is currently bound.
+    const persisted =
+      after.kind !== "pending"
+        ? after.roomId
+        : before.kind !== "pending"
+          ? before.roomId
+          : null;
+    if (persisted && this.sessions.has(persisted)) {
+      this.persistRoom(persisted);
+    }
   }
 
   async webSocketClose(
@@ -234,6 +295,12 @@ export class ClassroomHubDO {
         if (session.teacherWs) session.teacherWs.close(1000, "room closed");
         for (const ws of session.studentWs.values()) ws.close(1000, "room closed");
         this.sessions.delete(roomId);
+        this.deletePersistedRoom(roomId);
+      } else if (out.length > 0) {
+        // Tick mutated state without closing — persist the new
+        // teacherDisconnectedAt / grace timer so a restart between
+        // ticks doesn't lose the reaping countdown.
+        this.persistRoom(roomId);
       }
     }
     await this.state.storage.setAlarm(Date.now() + REAP_TICK_MS);
@@ -404,6 +471,7 @@ export class ClassroomHubDO {
         if (session.teacherWs) session.teacherWs.close(1000, "room closed");
         for (const studentWs of session.studentWs.values()) studentWs.close(1000, "room closed");
         this.sessions.delete(session.room.id);
+        this.deletePersistedRoom(session.room.id);
         return conn;
       }
 
@@ -545,11 +613,13 @@ export class ClassroomHubDO {
       if (session.teacherWs === ws) {
         session.teacherWs = null;
         session.dispatch(session.room.teacherDisconnect(Date.now()));
+        this.persistRoom(identity.roomId);
       }
     } else {
       if (session.studentWs.get(identity.rollNo) === ws) {
         session.studentWs.delete(identity.rollNo);
         session.dispatch(session.room.studentLeave(identity.rollNo));
+        this.persistRoom(identity.roomId);
       }
     }
   }
