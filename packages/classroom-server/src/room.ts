@@ -59,6 +59,29 @@ interface InternalStudent {
 /** Default grace period before a teacherless room is reaped. */
 export const TEACHER_GRACE_MS = 30 * 60 * 1_000;
 
+/** Persistable shape — every field of `Room` flattened so a CF
+ *  Durable Object can stash it in `state.storage` and rehydrate
+ *  after a memory eviction. Bumped via the leading `v` if/when the
+ *  on-disk shape changes; older payloads are dropped on read. */
+export interface SerializedRoom {
+  v: 1;
+  id: string;
+  meta: RoomMeta;
+  createdAt: number;
+  graceMs: number;
+  prompt: string;
+  teacherDisplayName: string | null;
+  teacherOnline: boolean;
+  teacherDisconnectedAt: number | null;
+  broadcasting: boolean;
+  broadcastBuffer: string;
+  controlGrantedTo: string | null;
+  students: InternalStudent[];
+  submissions: Submission[];
+  comments: Comment[];
+  closed: "open" | "teacher_closed" | "reaped";
+}
+
 export interface RoomConfig {
   /** epoch ms; injected so tests can be deterministic. */
   now: number;
@@ -499,6 +522,58 @@ export class Room {
         msg: { t: "room_closed", reason: "reaped" },
       },
     ];
+  }
+
+  // ---- Persistence ------------------------------------------------------
+  //
+  // Cloudflare Durable Objects may be evicted from memory at any
+  // point. The hibernation API keeps the WebSockets alive across
+  // such an eviction; the per-room state has to be persisted to
+  // `state.storage` explicitly so the post-eviction instance can
+  // pick up where the old one left off. The runtime adapter calls
+  // `toJSON()` after every mutating handler and `Room.fromJSON()`
+  // during construct.
+
+  toJSON(): SerializedRoom {
+    return {
+      v: 1,
+      id: this.id,
+      meta: this.meta,
+      createdAt: this.createdAt,
+      graceMs: this.graceMs,
+      prompt: this.prompt,
+      teacherDisplayName: this.teacherDisplayName,
+      teacherOnline: this.teacherOnline,
+      teacherDisconnectedAt: this.teacherDisconnectedAt,
+      broadcasting: this.broadcasting,
+      broadcastBuffer: this.broadcastBuffer,
+      controlGrantedTo: this.controlGrantedTo,
+      students: Array.from(this.students.values()),
+      submissions: this.submissions.slice(),
+      comments: this.comments.slice(),
+      closed: this.closed,
+    };
+  }
+
+  static fromJSON(s: SerializedRoom): Room {
+    if (s.v !== 1) {
+      throw new Error(`unknown SerializedRoom version: ${(s as { v: number }).v}`);
+    }
+    const room = new Room(s.id, s.meta, { now: s.createdAt, graceMs: s.graceMs });
+    room.prompt = s.prompt;
+    room.teacherDisplayName = s.teacherDisplayName;
+    room.teacherOnline = s.teacherOnline;
+    room.teacherDisconnectedAt = s.teacherDisconnectedAt;
+    room.broadcasting = s.broadcasting;
+    room.broadcastBuffer = s.broadcastBuffer;
+    room.controlGrantedTo = s.controlGrantedTo;
+    room.closed = s.closed;
+    for (const stu of s.students) {
+      room.students.set(stu.rollNo, { ...stu });
+    }
+    for (const sub of s.submissions) room.submissions.push(sub);
+    for (const c of s.comments) room.comments.push(c);
+    return room;
   }
 
   // ---- Helpers ----------------------------------------------------------

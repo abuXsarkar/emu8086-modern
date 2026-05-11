@@ -234,3 +234,44 @@ describe("Room — comments", () => {
     expect(r.markCommentSeen("R-2", id, 300)).toEqual([]);
   });
 });
+
+describe("Room — toJSON / fromJSON roundtrip", () => {
+  it("survives a full create → mutate → serialize → deserialize cycle", () => {
+    const r = newRoom(1_700_000_000_000);
+    r.teacherJoin("Dr. Sharma");
+    r.studentJoin("R-1", "Aisha", 100);
+    r.studentJoin("R-2", "Bilal", 110);
+    r.setHand("R-1", true, "self");
+    r.setBroadcast(true, "mov ax, bx");
+    r.takeControl("R-2");
+    r.studentBufferUpdate("R-1", "hello", 200);
+    r.submit("R-2", "submitted source", 300);
+    r.addComment("R-1", "nice", 400);
+    r.setPrompt("Lab 3: Interrupts");
+    r.teacherDisconnect(500);
+
+    const ser = r.toJSON();
+    const r2 = Room.fromJSON(ser);
+    // Snapshot equality across the public surface.
+    expect(r2.id).toBe(r.id);
+    expect(r2.studentCount()).toBe(r.studentCount());
+    expect(r2.isTeacherOnline()).toBe(r.isTeacherOnline());
+    expect(r2.controlledRollNo()).toBe(r.controlledRollNo());
+    expect(r2.hasStudent("R-1")).toBe(true);
+    expect(r2.hasStudent("R-2")).toBe(true);
+    expect(r2.snapshotForDebug().prompt).toBe("Lab 3: Interrupts");
+    expect(r2.snapshotForDebug().broadcasting).toBe(true);
+    expect(r2.snapshotForDebug().submissions).toBe(1);
+    expect(r2.commentsSnapshot()).toHaveLength(1);
+  });
+
+  it("a reaped room stays closed after roundtrip", () => {
+    const r = newRoom(0, 1_000);
+    r.teacherJoin("T");
+    r.teacherDisconnect(100);
+    r.tick(2_000); // past grace
+    expect(r.isClosed()).toBe(true);
+    const r2 = Room.fromJSON(r.toJSON());
+    expect(r2.isClosed()).toBe(true);
+  });
+});
