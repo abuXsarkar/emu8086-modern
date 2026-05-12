@@ -1,0 +1,14 @@
+$ErrorActionPreference = 'Stop'
+$toolsDir   = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$url64      = 'https://github.com/abuXsarkar/modern8086/releases/download/v{{VERSION}}/m86-windows-x86_64.zip'
+$checksum64 = '{{SHA256_WINDOWS_X86_64}}'
+
+$packageArgs = @{
+  packageName    = 'm86'
+  unzipLocation  = $toolsDir
+  url64bit       = $url64
+  checksum64     = $checksum64
+  checksumType64 = 'sha256'
+}
+
+Install-ChocolateyZipPackage @packageArgs

@@ -1,0 +1,27 @@
+{
+  "$comment": "Scoop manifest for the modern8086 CLI on Windows. Lives in the maintainer's Scoop bucket repo (abuXsarkar/scoop-modern8086, file `bucket/m86.json`). This in-repo file is a template — packaging/scripts/generate-distribution-manifests.sh fills VERSION + SHA256 from the just-built release tarball.",
+  "version": "{{VERSION}}",
+  "description": "Headless 8086 runner and autograder.",
+  "homepage": "https://modern8086.com",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/abuXsarkar/modern8086/releases/download/v{{VERSION}}/m86-windows-x86_64.zip",
+      "hash": "{{SHA256_WINDOWS_X86_64}}"
+    }
+  },
+  "bin": "m86.exe",
+  "checkver": {
+    "github": "https://github.com/abuXsarkar/modern8086"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/abuXsarkar/modern8086/releases/download/v$version/m86-windows-x86_64.zip"
+      }
+    },
+    "hash": {
+      "url": "$baseurl/checksums.txt"
+    }
+  }
+}
