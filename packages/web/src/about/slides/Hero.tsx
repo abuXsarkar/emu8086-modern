@@ -19,7 +19,7 @@ export function Hero() {
           live, hand-raise-and-submit classroom session.
         </p>
         <div className="hero-actions">
-          <a className="hero-cta primary" href="./">
+          <a className="hero-cta primary" href="/">
             Open the IDE
           </a>
           <a

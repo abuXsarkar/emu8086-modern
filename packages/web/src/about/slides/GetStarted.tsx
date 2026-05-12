@@ -8,7 +8,7 @@ export function GetStarted() {
       title="Three ways in."
     >
       <div className="get-started-grid">
-        <a className="get-started-card primary" href="./">
+        <a className="get-started-card primary" href="/">
           <span className="get-started-num mono">01</span>
           <h3>In your browser</h3>
           <p>

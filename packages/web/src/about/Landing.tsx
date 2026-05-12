@@ -80,11 +80,11 @@ export function Landing() {
       </main>
       <footer className="landing-footer">
         <div className="landing-footer-inner">
-          <a className="landing-footer-link" href="./">
+          <a className="landing-footer-link" href="/">
             ↺ Open the IDE
           </a>
           <span aria-hidden>·</span>
-          <a className="landing-footer-link" href="./docs/">
+          <a className="landing-footer-link" href="/docs/">
             Read the docs
           </a>
           <span aria-hidden>·</span>
@@ -107,12 +107,12 @@ export function Landing() {
 function TopBar() {
   return (
     <header className="landing-topbar">
-      <a href="./" className="landing-topbar-brand">
+      <a href="/" className="landing-topbar-brand">
         <Mark size={28} />
         <span className="landing-topbar-name">modern8086</span>
       </a>
       <nav className="landing-topbar-nav">
-        <a href="./">Open the IDE</a>
+        <a href="/">Open the IDE</a>
         <a
           href="https://github.com/abuXsarkar/modern8086"
           target="_blank"
