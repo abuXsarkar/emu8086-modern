@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.3] — 2026-05-13
+
+Third Android-fix patch. v1.1.2's capability-split fix worked at the
+config layer, but the Gradle build then failed with 4 Kotlin
+compile errors:
+
+```text
+Line 10: import java.util.Properties
+                            ^ Expecting an element
+         Unresolved reference: import
+```
+
+Root cause: `packaging/android/gradle-signing-patch.sh` was
+*prepending* keystore-properties wiring to
+`app/build.gradle.kts`, but Tauri 2.11's default scaffold already
+includes that exact wiring — the patch produced a duplicate
+`import` block at line 10, which Kotlin can't parse.
+
+### Fixed
+
+- **Android build** — release.yml drops the redundant
+  "Patch gradle for release signing" step. The default Tauri
+  scaffold already reads from `rootProject.file("keystore.properties")`,
+  so writing that file (which the workflow already does in the
+  next step) is the only thing needed.
+- Deletes `packaging/android/gradle-signing-patch.sh` (no longer
+  invoked; would only confuse future readers).
+
 ## [1.1.2] — 2026-05-13
 
 Second Android-fix patch. v1.1.1's source-level cfg-gate (#82)

@@ -269,12 +269,13 @@ jobs:
 
       - name: Initialise Tauri Android scaffold
         # `gen/android/` is gitignored — regenerated each run from
-        # tauri.conf.json + the gradle-signing patch.
+        # tauri.conf.json. Tauri 2.11+ scaffolds an
+        # `app/build.gradle.kts` that already reads from
+        # `rootProject.file("keystore.properties")`, so the only
+        # thing we need to do is write that properties file from
+        # the GitHub secrets (next step). No Gradle patching.
         working-directory: packages/desktop
         run: cargo tauri android init --ci
-
-      - name: Patch gradle for release signing
-        run: bash packaging/android/gradle-signing-patch.sh packages/desktop/gen/android/app/build.gradle.kts
 
       - name: Decode keystore + write keystore.properties
         env:
