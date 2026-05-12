@@ -29,11 +29,7 @@ mod grade;
 mod include;
 
 #[derive(Parser, Debug)]
-#[command(
-    name = "m86",
-    version,
-    about = "Headless 8086 runner and autograder"
-)]
+#[command(name = "m86", version, about = "Headless 8086 runner and autograder")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,

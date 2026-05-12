@@ -223,8 +223,12 @@ impl Emulator {
                     modern8086_assembler::AssembleError::Preprocess(pe) => {
                         ("preprocess", pe.message, pe.span)
                     }
-                    modern8086_assembler::AssembleError::Parse(pe) => ("parse", pe.message, pe.span),
-                    modern8086_assembler::AssembleError::Encode(ee) => ("encode", ee.message, ee.span),
+                    modern8086_assembler::AssembleError::Parse(pe) => {
+                        ("parse", pe.message, pe.span)
+                    }
+                    modern8086_assembler::AssembleError::Encode(ee) => {
+                        ("encode", ee.message, ee.span)
+                    }
                 };
                 let (line, col) = locate(source, span.start);
                 let r = RunResult {

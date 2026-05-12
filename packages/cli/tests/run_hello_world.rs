@@ -10,11 +10,7 @@ fn cli_path() -> std::path::PathBuf {
     // target/debug/emu8086.
     p.pop(); // deps
     p.pop(); // debug or release
-    p.push(if cfg!(windows) {
-        "m86.exe"
-    } else {
-        "m86"
-    });
+    p.push(if cfg!(windows) { "m86.exe" } else { "m86" });
     p
 }
 

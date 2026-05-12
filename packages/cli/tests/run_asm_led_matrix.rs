@@ -11,11 +11,7 @@ fn cli_path() -> std::path::PathBuf {
     let mut p = std::env::current_exe().expect("current_exe");
     p.pop();
     p.pop();
-    p.push(if cfg!(windows) {
-        "m86.exe"
-    } else {
-        "m86"
-    });
+    p.push(if cfg!(windows) { "m86.exe" } else { "m86" });
     p
 }
 
