@@ -43,7 +43,7 @@ export function Classroom() {
       </p>
       <pre>
         <code>{`# in one terminal
-pnpm --filter @emu8086/classroom-server start
+pnpm --filter @modern8086/classroom-server start
 
 # in the IDE, open Settings -> Classroom
 # point it at ws://your-laptop-ip:8787`}</code>

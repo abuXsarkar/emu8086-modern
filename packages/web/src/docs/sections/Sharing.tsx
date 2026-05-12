@@ -35,7 +35,7 @@ export function Sharing() {
         and produce a CSV report:
       </p>
       <pre>
-        <code>emu8086 grade ./submissions --rubric lab3.expect &gt; results.csv</code>
+        <code>m86 grade ./submissions --rubric lab3.expect &gt; results.csv</code>
       </pre>
       <p>
         The same machinery runs in-browser for instant feedback while a

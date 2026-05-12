@@ -9,9 +9,9 @@ fn cli_path() -> std::path::PathBuf {
     p.pop();
     p.pop();
     p.push(if cfg!(windows) {
-        "emu8086.exe"
+        "m86.exe"
     } else {
-        "emu8086"
+        "m86"
     });
     p
 }
@@ -53,7 +53,7 @@ fn grade_emits_junit_xml_when_requested() {
     let dir = assignment_root();
     let spec = dir.join("spec.yml");
     let sub = dir.join("submission.asm");
-    let xml_path = std::env::temp_dir().join("emu8086_grade_junit.xml");
+    let xml_path = std::env::temp_dir().join("m86_grade_junit.xml");
     let _ = std::fs::remove_file(&xml_path);
 
     let out = Command::new(cli_path())

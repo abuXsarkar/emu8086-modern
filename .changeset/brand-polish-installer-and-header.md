@@ -6,7 +6,7 @@
   `currentUser` so a non-admin student can install without an UAC
   prompt. The desktop Help → Documentation menu used to open the
   GitHub README; it now opens the published docs hub at
-  `https://abuxsarkar.github.io/emu8086-modern/docs/` — the README
+  `https://abuxsarkar.github.io/modern8086/docs/` — the README
   is for repo visitors, the docs hub is what end users should see.
   The capabilities allowlist gains the Pages origin so the opener
   plugin accepts the new URL.

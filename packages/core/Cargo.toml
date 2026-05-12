@@ -1,5 +1,5 @@
 [package]
-name = "emu8086-core"
+name = "modern8086-core"
 description = "Deterministic 8086 CPU core (native + wasm)."
 version.workspace = true
 edition.workspace = true

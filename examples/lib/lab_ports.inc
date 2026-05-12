@@ -1,4 +1,4 @@
-; lab_ports.inc — symbolic names for emu8086-modern's native virtual
+; lab_ports.inc — symbolic names for modern8086's native virtual
 ; peripherals + per-lab-manual aliasing notes.
 ;
 ; Why this file exists
@@ -20,7 +20,7 @@
 ; lab_ports.inc"` and rename the manual's PA/PB/PC references to the
 ; matching native symbol below (see the per-experiment table).
 ;
-; Native peripherals on emu8086-modern
+; Native peripherals on modern8086
 ; ------------------------------------
 SEVEN_SEG_PORT      EQU 199         ; 7-segment display, 1 byte = pattern
 TRAFFIC_LIGHT_PORT  EQU 4           ; traffic-light controller
@@ -44,6 +44,6 @@ ROBOT_PORT          EQU 12          ; robot command port (0..4)
 ;   M3 PPI program            | PA = 0FFC0H   | SEVEN_SEG_PORT
 ;
 ; The 8255 control-register write (`OUT CR, AL` with a mode byte) is
-; a no-op on emu8086-modern — our virtual peripherals don't have
+; a no-op on modern8086 — our virtual peripherals don't have
 ; configurable directions. Lab programs that emit a control-word can
 ; either drop the line or `OUT 0, AL` to a harmless port.

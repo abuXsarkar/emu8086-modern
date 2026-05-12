@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use emu8086_assembler::{assemble, Dialect};
+use modern8086_assembler::{assemble, Dialect};
 
 use crate::include;
 

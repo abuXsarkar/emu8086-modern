@@ -1,4 +1,4 @@
-// Public surface of @emu8086/plugin-sdk.
+// Public surface of @modern8086/plugin-sdk.
 //
 // v1 scope is deliberately small: a plugin is a React component
 // that observes port writes from the emulator and renders some
@@ -43,7 +43,7 @@ export interface OutLogEntry {
 /** Plugin descriptor. */
 export interface DevicePlugin {
   /** Stable id used as React key + DeviceSlot localStorage prefix
-   *  (`emu8086.dev-popped:<id>`). Lowercase ASCII; no spaces. */
+   *  (`modern8086.dev-popped:<id>`). Lowercase ASCII; no spaces. */
   id: string;
   /** Human-readable name shown in the device gallery and floater
    *  title bar. Keep it short — typical room is ~30 chars. */

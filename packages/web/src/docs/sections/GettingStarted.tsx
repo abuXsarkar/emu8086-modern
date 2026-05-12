@@ -23,7 +23,7 @@ export function GettingStarted() {
       <p>
         Download the desktop build for your OS from the{" "}
         <a
-          href="https://github.com/abuXsarkar/emu8086-modern/releases/latest"
+          href="https://github.com/abuXsarkar/modern8086/releases/latest"
           target="_blank"
           rel="noopener"
         >
@@ -38,13 +38,13 @@ export function GettingStarted() {
       <h3>3. From the command line</h3>
       <pre>
         <code>{`# global install
-npm install -g @emu8086/cli
+npm install -g @modern8086/cli
 
 # assemble + run
-emu8086 run hello.asm
+m86 run hello.asm
 
 # step debugger in a terminal
-emu8086 debug hello.asm`}</code>
+m86 debug hello.asm`}</code>
       </pre>
       <p>
         The CLI is a thin wrapper around the same emulator core that drives the

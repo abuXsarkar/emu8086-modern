@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
-const STORE = "emu8086.floaters";
+const STORE = "modern8086.floaters";
 
 type Pos = { x: number; y: number };
 

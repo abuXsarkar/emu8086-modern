@@ -1,6 +1,6 @@
 # Versioning policy
 
-`emu8086-modern` follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html)
+`modern8086` follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html)
 starting from `1.0.0`. This document spells out what counts as a
 breaking change for each component, because the answer is not the
 same across the workspace.
@@ -9,14 +9,14 @@ same across the workspace.
 
 | Surface | What versions track |
 |---|---|
-| Web IDE (`@emu8086/web`) | URL behavior, `localStorage` keys, share-link fragment format |
+| Web IDE (`@modern8086/web`) | URL behavior, `localStorage` keys, share-link fragment format |
 | CLI (`emu8086`) | Subcommand names, flag names, exit codes, JSON / JUnit XML schemas, YAML grader spec keys |
-| Assembler (`@emu8086/assembler` Rust crate) | Mnemonics it accepts, directives it understands, byte output for a given source |
-| Emulator core (`@emu8086/core` Rust crate) | Public Rust API; observable behavior of each instruction (flag updates, memory writes, port writes, exit codes) |
-| Wasm API (`@emu8086/wasm-api`) | Exported function names + signatures the IDE calls |
-| Plugin SDK (`@emu8086/plugin-sdk`) | `DevicePlugin` / `DevicePluginProps` types; `registerDevicePlugin` signature |
-| Classroom protocol (`@emu8086/classroom-protocol`) | `ClientMsg` / `ServerMsg` shapes, `PROTOCOL_VERSION` constant |
-| Desktop shell (`@emu8086/desktop` / Tauri bundle) | Bundle identifier, native deep-link scheme |
+| Assembler (`@modern8086/assembler` Rust crate) | Mnemonics it accepts, directives it understands, byte output for a given source |
+| Emulator core (`@modern8086/core` Rust crate) | Public Rust API; observable behavior of each instruction (flag updates, memory writes, port writes, exit codes) |
+| Wasm API (`@modern8086/wasm-api`) | Exported function names + signatures the IDE calls |
+| Plugin SDK (`@modern8086/plugin-sdk`) | `DevicePlugin` / `DevicePluginProps` types; `registerDevicePlugin` signature |
+| Classroom protocol (`@modern8086/classroom-protocol`) | `ClientMsg` / `ServerMsg` shapes, `PROTOCOL_VERSION` constant |
+| Desktop shell (`@modern8086/desktop` / Tauri bundle) | Bundle identifier, native deep-link scheme |
 
 ## Breaking changes (MAJOR bump required)
 

@@ -6,7 +6,7 @@ export const or: Locale = {
   id: "or",
   name: "ଓଡ଼ିଆ",
   strings: {
-    appTitle: "emu8086-modern",
+    appTitle: "modern8086",
     appLead:
       "ଛାତ୍ରଛାତ୍ରୀଙ୍କ ପାଇଁ ଏକ ଆଧୁନିକ, ଓପନ-ସୋର୍ସ 8086 ଏମୁଲେଟର ଏବଂ ଆସେମ୍ବଲି IDE। ସମ୍ପାଦନ କରନ୍ତୁ, କ୍ଲିକ୍ କରନ୍ତୁ ",
     appLeadRunVerb: "ଚଳାନ୍ତୁ",

@@ -19,7 +19,7 @@ export function GetStarted() {
         </a>
         <a
           className="get-started-card"
-          href="https://github.com/abuXsarkar/emu8086-modern/releases/latest"
+          href="https://github.com/abuXsarkar/modern8086/releases/latest"
           target="_blank"
           rel="noopener"
         >
@@ -38,10 +38,10 @@ export function GetStarted() {
           <p>
             For autograding and CI. One install:
             <br />
-            <code className="mono">npm install -g @emu8086/cli</code>
+            <code className="mono">npm install -g @modern8086/cli</code>
           </p>
           <span className="get-started-cta">
-            <code className="mono">emu8086 --help</code>
+            <code className="mono">m86 --help</code>
           </span>
         </div>
       </div>

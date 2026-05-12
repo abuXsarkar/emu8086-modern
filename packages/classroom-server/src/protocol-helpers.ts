@@ -21,7 +21,7 @@ import {
   MAX_META_FIELD_BYTES,
   MAX_NAME_BYTES,
   type RoomMeta,
-} from "@emu8086/classroom-protocol";
+} from "@modern8086/classroom-protocol";
 
 export function clamp(s: unknown, max: number): string {
   if (typeof s !== "string") return "";

@@ -13,7 +13,7 @@ export const as: Locale = {
   id: "as",
   name: "অসমীয়া",
   strings: {
-    appTitle: "emu8086-modern",
+    appTitle: "modern8086",
     appLead:
       "শিক্ষাৰ্থীসকলৰ বাবে এটা আধুনিক, মুক্ত-উৎস ৮০৮৬ এমুলেটৰ আৰু এছেম্বলি IDE। সম্পাদনা কৰক, ক্লিক কৰক ",
     appLeadRunVerb: "চলাওক",

@@ -1,8 +1,8 @@
 name: Release
 
 # Runs on every `v*.*.*` tag pushed to the repo. Builds:
-#   - emu8086-cli native binary for four platforms
-#   - emu8086-desktop Tauri bundles (DEB/AppImage on Linux, DMG/.app
+#   - modern8086-cli native binary for four platforms
+#   - modern8086-desktop Tauri bundles (DEB/AppImage on Linux, DMG/.app
 #     on macOS, MSI/NSIS on Windows)
 # Uploads everything, plus a checksums.txt, to the matching GitHub
 # Release.
@@ -34,20 +34,20 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             runner: ubuntu-latest
-            asset: emu8086-linux-x86_64.tar.gz
-            exe: emu8086
+            asset: m86-linux-x86_64.tar.gz
+            exe: m86
           - target: x86_64-apple-darwin
             runner: macos-latest
-            asset: emu8086-macos-x86_64.tar.gz
-            exe: emu8086
+            asset: m86-macos-x86_64.tar.gz
+            exe: m86
           - target: aarch64-apple-darwin
             runner: macos-latest
-            asset: emu8086-macos-aarch64.tar.gz
-            exe: emu8086
+            asset: m86-macos-aarch64.tar.gz
+            exe: m86
           - target: x86_64-pc-windows-msvc
             runner: windows-latest
-            asset: emu8086-windows-x86_64.zip
-            exe: emu8086.exe
+            asset: m86-windows-x86_64.zip
+            exe: m86.exe
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +58,7 @@ jobs:
         with:
           key: ${{ matrix.target }}
       - name: Build
-        run: cargo build --release -p emu8086-cli --target ${{ matrix.target }}
+        run: cargo build --release -p modern8086-cli --target ${{ matrix.target }}
       - name: Package
         shell: bash
         run: |
@@ -227,7 +227,7 @@ jobs:
           fail_on_unmatched_files: true
 
   publish-npm:
-    name: Publish @emu8086/cli to npm
+    name: Publish @modern8086/cli to npm
     needs: [checksums-and-release]
     # Gated on a repo *variable*, not a secret — `secrets` cannot be
     # referenced in `if:`. Flip `vars.NPM_PUBLISH_ENABLED = "true"` in

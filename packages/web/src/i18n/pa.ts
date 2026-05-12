@@ -7,7 +7,7 @@ export const pa: Locale = {
   id: "pa",
   name: "ਪੰਜਾਬੀ",
   strings: {
-    appTitle: "emu8086-modern",
+    appTitle: "modern8086",
     appLead:
       "ਵਿਦਿਆਰਥੀਆਂ ਲਈ ਇੱਕ ਆਧੁਨਿਕ, ਓਪਨ-ਸੋਰਸ 8086 ਐਮੂਲੇਟਰ ਅਤੇ ਅਸੈਂਬਲੀ IDE। ਸੰਪਾਦਿਤ ਕਰੋ, ਕਲਿੱਕ ਕਰੋ ",
     appLeadRunVerb: "ਚਲਾਓ",

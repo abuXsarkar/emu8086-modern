@@ -30,7 +30,7 @@ Open decisions (no default chosen yet) live in `docs/adr/` and the [Roadmap "Ope
 ## 2. Repository layout (created at M0)
 
 ```
-emu8086-modern/
+modern8086/
 ├── Cargo.toml                # workspace
 ├── package.json              # workspace
 ├── pnpm-workspace.yaml
@@ -55,12 +55,12 @@ emu8086-modern/
 │   │   └── src/lib.rs
 │   ├── devices/
 │   │   ├── rust/    # crate emu8086-devices  (port-mapped I/O behaviors)
-│   │   └── ts/      # @emu8086/devices       (React components)
-│   ├── web/         # @emu8086/web (Vite + React)
+│   │   └── ts/      # @modern8086/devices       (React components)
+│   ├── web/         # @modern8086/web (Vite + React)
 │   │   ├── package.json
 │   │   ├── index.html
 │   │   └── src/
-│   └── cli/         # crate emu8086-cli
+│   └── cli/         # crate modern8086-cli
 │       ├── Cargo.toml
 │       └── src/main.rs
 ├── examples/
@@ -201,7 +201,7 @@ The dates below are rolling targets. The first column is "weeks after project st
 | R6 | Pilot institute pulls out at M6 | Medium | High | Line up two pilot courses, not one; the second is fallback. Pilot lead-time announced at M0. |
 | R7 | Accessibility findings late in M6 force scope cuts | Medium | Medium | Internal a11y review every milestone, not only M6. |
 | R8 | Time-travel snapshots blow memory budget | Low | High | Snapshot interval auto-tunes against memory pressure; cap recorded events; warn user instead of OOM. |
-| R9 | Trademark / IP question about "emu8086" name | Medium | Medium | Trademark review at M2. Fallback name reserved (`asm8086.app`). Project name is clearly distinct (`emu8086-modern`) and clean-room (see README acknowledgement). |
+| R9 | Trademark / IP question about "emu8086" name | Medium | Medium | Trademark review at M2. Fallback name reserved (`asm8086.app`). Project name is clearly distinct (`modern8086`) and clean-room (see README acknowledgement). |
 
 ---
 
@@ -231,16 +231,16 @@ pnpm install
 cargo fetch
 
 # Run the IDE in dev mode
-pnpm --filter @emu8086/web dev
+pnpm --filter @modern8086/web dev
 
 # Run unit + integration tests
 cargo test --workspace
 pnpm test
 
 # Build release artifacts
-pnpm --filter @emu8086/web build
-cargo build --release -p emu8086-cli
-pnpm --filter @emu8086/web tauri build
+pnpm --filter @modern8086/web build
+cargo build --release -p modern8086-cli
+pnpm --filter @modern8086/web tauri build
 ```
 
 Until M0 is complete these commands are aspirational; the placeholder skeleton in this commit makes most of them runnable but no-op.

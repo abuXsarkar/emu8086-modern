@@ -14,9 +14,9 @@ export { ClassroomHubDO };
 
 export interface Env {
   HUB: DurableObjectNamespace;
-  EMU8086_CLASSROOM_HMAC_SECRET?: string;
-  EMU8086_CLASSROOM_HMAC_SECRET_PREVIOUS?: string;
-  EMU8086_CLASSROOM_GRACE_MS?: string;
+  M86_CLASSROOM_HMAC_SECRET?: string;
+  M86_CLASSROOM_HMAC_SECRET_PREVIOUS?: string;
+  M86_CLASSROOM_GRACE_MS?: string;
 }
 
 export default {

@@ -6,7 +6,7 @@
 // `classroomErrorGeneric(message)` which prepends "Error:" and the
 // server's text — better than dropping the message entirely.
 
-import type { ErrorCode } from "@emu8086/classroom-protocol";
+import type { ErrorCode } from "@modern8086/classroom-protocol";
 import type { Strings } from "../i18n/types";
 
 export function localizeErrorCode(

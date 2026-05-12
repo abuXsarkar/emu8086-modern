@@ -1,4 +1,4 @@
-# emu8086-cli
+# modern8086-cli
 
 Headless runner and autograder. Distributed as a single static binary `emu8086`.
 

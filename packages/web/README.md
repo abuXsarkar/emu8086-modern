@@ -1,6 +1,6 @@
-# @emu8086/web
+# @modern8086/web
 
-Web IDE for `emu8086-modern` — React 18 + TypeScript + Vite, with Monaco arriving in M3.
+Web IDE for `modern8086` — React 18 + TypeScript + Vite, with Monaco arriving in M3.
 
 ```bash
 pnpm install

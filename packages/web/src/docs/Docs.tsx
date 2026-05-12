@@ -89,7 +89,7 @@ export function Docs() {
       <header className="docs-topbar">
         <a href="./" className="docs-topbar-brand">
           <Mark size={22} />
-          <span>emu8086-modern</span>
+          <span>modern8086</span>
           <span className="docs-topbar-divider" aria-hidden>
             /
           </span>
@@ -108,7 +108,7 @@ export function Docs() {
           <a href="../">Open the IDE</a>
           <a href="../about/">About</a>
           <a
-            href="https://github.com/abuXsarkar/emu8086-modern"
+            href="https://github.com/abuXsarkar/modern8086"
             target="_blank"
             rel="noopener"
           >

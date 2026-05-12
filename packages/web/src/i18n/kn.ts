@@ -6,7 +6,7 @@ export const kn: Locale = {
   id: "kn",
   name: "ಕನ್ನಡ",
   strings: {
-    appTitle: "emu8086-modern",
+    appTitle: "modern8086",
     appLead:
       "ವಿದ್ಯಾರ್ಥಿಗಳಿಗಾಗಿ ಆಧುನಿಕ, ಮುಕ್ತ-ಮೂಲ 8086 ಎಮ್ಯುಲೇಟರ್ ಮತ್ತು ಅಸೆಂಬ್ಲಿ IDE. ಸಂಪಾದಿಸಿ, ಕ್ಲಿಕ್ ಮಾಡಿ ",
     appLeadRunVerb: "ಚಲಾಯಿಸಿ",

@@ -13,7 +13,7 @@ import {
   type ClientMsg,
   type RoomMeta,
   type ServerMsg,
-} from "@emu8086/classroom-protocol";
+} from "@modern8086/classroom-protocol";
 import { classroomStore, type CloseReason } from "./store";
 
 interface ConnectOptions {

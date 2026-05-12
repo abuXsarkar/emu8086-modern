@@ -51,9 +51,9 @@ jobs:
       - name: Tests
         run: cargo test --workspace
       - name: Build wasm target (core)
-        run: cargo build -p emu8086-core --target wasm32-unknown-unknown
+        run: cargo build -p modern8086-core --target wasm32-unknown-unknown
       - name: Build wasm target (wasm-api)
-        run: cargo build -p emu8086-wasm-api --target wasm32-unknown-unknown
+        run: cargo build -p modern8086-wasm-api --target wasm32-unknown-unknown
 
   web:
     name: Web (Node 20)

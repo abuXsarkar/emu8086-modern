@@ -1,5 +1,5 @@
 [package]
-name = "emu8086-devices"
+name = "modern8086-devices"
 description = "Virtual peripherals (traffic light, 7-segment, LED matrix, …)."
 version.workspace = true
 edition.workspace = true
@@ -15,4 +15,4 @@ crate-type = ["rlib"]
 
 [dependencies]
 serde = { workspace = true }
-emu8086-core = { path = "../../core" }
+modern8086-core = { path = "../../core" }

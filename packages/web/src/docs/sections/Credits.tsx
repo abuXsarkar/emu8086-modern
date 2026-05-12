@@ -25,11 +25,11 @@ export function Credits() {
       <p>
         The full list lives at{" "}
         <a
-          href="https://github.com/abuXsarkar/emu8086-modern/graphs/contributors"
+          href="https://github.com/abuXsarkar/modern8086/graphs/contributors"
           target="_blank"
           rel="noopener"
         >
-          github.com/abuXsarkar/emu8086-modern/graphs/contributors
+          github.com/abuXsarkar/modern8086/graphs/contributors
         </a>
         . Special thanks to the early testers across South-Asian engineering
         colleges who wore out the build and filed the issues that shaped it.

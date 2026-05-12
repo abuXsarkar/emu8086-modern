@@ -13,12 +13,12 @@
 // itself is intentionally tab-scoped: closing the tab leaves the
 // room. Auto-rejoin on reload is a P5 concern.
 
-import type { RoomMeta } from "@emu8086/classroom-protocol";
+import type { RoomMeta } from "@modern8086/classroom-protocol";
 
-const KEY_NAME = "emu8086.classroom.last-display-name";
-const KEY_ROLL = "emu8086.classroom.last-roll-no";
-const KEY_CONSENT = "emu8086.classroom.consented";
-const KEY_TEMPLATES = "emu8086.classroom.templates";
+const KEY_NAME = "modern8086.classroom.last-display-name";
+const KEY_ROLL = "modern8086.classroom.last-roll-no";
+const KEY_CONSENT = "modern8086.classroom.consented";
+const KEY_TEMPLATES = "modern8086.classroom.templates";
 
 function readJson<T>(key: string, fallback: T): T {
   try {

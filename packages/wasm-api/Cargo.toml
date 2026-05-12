@@ -1,5 +1,5 @@
 [package]
-name = "emu8086-wasm-api"
+name = "modern8086-wasm-api"
 description = "wasm-bindgen surface for the web IDE: assemble + run + state."
 version.workspace = true
 edition.workspace = true
@@ -19,8 +19,8 @@ wasm-opt = false
 wasm-opt = false
 
 [dependencies]
-emu8086-core = { path = "../core" }
-emu8086-assembler = { path = "../assembler" }
+modern8086-core = { path = "../core" }
+modern8086-assembler = { path = "../assembler" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

@@ -8,7 +8,7 @@ export function License() {
       lede="MIT. Use it, modify it, ship it, sell it. Keep the copyright notice."
     >
       <p>
-        emu8086-modern is licensed under the MIT License. The full text:
+        modern8086 is licensed under the MIT License. The full text:
       </p>
       <pre className="docs-license">
         <code>{`MIT License

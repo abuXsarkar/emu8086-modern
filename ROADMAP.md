@@ -1,6 +1,6 @@
 # Roadmap
 
-This roadmap defines the path from an empty repository to **`emu8086-modern` 1.0** — the version we expect to be deployed in undergraduate computer-architecture courses.
+This roadmap defines the path from an empty repository to **`modern8086` 1.0** — the version we expect to be deployed in undergraduate computer-architecture courses.
 
 Dates assume the project starts in **May 2026** with one core maintainer (~20 hrs/week) plus part-time contributors. They are targets, not commitments. If reality drifts, we update this file rather than letting it lie.
 
@@ -13,7 +13,7 @@ A milestone is "done" only when the **exit criteria** are met. We do not slip ex
 | [M2](#m2--assembler-emu8086-dialect) | Assembler (emu8086 dialect) | ✅ shipped | Lex+parse+encode for nearly every M1 mnemonic incl. LEA + XCHG + memory-form PUSH/POP, segment-override prefixes (`CS:` / `DS:` / `ES:` / `SS:`), both directions of `mov segreg, r16` / `mov r16, segreg`, `org`/`db`/`dw`/`equ`/`dup`/BYTE-WORD PTR, user `MACRO`/`ENDM`, file-level `include`, `.MODEL`/`.STACK`/`.DATA`/`.CODE`/`.STARTUP`/`.EXIT`/`ASSUME`/`END` directives, `PROC`/`ENDP` blocks. |
 | [M3](#m3--web-ide-alpha) | Web IDE alpha | ✅ shipped | Monaco editor with syntax highlighting + snippets + hover docs + error markers + share-link, Reset/Step/Back/Run debugger, register/flag/memory panels, 7-seg + traffic-light peripherals |
 | [M4](#m4--time-travel-debugger--devices) | Time-travel + devices | ✅ shipped (alpha) | step_back via diff snapshots; 7-seg, traffic-light, 8×8 LED matrix, stepper motor, text-mode screen (B800:0000), keyboard FIFO (ports 0x60/0x64 + INT 16h/INT 21h), LPT1 printer (port 0x378), robot (port 0x12) peripherals. |
-| [M5](#m5--educator-features) | Educator features | ✅ shipped (alpha) | `emu8086 grade` autograder + JUnit XML, GitHub Action, share-links via URL fragment. Pending: LTI 1.3 launch, classroom-mode broadcast. |
+| [M5](#m5--educator-features) | Educator features | ✅ shipped (alpha) | `m86 grade` autograder + JUnit XML, GitHub Action, share-links via URL fragment. Pending: LTI 1.3 launch, classroom-mode broadcast. |
 | [M6](#m6--beta--pilot) | Beta and institute pilot | needs external partner | Self-host Docker image, a11y audit, pilot course |
 | [M7](#m7--10-release) | 1.0 polish | needs signing infra + audit | Tauri desktop builds, plugin SDK, code-signing, external a11y audit |
 
@@ -168,7 +168,7 @@ A milestone is "done" only when the **exit criteria** are met. We do not slip ex
 
 ### Exit criteria
 - All milestones M0–M6 closed.
-- `npm install -g @emu8086/cli` works from a clean machine.
+- `npm install -g @modern8086/cli` works from a clean machine.
 - Hosted `https://emu8086.app` (or chosen domain) serves the IDE over HTTPS with <1.5 s TTI.
 
 ---

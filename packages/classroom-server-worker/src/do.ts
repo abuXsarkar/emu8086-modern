@@ -40,23 +40,23 @@ import {
   type ClientMsg,
   type ErrorCode,
   type ServerMsg,
-} from "@emu8086/classroom-protocol";
+} from "@modern8086/classroom-protocol";
 import {
   Room,
   type Outbound,
   type SerializedRoom,
   TEACHER_GRACE_MS,
-} from "@emu8086/classroom-server/room";
+} from "@modern8086/classroom-server/room";
 import {
   generateSecret,
   signHostToken,
   verifyHostToken,
-} from "@emu8086/classroom-server/host-token";
+} from "@modern8086/classroom-server/host-token";
 import {
   generateRoomCode,
   isPlausibleRoomCode,
-} from "@emu8086/classroom-server/wordlist";
-import { clamp, sanitizeMeta } from "@emu8086/classroom-server/protocol-helpers";
+} from "@modern8086/classroom-server/wordlist";
+import { clamp, sanitizeMeta } from "@modern8086/classroom-server/protocol-helpers";
 import type { Env } from "./worker.js";
 
 const REAP_TICK_MS = 15_000;
@@ -117,19 +117,19 @@ interface ResolvedSecrets {
 
 function resolveSecrets(env: Env): ResolvedSecrets {
   let primary: string;
-  if (env.EMU8086_CLASSROOM_HMAC_SECRET) {
-    primary = env.EMU8086_CLASSROOM_HMAC_SECRET;
+  if (env.M86_CLASSROOM_HMAC_SECRET) {
+    primary = env.M86_CLASSROOM_HMAC_SECRET;
   } else {
     primary = generateSecret();
     console.warn(
-      "[classroom-worker] EMU8086_CLASSROOM_HMAC_SECRET not set; generated an ephemeral one.",
+      "[classroom-worker] M86_CLASSROOM_HMAC_SECRET not set; generated an ephemeral one.",
     );
   }
   return {
     primary,
-    previous: env.EMU8086_CLASSROOM_HMAC_SECRET_PREVIOUS,
-    graceMs: env.EMU8086_CLASSROOM_GRACE_MS
-      ? Number(env.EMU8086_CLASSROOM_GRACE_MS)
+    previous: env.M86_CLASSROOM_HMAC_SECRET_PREVIOUS,
+    graceMs: env.M86_CLASSROOM_GRACE_MS
+      ? Number(env.M86_CLASSROOM_GRACE_MS)
       : TEACHER_GRACE_MS,
   };
 }

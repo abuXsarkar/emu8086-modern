@@ -14,7 +14,7 @@ slice of the assembler / encoder broke.
 ## Running locally
 
 ```bash
-emu8086 compat-report tests/conformance --exclude README.md
+m86 compat-report tests/conformance --exclude README.md
 ```
 
 (`--exclude` is unnecessary in practice — the walker only picks up

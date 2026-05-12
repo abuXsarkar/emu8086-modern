@@ -13,12 +13,12 @@
 
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import type { RoomMeta } from "@emu8086/classroom-protocol";
+import type { RoomMeta } from "@modern8086/classroom-protocol";
 import { useStrings } from "../i18n";
 import { Banner } from "./Banner";
 import { useClassroomStore } from "./store";
 
-const COLLAPSE_KEY = "emu8086.classroom.drawer-collapsed";
+const COLLAPSE_KEY = "modern8086.classroom.drawer-collapsed";
 
 interface DrawerProps {
   roomId: string;

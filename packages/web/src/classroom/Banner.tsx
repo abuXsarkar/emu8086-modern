@@ -4,7 +4,7 @@
 // design doc.
 
 import { useState } from "react";
-import type { RoomMeta } from "@emu8086/classroom-protocol";
+import type { RoomMeta } from "@modern8086/classroom-protocol";
 import { useStrings } from "../i18n";
 
 interface BannerProps {

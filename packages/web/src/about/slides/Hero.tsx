@@ -3,7 +3,7 @@ import { Mark } from "../Landing";
 
 export function Hero() {
   return (
-    <Slide slug="hero" title="emu8086-modern" hideFromIndex>
+    <Slide slug="hero" title="modern8086" hideFromIndex>
       <div className="hero-stack">
         <div className="hero-mark">
           <Mark size={120} />
@@ -24,7 +24,7 @@ export function Hero() {
           </a>
           <a
             className="hero-cta ghost"
-            href="https://github.com/abuXsarkar/emu8086-modern"
+            href="https://github.com/abuXsarkar/modern8086"
             target="_blank"
             rel="noopener"
           >

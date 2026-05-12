@@ -1,4 +1,4 @@
-//! emu8086-core
+//! modern8086-core
 //!
 //! Deterministic 8086 CPU core. Compiles to a native `cdylib`/`rlib` and to
 //! wasm32 with `wasm-bindgen` exports.
@@ -48,7 +48,7 @@ pub fn version() -> String {
 pub fn greet(name: &str) -> String {
     let trimmed = name.trim();
     let who = if trimmed.is_empty() { "world" } else { trimmed };
-    format!("Hello, {who}! emu8086-core v{} is alive.", version())
+    format!("Hello, {who}! modern8086-core v{} is alive.", version())
 }
 
 /// 16-bit FLAGS register layout (8086).

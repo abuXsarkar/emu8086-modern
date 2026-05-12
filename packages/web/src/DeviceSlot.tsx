@@ -15,13 +15,13 @@ interface DeviceSlotProps {
 
 /**
  * Wraps a device so the user can detach it into a draggable Floater.
- * Pop-out state persists per-id under `emu8086.dev-popped:<id>` so the
+ * Pop-out state persists per-id under `modern8086.dev-popped:<id>` so the
  * bench survives reloads. When popped, the inline slot collapses to a
  * "↩ dock" button so the user can find their way back without
  * hunting for the floater.
  */
 export function DeviceSlot({ id, title, defaultPos, children }: DeviceSlotProps) {
-  const storageKey = `emu8086.dev-popped:${id}`;
+  const storageKey = `modern8086.dev-popped:${id}`;
   const [popped, setPopped] = useState<boolean>(() => {
     try {
       return localStorage.getItem(storageKey) === "1";

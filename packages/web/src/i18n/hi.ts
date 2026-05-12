@@ -10,7 +10,7 @@ export const hi: Locale = {
   id: "hi",
   name: "हिन्दी",
   strings: {
-    appTitle: "emu8086-modern",
+    appTitle: "modern8086",
     appLead:
       "छात्रों के लिए एक आधुनिक, ओपन-सोर्स 8086 एमुलेटर और असेम्बली IDE। संपादित करें, क्लिक करें ",
     appLeadRunVerb: "चलाएँ",

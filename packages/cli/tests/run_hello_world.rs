@@ -11,9 +11,9 @@ fn cli_path() -> std::path::PathBuf {
     p.pop(); // deps
     p.pop(); // debug or release
     p.push(if cfg!(windows) {
-        "emu8086.exe"
+        "m86.exe"
     } else {
-        "emu8086"
+        "m86"
     });
     p
 }
@@ -41,7 +41,7 @@ fn cli_runs_hand_assembled_hello_world() {
     // Write to a temp file. Use `std::env::temp_dir()` directly so we
     // don't pull in a `tempfile` crate dependency just for this.
     let dir = std::env::temp_dir();
-    let path = dir.join("emu8086_modern_e2e_hello.com");
+    let path = dir.join("m86_e2e_hello.com");
     {
         let mut f = std::fs::File::create(&path).expect("create temp");
         f.write_all(&prog).expect("write temp");

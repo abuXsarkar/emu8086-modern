@@ -11,8 +11,8 @@ use std::path::Path;
 use std::time::Instant;
 
 use anyhow::Context;
-use emu8086_assembler::{assemble, Dialect};
-use emu8086_core::{seg_off, Cpu, Flags as CoreFlags, Registers};
+use modern8086_assembler::{assemble, Dialect};
+use modern8086_core::{seg_off, Cpu, Flags as CoreFlags, Registers};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -85,7 +85,7 @@ pub fn run_spec(
         Ok(img) => img,
         Err(e) => {
             eprintln!(
-                "emu8086: submission failed to assemble: {e}\n  -> {}",
+                "m86: submission failed to assemble: {e}\n  -> {}",
                 submission_path.display()
             );
             return Ok(2);
@@ -184,7 +184,7 @@ pub fn run_spec(
     if let Some(p) = junit_out {
         let xml = junit_xml(&header, &results);
         fs::write(p, xml).with_context(|| format!("writing junit xml to {}", p.display()))?;
-        eprintln!("emu8086: wrote {}", p.display());
+        eprintln!("m86: wrote {}", p.display());
     }
 
     Ok(u8::from(passed != total))

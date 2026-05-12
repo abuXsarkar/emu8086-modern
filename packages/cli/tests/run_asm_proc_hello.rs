@@ -11,9 +11,9 @@ fn cli_path() -> std::path::PathBuf {
     p.pop();
     p.pop();
     p.push(if cfg!(windows) {
-        "emu8086.exe"
+        "m86.exe"
     } else {
-        "emu8086"
+        "m86"
     });
     p
 }

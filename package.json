@@ -1,14 +1,14 @@
 {
-  "name": "emu8086-modern",
-  "version": "1.0.0",
+  "name": "modern8086",
+  "version": "1.1.0",
   "private": true,
   "description": "Modern, open-source 8086 emulator and assembly IDE for students",
   "license": "MIT",
   "author": "Abu Sufian Sarkar <abu@cyberdude.com>",
-  "homepage": "https://github.com/abuXsarkar/emu8086-modern",
+  "homepage": "https://github.com/abuXsarkar/modern8086",
   "repository": {
     "type": "git",
-    "url": "https://github.com/abuXsarkar/emu8086-modern.git"
+    "url": "https://github.com/abuXsarkar/modern8086.git"
   },
   "packageManager": "pnpm@9.12.0",
   "engines": {
@@ -16,14 +16,14 @@
     "pnpm": ">=9"
   },
   "scripts": {
-    "dev": "pnpm --filter @emu8086/web dev",
+    "dev": "pnpm --filter @modern8086/web dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "format": "dprint fmt",
-    "desktop:dev": "pnpm --filter @emu8086/desktop dev",
-    "desktop:bundle": "pnpm --filter @emu8086/desktop bundle"
+    "desktop:dev": "pnpm --filter @modern8086/desktop dev",
+    "desktop:bundle": "pnpm --filter @modern8086/desktop bundle"
   },
   "devDependencies": {
     "dprint": "^0.47.0",

@@ -32,7 +32,7 @@ import { ml } from "./ml";
 import { pa } from "./pa";
 import { or } from "./or";
 
-const STORAGE_KEY = "emu8086-modern.locale";
+const STORAGE_KEY = "modern8086.locale";
 
 export const LOCALES: Locale[] = [en, es, bn, as, hi, ta, te, gu, mr, kn, ml, pa, or];
 

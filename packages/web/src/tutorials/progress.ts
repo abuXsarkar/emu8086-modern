@@ -6,8 +6,8 @@
 //
 // Everything else (lesson definitions, UI state) is non-persistent.
 
-const KEY_ACTIVE = "emu8086.tutorial.active";
-const KEY_COMPLETED = "emu8086.tutorial.completed";
+const KEY_ACTIVE = "modern8086.tutorial.active";
+const KEY_COMPLETED = "modern8086.tutorial.completed";
 
 export interface ActiveTutorial {
   tutorialId: string;

@@ -1,8 +1,8 @@
-# @emu8086/desktop
+# @modern8086/desktop
 
 Tauri 2 desktop shell that hosts the web IDE in a native window on
 Linux, macOS, and Windows. The frontend is the same React + Vite app
-served by `@emu8086/web`; the Tauri layer only handles window
+served by `@modern8086/web`; the Tauri layer only handles window
 chrome, the platform-native webview, and (eventually) deep-link /
 file-system integration.
 
@@ -34,9 +34,9 @@ The `bundle` script is deliberately named so `pnpm -r build` skips
 this package — the wide recursive build that CI runs on every push
 should not trigger an hour-long native compile.
 
-`tauri dev` boots Vite (`pnpm --filter @emu8086/web dev`) before
+`tauri dev` boots Vite (`pnpm --filter @modern8086/web dev`) before
 opening the window, so the HMR experience matches the browser dev
-loop. `tauri build` runs `pnpm --filter @emu8086/web build` first
+loop. `tauri build` runs `pnpm --filter @modern8086/web build` first
 and ships the static bundle inside the native binary.
 
 ## Bundle artifacts

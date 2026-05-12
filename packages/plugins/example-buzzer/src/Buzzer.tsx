@@ -7,7 +7,7 @@
 // point.
 
 import { useEffect, useRef, useState } from "react";
-import type { DevicePluginProps } from "@emu8086/plugin-sdk";
+import type { DevicePluginProps } from "@modern8086/plugin-sdk";
 
 const PORT = 200;
 const PULSE_MS = 240;

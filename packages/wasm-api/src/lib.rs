@@ -16,8 +16,8 @@
     clippy::missing_panics_doc
 )]
 
-use emu8086_assembler::{assemble, Dialect};
-use emu8086_core::Cpu;
+use modern8086_assembler::{assemble, Dialect};
+use modern8086_core::Cpu;
 use serde::Serialize;
 
 #[cfg(target_arch = "wasm32")]
@@ -73,8 +73,8 @@ pub struct Registers {
     pub flags: u16,
 }
 
-impl From<&emu8086_core::Registers> for Registers {
-    fn from(r: &emu8086_core::Registers) -> Self {
+impl From<&modern8086_core::Registers> for Registers {
+    fn from(r: &modern8086_core::Registers) -> Self {
         Self {
             ax: r.ax,
             bx: r.bx,
@@ -116,16 +116,16 @@ fn run_inner(source: &str, max_steps: usize) -> RunResult {
         Ok(img) => img,
         Err(e) => {
             let (stage, msg, span) = match e {
-                emu8086_assembler::AssembleError::Lex(le) => (
+                modern8086_assembler::AssembleError::Lex(le) => (
                     "lex",
                     le.msg.clone(),
-                    emu8086_assembler::Span::new(le.pos, le.pos + 1),
+                    modern8086_assembler::Span::new(le.pos, le.pos + 1),
                 ),
-                emu8086_assembler::AssembleError::Preprocess(pe) => {
+                modern8086_assembler::AssembleError::Preprocess(pe) => {
                     ("preprocess", pe.message, pe.span)
                 }
-                emu8086_assembler::AssembleError::Parse(pe) => ("parse", pe.message, pe.span),
-                emu8086_assembler::AssembleError::Encode(ee) => ("encode", ee.message, ee.span),
+                modern8086_assembler::AssembleError::Parse(pe) => ("parse", pe.message, pe.span),
+                modern8086_assembler::AssembleError::Encode(ee) => ("encode", ee.message, ee.span),
             };
             let (line, col) = locate(source, span.start);
             return RunResult {
@@ -215,16 +215,16 @@ impl Emulator {
             Ok(img) => img,
             Err(e) => {
                 let (stage, msg, span) = match e {
-                    emu8086_assembler::AssembleError::Lex(le) => (
+                    modern8086_assembler::AssembleError::Lex(le) => (
                         "lex",
                         le.msg.clone(),
-                        emu8086_assembler::Span::new(le.pos, le.pos + 1),
+                        modern8086_assembler::Span::new(le.pos, le.pos + 1),
                     ),
-                    emu8086_assembler::AssembleError::Preprocess(pe) => {
+                    modern8086_assembler::AssembleError::Preprocess(pe) => {
                         ("preprocess", pe.message, pe.span)
                     }
-                    emu8086_assembler::AssembleError::Parse(pe) => ("parse", pe.message, pe.span),
-                    emu8086_assembler::AssembleError::Encode(ee) => ("encode", ee.message, ee.span),
+                    modern8086_assembler::AssembleError::Parse(pe) => ("parse", pe.message, pe.span),
+                    modern8086_assembler::AssembleError::Encode(ee) => ("encode", ee.message, ee.span),
                 };
                 let (line, col) = locate(source, span.start);
                 let r = RunResult {
@@ -280,11 +280,11 @@ impl Emulator {
         let rec = self.cpu.step();
         let mnemonic = rec.mnemonic.to_string();
         let stopped = rec.stopped.as_ref().map(|s| match s {
-            emu8086_core::StopReason::Halted => "halted".to_string(),
-            emu8086_core::StopReason::Unimplemented { opcode, ip } => {
+            modern8086_core::StopReason::Halted => "halted".to_string(),
+            modern8086_core::StopReason::Unimplemented { opcode, ip } => {
                 format!("unimplemented opcode 0x{opcode:02X} at ip 0x{ip:04X}")
             }
-            emu8086_core::StopReason::DivideError { ip } => {
+            modern8086_core::StopReason::DivideError { ip } => {
                 format!("divide error at ip 0x{ip:04X}")
             }
         });
@@ -353,7 +353,7 @@ impl Emulator {
         second: u8,
         hundredths: u8,
     ) {
-        self.cpu.set_clock(emu8086_core::Clock {
+        self.cpu.set_clock(modern8086_core::Clock {
             year,
             month,
             day,
@@ -547,7 +547,7 @@ impl Emulator {
     pub fn memory_hex(&self, seg: u16, off: u16, len: u16) -> String {
         use std::fmt::Write as _;
         let len = (len as usize).min(4096);
-        let lin = emu8086_core::seg_off(seg, off);
+        let lin = modern8086_core::seg_off(seg, off);
         let slice = self.cpu.mem.slice(lin, len);
         let mut out = String::with_capacity(slice.len() * 3);
         for (i, b) in slice.iter().enumerate() {

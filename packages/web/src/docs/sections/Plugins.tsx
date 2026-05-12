@@ -49,7 +49,7 @@ export default function register(host) {
         </li>
         <li>
           <strong>In the desktop build</strong>: drop the file in{" "}
-          <code>~/.emu8086/plugins/</code>. They load at startup.
+          <code>~/.modern8086/plugins/</code>. They load at startup.
         </li>
         <li>
           <strong>In the CLI</strong>: pass <code>--plugin path/to/file.js</code>.

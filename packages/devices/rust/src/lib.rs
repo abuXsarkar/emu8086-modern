@@ -1,4 +1,4 @@
-//! emu8086-devices
+//! modern8086-devices
 //!
 //! Headless implementations of the virtual peripherals exposed via I/O ports.
 //! Paired TS components live in `packages/devices/ts/`.

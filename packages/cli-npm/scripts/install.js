@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// `postinstall` hook: fetches the prebuilt emu8086 binary for the
+// `postinstall` hook: fetches the prebuilt m86 binary for the
 // current platform from the GitHub Release matching this package's
 // version, verifies the SHA-256 against the published manifest, and
-// drops it next to bin/emu8086.js.
+// drops it next to bin/m86.js.
 //
 // Skips entirely when:
-//   - EMU8086_SKIP_DOWNLOAD=1 is set (offline / curated environment);
+//   - M86_SKIP_DOWNLOAD=1 is set (offline / curated environment);
 //   - the binary is already present and its checksum matches;
 //   - we're running in a CI / test scenario where the binary is
 //     copied in by some other path.
@@ -27,11 +27,11 @@ const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const version = pkg.version;
 
 const SKIP =
-  process.env.EMU8086_SKIP_DOWNLOAD === "1" ||
-  process.env.npm_config_emu8086_skip_download === "true";
+  process.env.M86_SKIP_DOWNLOAD === "1" ||
+  process.env.npm_config_m86_skip_download === "true";
 
 if (SKIP) {
-  console.log("[emu8086] EMU8086_SKIP_DOWNLOAD set — leaving binary slot empty.");
+  console.log("[m86] M86_SKIP_DOWNLOAD set — leaving binary slot empty.");
   process.exit(0);
 }
 
@@ -42,7 +42,7 @@ if (SKIP) {
 function isInTreeWorkspace() {
   try {
     const wsCargo = readFileSync(join(root, "..", "..", "Cargo.toml"), "utf8");
-    return wsCargo.includes('"packages/cli"') || wsCargo.includes("emu8086");
+    return wsCargo.includes('"packages/cli"') || wsCargo.includes("modern8086");
   } catch {
     return false;
   }
@@ -56,29 +56,29 @@ if (isInTreeWorkspace()) {
 // Map (platform, arch) → release asset name. The shape mirrors what
 // the release workflow uploads. Two platforms have two arches.
 const ASSET_FOR = {
-  "linux-x64": "emu8086-linux-x86_64.tar.gz",
-  "darwin-x64": "emu8086-macos-x86_64.tar.gz",
-  "darwin-arm64": "emu8086-macos-aarch64.tar.gz",
-  "win32-x64": "emu8086-windows-x86_64.zip",
+  "linux-x64": "m86-linux-x86_64.tar.gz",
+  "darwin-x64": "m86-macos-x86_64.tar.gz",
+  "darwin-arm64": "m86-macos-aarch64.tar.gz",
+  "win32-x64": "m86-windows-x86_64.zip",
 };
 
 const key = `${process.platform}-${process.arch}`;
 const asset = ASSET_FOR[key];
 if (!asset) {
   console.error(
-    `[emu8086] no prebuilt binary for ${key}. ` +
-      "Build from source: cargo build --release -p emu8086-cli, " +
-      "then copy target/release/emu8086 into this package's bin/.",
+    `[m86] no prebuilt binary for ${key}. ` +
+      "Build from source: cargo build --release -p modern8086-cli, " +
+      "then copy target/release/m86 into this package's bin/.",
   );
   // Don't crash the install — let the bin shim print a helpful error
-  // if the user actually tries to run `emu8086`.
+  // if the user actually tries to run `m86`.
   process.exit(0);
 }
 
-const url = `https://github.com/abuXsarkar/emu8086-modern/releases/download/v${version}/${asset}`;
-const checksumsUrl = `https://github.com/abuXsarkar/emu8086-modern/releases/download/v${version}/checksums.txt`;
+const url = `https://github.com/abuXsarkar/modern8086/releases/download/v${version}/${asset}`;
+const checksumsUrl = `https://github.com/abuXsarkar/modern8086/releases/download/v${version}/checksums.txt`;
 
-const binName = process.platform === "win32" ? "emu8086.exe" : "emu8086";
+const binName = process.platform === "win32" ? "m86.exe" : "m86";
 const binPath = join(root, "bin", binName);
 
 async function main() {
@@ -88,13 +88,13 @@ async function main() {
     process.exit(0);
   }
   mkdirSync(join(root, "bin"), { recursive: true });
-  console.log(`[emu8086] downloading ${asset} for ${key}…`);
+  console.log(`[m86] downloading ${asset} for ${key}…`);
   const tmpFile = join(tmpdir(), asset);
   await download(url, tmpFile);
   await verifyChecksum(tmpFile, checksumsUrl, asset);
   await extract(tmpFile, binPath);
   chmodSync(binPath, 0o755);
-  console.log(`[emu8086] installed v${version} → ${binPath}`);
+  console.log(`[m86] installed v${version} → ${binPath}`);
 }
 
 async function download(from, to) {
@@ -117,7 +117,7 @@ async function verifyChecksum(file, manifestUrl, assetName) {
   const res = await fetch(manifestUrl, { redirect: "follow" });
   if (!res.ok) {
     console.warn(
-      `[emu8086] checksums.txt missing from release (${res.status}); ` +
+      `[m86] checksums.txt missing from release (${res.status}); ` +
         "skipping verification — this is OK for development releases.",
     );
     return;
@@ -128,7 +128,7 @@ async function verifyChecksum(file, manifestUrl, assetName) {
     .find((l) => l.trim().endsWith(`  ${assetName}`));
   if (!line) {
     console.warn(
-      `[emu8086] no checksum line for ${assetName} in checksums.txt; ` +
+      `[m86] no checksum line for ${assetName} in checksums.txt; ` +
         "skipping verification.",
     );
     return;
@@ -144,7 +144,7 @@ async function verifyChecksum(file, manifestUrl, assetName) {
 
 async function extract(archive, outBinPath) {
   // Both archive formats contain a single top-level binary named
-  // `emu8086` / `emu8086.exe`. Use the platform's bundled tar / zip
+  // `m86` / `m86.exe`. Use the platform's bundled tar / zip
   // tools — Node ships no native archiver and pulling one in for one
   // file is wasteful.
   const { spawnSync } = await import("node:child_process");
@@ -175,10 +175,10 @@ async function extract(archive, outBinPath) {
 }
 
 main().catch((e) => {
-  console.error("[emu8086] install failed:", e.message);
+  console.error("[m86] install failed:", e.message);
   console.error(
-    "You can still run `cargo build --release -p emu8086-cli` and copy the\n" +
-      "binary into node_modules/@emu8086/cli/bin/ manually.",
+    "You can still run `cargo build --release -p modern8086-cli` and copy the\n" +
+      "binary into node_modules/@modern8086/cli/bin/ manually.",
   );
   // Exit 0 — failing the install would break entire `npm install`
   // pipelines just because a binary download flaked.

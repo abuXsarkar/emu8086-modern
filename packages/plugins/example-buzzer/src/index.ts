@@ -6,7 +6,7 @@
 // This file is the entire plugin's *registration*. The visual
 // lives in Buzzer.tsx so the SDK shape stays clear at a glance.
 
-import { registerDevicePlugin } from "@emu8086/plugin-sdk";
+import { registerDevicePlugin } from "@modern8086/plugin-sdk";
 import { Buzzer } from "./Buzzer.js";
 
 registerDevicePlugin({

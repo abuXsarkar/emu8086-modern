@@ -9,16 +9,16 @@
       "identifier": "opener:allow-open-url",
       "allow": [
         {
-          "url": "https://github.com/abuXsarkar/emu8086-modern/**"
+          "url": "https://github.com/abuXsarkar/modern8086/**"
         },
         {
-          "url": "https://abuxsarkar.github.io/emu8086-modern/**"
+          "url": "https://abuxsarkar.github.io/modern8086/**"
         },
         {
           "url": "https://*.workers.dev/**"
         },
         {
-          "url": "https://emu8086.app/**"
+          "url": "https://modern8086.app/**"
         }
       ]
     },

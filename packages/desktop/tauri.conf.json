@@ -1,18 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "emu8086-modern",
-  "version": "1.0.0",
-  "identifier": "com.cyberdude.emu8086-modern",
+  "productName": "modern8086",
+  "version": "1.1.0",
+  "identifier": "com.cyberdude.modern8086",
   "build": {
-    "beforeDevCommand": "pnpm --filter @emu8086/web dev",
-    "beforeBuildCommand": "pnpm --filter @emu8086/web build",
+    "beforeDevCommand": "pnpm --filter @modern8086/web dev",
+    "beforeBuildCommand": "pnpm --filter @modern8086/web build",
     "devUrl": "http://localhost:5173",
     "frontendDist": "../web/dist"
   },
   "app": {
     "windows": [
       {
-        "title": "emu8086-modern",
+        "title": "modern8086",
         "width": 1280,
         "height": 800,
         "minWidth": 800,
@@ -34,7 +34,7 @@
     "targets": "all",
     "category": "DeveloperTool",
     "publisher": "Abu Sufian Sarkar",
-    "homepage": "https://github.com/abuXsarkar/emu8086-modern",
+    "homepage": "https://github.com/abuXsarkar/modern8086",
     "copyright": "© Abu Sufian Sarkar. MIT-licensed.",
     "license": "MIT",
     "shortDescription": "8086 emulator and assembly IDE.",
@@ -73,7 +73,7 @@
     "updater": {
       "active": false,
       "endpoints": [
-        "https://github.com/abuXsarkar/emu8086-modern/releases/latest/download/latest.json"
+        "https://github.com/abuXsarkar/modern8086/releases/latest/download/latest.json"
       ],
       "dialog": true,
       "pubkey": ""

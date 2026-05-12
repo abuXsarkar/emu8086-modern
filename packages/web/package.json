@@ -1,8 +1,8 @@
 {
-  "name": "@emu8086/web",
-  "version": "1.0.0",
+  "name": "@modern8086/web",
+  "version": "1.1.0",
   "private": true,
-  "description": "Web IDE for emu8086-modern (React + Vite + Monaco).",
+  "description": "Web IDE for modern8086 (React + Vite + Monaco).",
   "license": "MIT",
   "author": "Abu Sufian Sarkar <abu@cyberdude.com>",
   "type": "module",
@@ -15,9 +15,9 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@emu8086/classroom-protocol": "workspace:*",
-    "@emu8086/plugin-sdk": "workspace:*",
-    "@emu8086/plugin-example-buzzer": "workspace:*",
+    "@modern8086/classroom-protocol": "workspace:*",
+    "@modern8086/plugin-sdk": "workspace:*",
+    "@modern8086/plugin-example-buzzer": "workspace:*",
     "@fontsource-variable/geist": "^5.2.8",
     "@fontsource/geist-mono": "^5.2.7",
     "@fontsource/instrument-serif": "^5.2.8",
