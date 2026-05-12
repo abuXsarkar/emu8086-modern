@@ -594,8 +594,10 @@
   right: 14px;
   bottom: 14px;
   z-index: 200;
-  width: 32px;
-  height: 32px;
+  /* Matches .tutorial-trigger so the two stack on the same baseline
+     without one looking taller than the other. */
+  width: 36px;
+  height: 36px;
   background: var(--paper);
   color: var(--ink);
   border: var(--hair-w) solid var(--rule);
@@ -1554,8 +1556,11 @@
    stacked above the Tweaks gear so neither covers the other. */
 .tutorial-trigger {
   position: fixed;
-  bottom: 16px;
-  right: 64px;
+  /* Aligns with .tweaks-trigger: same bottom + same shadow so the
+     pair reads as a single matched control cluster. The right offset
+     leaves a 16 px gap between the two triggers (14 + 36 + 16 = 66). */
+  bottom: 14px;
+  right: 66px;
   z-index: 40;
   width: 36px;
   height: 36px;
@@ -1565,7 +1570,7 @@
   border: var(--hair-w) solid var(--rule);
   border-radius: var(--rad);
   cursor: pointer;
-  box-shadow: 1px 1px 0 var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -29,20 +29,18 @@
     <title>modern8086</title>
     <script>
       // Pre-paint theme application. Reads the same key the React app
-      // writes; setting body.dark before first paint avoids a flash of
-      // light-themed content on cold load when the user picked dark.
+      // writes. Default is the paper/light theme; only an explicit
+      // "vs-dark" in storage opts into dark mode before first paint.
       (function () {
         try {
           var v = localStorage.getItem("modern8086.editor-theme");
-          if (v === "vs-dark" || v === null)
-            document.body && document.body.classList.add("dark");
+          if (v === "vs-dark") document.body && document.body.classList.add("dark");
           // The script runs before <body> exists; queue the class swap
           // for the next microtask so the body element is available.
           if (!document.body) {
             document.addEventListener("DOMContentLoaded", function () {
               var v2 = localStorage.getItem("modern8086.editor-theme");
-              if (v2 === "vs-dark" || v2 === null)
-                document.body.classList.add("dark");
+              if (v2 === "vs-dark") document.body.classList.add("dark");
             });
           }
         } catch (e) {
