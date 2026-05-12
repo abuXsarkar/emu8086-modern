@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chocolatey nuspec for the modern8086 CLI.
+
+  After packaging/scripts/generate-distribution-manifests.sh fills VERSION, the
+  package is built with:
+
+    cd target/packaging/chocolatey
+    choco pack
+    choco push m86.<version>.nupkg --source https://push.chocolatey.org/ \
+      --api-key $env:CHOCO_API_KEY
+
+  The first push triggers Chocolatey's moderation review (1–3 days
+  for new maintainers; instant once trusted). Update the `tools/`
+  chocolateyinstall.ps1 if the release artifact name changes.
+-->
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>m86</id>
+    <version>{{VERSION}}</version>
+    <title>modern8086 CLI</title>
+    <authors>Abu Sufian Sarkar</authors>
+    <owners>abuXsarkar</owners>
+    <projectUrl>https://modern8086.com</projectUrl>
+    <licenseUrl>https://github.com/abuXsarkar/modern8086/blob/main/LICENSE</licenseUrl>
+    <packageSourceUrl>https://github.com/abuXsarkar/modern8086/tree/main/packaging/chocolatey</packageSourceUrl>
+    <bugTrackerUrl>https://github.com/abuXsarkar/modern8086/issues</bugTrackerUrl>
+    <docsUrl>https://modern8086.com/docs/</docsUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Headless 8086 runner and autograder. The native CLI from the modern8086 8086 emulator and assembly IDE — assembles, runs, traces, and grades 8086 assembly programs.</description>
+    <summary>Headless 8086 runner and autograder for modern8086.</summary>
+    <releaseNotes>https://github.com/abuXsarkar/modern8086/releases/tag/v{{VERSION}}</releaseNotes>
+    <copyright>© Abu Sufian Sarkar. MIT-licensed.</copyright>
+    <tags>8086 assembly emulator cli autograder education</tags>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

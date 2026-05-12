@@ -1,0 +1,33 @@
+# Homebrew cask for the modern8086 desktop app (the Tauri-bundled
+# DMG).
+#
+# Same template flow as Formula/m86.rb.template: run
+# `packaging/scripts/generate-distribution-manifests.sh` after a release; the
+# filled cask lands in `target/packaging/modern8086.rb` and gets
+# dropped into the tap repo's `Casks/` directory.
+#
+# Users install with:
+#
+#   brew tap abuxsarkar/modern8086
+#   brew install --cask modern8086
+#
+# The cask handles both Intel and Apple Silicon out of one universal
+# DMG (Tauri builds `--target universal-apple-darwin` in the release
+# workflow).
+cask "modern8086" do
+  version "{{VERSION}}"
+  sha256 "{{SHA256_MACOS_UNIVERSAL_DMG}}"
+
+  url "https://github.com/abuXsarkar/modern8086/releases/download/v#{version}/modern8086_#{version}_universal.dmg"
+  name "modern8086"
+  desc "8086 emulator and assembly IDE"
+  homepage "https://modern8086.com"
+
+  app "modern8086.app"
+
+  zap trash: [
+    "~/Library/Application Support/com.cyberdude.modern8086",
+    "~/Library/Caches/com.cyberdude.modern8086",
+    "~/Library/Preferences/com.cyberdude.modern8086.plist",
+  ]
+end
