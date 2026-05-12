@@ -1,5 +1,6 @@
-// Tauri desktop entry. Keeps `main()` thin so a future mobile entry
-// (iOS / Android) can re-use `run()` from the same crate.
+// Tauri desktop + mobile entry. Keeps `main()` thin so the
+// mobile entry (`#[tauri::mobile_entry_point]`) and the desktop
+// entry can share `run()`.
 //
 // No custom Rust commands yet: the IDE is fully client-side wasm and
 // reaches its classroom service over a regular WebSocket. If we ever
@@ -10,31 +11,56 @@
 //   - tauri-plugin-opener:          open external URLs in the user's
 //                                   default browser. (Successor to
 //                                   tauri-plugin-shell's deprecated
-//                                   Shell::open path.)
+//                                   Shell::open path.) Works on
+//                                   desktop + mobile.
 //   - tauri-plugin-window-state:    remember window size + position
-//                                   across launches.
+//                                   across launches. Desktop-only —
+//                                   mobile WebViews don't have a
+//                                   sizeable window concept.
 //   - tauri-plugin-updater:         auto-update from GitHub Releases.
-//                                   Compiled in; runtime check is
-//                                   gated by `bundle.createUpdaterArtifacts`
+//                                   Compiled in for desktop; runtime
+//                                   check is gated by
+//                                   `bundle.createUpdaterArtifacts`
 //                                   and the updater endpoint config —
 //                                   currently disabled until we have
 //                                   a signing key, so this is a no-op
 //                                   in practice.
+//
+// The native menu bar (File / Edit / View / Help) is also desktop-only:
+// mobile OSes don't have menu bars, they have on-screen UI for the
+// equivalents. The `tauri::menu` module is gated behind
+// `#[cfg(desktop)]` in upstream Tauri, so any reference to it must be
+// likewise gated here or the Android / iOS build fails to compile.
 
+#[cfg(desktop)]
 use tauri::menu::{AboutMetadataBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+#[cfg(desktop)]
 use tauri::Manager;
+#[cfg(desktop)]
 use tauri_plugin_opener::OpenerExt;
 
+#[cfg(desktop)]
 const DOCS_URL: &str = "https://abuxsarkar.github.io/modern8086/docs/";
+#[cfg(desktop)]
 const ISSUES_URL: &str = "https://github.com/abuXsarkar/modern8086/issues/new";
 const REPO_URL: &str = "https://github.com/abuXsarkar/modern8086";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
+    let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init());
+
+    // Window-state + updater are desktop-only Tauri plugins. On
+    // Android/iOS the symbol resolution fails at compile time, so
+    // they're cfg-gated to the desktop build.
+    #[cfg(desktop)]
+    let builder = builder
         .plugin(tauri_plugin_window_state::Builder::default().build())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build());
+
+    // Menu bar — desktop only. Mobile UIs have no concept of a top
+    // menu; equivalent affordances live in the in-app webview.
+    #[cfg(desktop)]
+    let builder = builder
         .setup(|app| {
             let menu = build_menu(app.handle())?;
             app.set_menu(menu)?;
@@ -69,7 +95,9 @@ pub fn run() {
                 }
                 _ => {}
             }
-        })
+        });
+
+    builder
         .invoke_handler(tauri::generate_handler![])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -81,6 +109,10 @@ pub fn run() {
 /// items in a window menu bar. Most items use Tauri's predefined
 /// menu items so they pick up the OS-native labels and keyboard
 /// shortcuts automatically (Cmd+Q vs Ctrl+Q etc.).
+///
+/// Desktop-only — see the cfg-gate on `tauri::menu` at the top of
+/// the file.
+#[cfg(desktop)]
 fn build_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri::menu::Menu<R>> {
     // App menu — macOS only; the OS injects an "Application" menu
     // before the first user menu using the bundle's CFBundleName,
