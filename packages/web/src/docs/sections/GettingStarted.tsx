@@ -9,7 +9,7 @@ export function GettingStarted() {
     >
       <h3>1. Use it in the browser</h3>
       <p>
-        Open <a href="../">the IDE</a> and you are already there — no install,
+        Open <a href="/">the IDE</a> and you are already there — no install,
         no account. The first time you arrive, the page caches itself so the
         next visit works offline.
       </p>

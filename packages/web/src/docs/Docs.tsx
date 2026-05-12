@@ -87,7 +87,7 @@ export function Docs() {
   return (
     <div className="docs-root">
       <header className="docs-topbar">
-        <a href="./" className="docs-topbar-brand">
+        <a href="/" className="docs-topbar-brand">
           <Mark size={22} />
           <span>modern8086</span>
           <span className="docs-topbar-divider" aria-hidden>
@@ -105,8 +105,8 @@ export function Docs() {
           {navOpen ? "Close" : "Contents"}
         </button>
         <nav className="docs-topbar-nav">
-          <a href="../">Open the IDE</a>
-          <a href="../about/">About</a>
+          <a href="/">Open the IDE</a>
+          <a href="/about/">About</a>
           <a
             href="https://github.com/abuXsarkar/modern8086"
             target="_blank"

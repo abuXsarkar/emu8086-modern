@@ -27,6 +27,7 @@ import "./plugins";
 import { PluginGallery } from "./PluginGallery";
 import { LOCALES, useLocaleId, useStrings } from "./i18n";
 import { Mark } from "./about/Landing";
+import { FooterInstall } from "./FooterInstall";
 import type { RunRegisters } from "./registers";
 import { formatValue, evaluate } from "./debugExpr";
 import { recordEvent } from "./metrics";
@@ -755,7 +756,9 @@ export function App() {
     >
       <header className="app-header">
         <div className="brand">
-          <Mark size={36} />
+          <a href="/" className="brand-home-link" aria-label={t.appTitle}>
+            <Mark size={36} />
+          </a>
           <div className="brand-text">
             <h1>{t.appTitle}</h1>
             <p className="lead">
@@ -1202,13 +1205,16 @@ export function App() {
       )}
 
       <footer className="app-footer mono">
-        <a href="./about/">about</a>
-        {t.footerSeparator}
-        <a href="./docs/">docs</a>
-        {t.footerSeparator}
-        <a href="https://github.com/abuXsarkar/modern8086">{t.footerLink}</a>
-        {t.footerSeparator}
-        {t.footerNote}
+        <div className="app-footer-row">
+          <a href="/about/">about</a>
+          {t.footerSeparator}
+          <a href="/docs/">docs</a>
+          {t.footerSeparator}
+          <a href="https://github.com/abuXsarkar/modern8086">{t.footerLink}</a>
+          {t.footerSeparator}
+          <span>v1.1.0 · MIT</span>
+        </div>
+        <FooterInstall />
       </footer>
       <TweaksPanel />
       <ClassroomLayer currentSource={source} />
