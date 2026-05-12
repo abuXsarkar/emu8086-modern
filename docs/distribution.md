@@ -14,6 +14,7 @@ automatically once the per-channel gate variables are flipped on.
 | Homebrew tap | `m86` formula + `modern8086` cask (macOS DMG) | $0 | When `vars.HOMEBREW_TAP_ENABLED=true` | Tap repo + `TAP_DEPLOY_TOKEN` |
 | Scoop bucket | `m86` Windows manifest | $0 | When `vars.SCOOP_BUCKET_ENABLED=true` | Bucket repo + `BUCKET_DEPLOY_TOKEN` |
 | Chocolatey | `m86` Windows package | $0 | When `vars.CHOCO_PUBLISH_ENABLED=true` | Choco maintainer account + `CHOCO_API_KEY` |
+| **Google Play Store** | **Signed Android AAB** | **$25** one-time (paid) | When `vars.ANDROID_BUILD_ENABLED=true` (build) + `vars.PLAY_STORE_UPLOAD_ENABLED=true` (upload) | Play Console account + keystore + service account JSON |
 | Microsoft Store | MSIX of the Tauri desktop bundle | **$19** one-time | Manual (Partner Center upload) | Partner Center account |
 | Mac App Store | MAS-sandboxed .app | **$99/yr** | Manual (App Store Connect upload) | Apple Developer Program |
 | Snap (snapcraft.io) | strict-confinement snap of the desktop app | $0 | Manual until snapcraft.yaml lands | Snapcraft account |
@@ -178,7 +179,57 @@ First package goes through 1–3 days of moderation. Subsequent
 updates are instant after you reach **Trusted** status (~5 published
 packages without issues).
 
-## 5. Microsoft Store
+## 5. Google Play Store
+
+The most reach of any single channel: the Android Play Store puts
+modern8086 on millions of student devices that don't run a desktop
+OS daily. Full step-by-step (keystore generation, secrets, listing
+fields, service-account JSON for auto-publish) lives at
+[`packaging/android/SETUP.md`](../packaging/android/SETUP.md) — this
+section is the short version.
+
+### Build pipeline
+
+The release workflow's `android` job:
+
+1. Installs JDK 17, Android SDK + NDK r26, Rust + Android targets.
+2. Builds the wasm bundle and the web bundle.
+3. Runs `cargo tauri android init --ci` to scaffold
+   `packages/desktop/gen/android/` (gitignored).
+4. Patches the generated `app/build.gradle.kts` for release signing
+   via `packaging/android/gradle-signing-patch.sh`.
+5. Writes `keystore.properties` from the `ANDROID_KEYSTORE_*`
+   secrets.
+6. Runs `cargo tauri android build --aab` to produce a signed AAB.
+7. Attaches the AAB to the GitHub Release.
+8. If `vars.PLAY_STORE_UPLOAD_ENABLED=true`, uploads to the
+   Internal-test track (or `vars.PLAY_STORE_TRACK` if set) via
+   `r0adkll/upload-google-play@v1`.
+
+### Two gates
+
+- `vars.ANDROID_BUILD_ENABLED=true` — enables the AAB build at all.
+- `vars.PLAY_STORE_UPLOAD_ENABLED=true` — enables the auto-upload
+  step on top. Useful to flip the build on without the upload first,
+  test the AAB locally, then flip the upload on for the next tag.
+
+### Tracks
+
+The workflow defaults to the **Internal testing** track —
+auto-promoting to Production on every tag is too risky. Promote
+manually in Play Console after a sanity check. Override with
+`vars.PLAY_STORE_TRACK = alpha | beta | internal | production` if you
+want a different default.
+
+### Why the $25 is worth it
+
+Google Play has a one-time $25 developer-account fee (lifetime, no
+renewals). For an educational tool targeting students, that's $25 vs
+the de-facto unreachability of every student who can't install
+sideloaded APKs (i.e. most). Compare with Apple's $99/yr — Play is
+strictly cheaper and reaches more student-owned devices.
+
+## 6. Microsoft Store
 
 Worth a paragraph on tradeoffs. The Store ships an MSIX, which can
 be produced two ways:
@@ -216,7 +267,7 @@ Store re-signs with its own cert. (For sideload distribution
 outside the Store you still want Authenticode signing; see the
 `SIGNING_ENABLED` toggle in `release.yml`.)
 
-## 6. Mac App Store
+## 7. Mac App Store
 
 Apple Developer Program ($99/yr) is the gate, and it's also what
 unblocks notarized DMGs for outside-Store distribution. If you're
@@ -250,7 +301,7 @@ For now we ship the **notarized DMG** outside the Store (via Apple
 Developer ID) and treat MAS as a follow-on. The notarized DMG is
 ~95% of the user value at 0% of the MAS configuration cost.
 
-## 7. Snap, Flathub, AUR
+## 8. Snap, Flathub, AUR
 
 Linux package channels that are nice-to-have but not on the critical
 path. Each has its own packaging file format:
@@ -285,9 +336,10 @@ In order of effort/reward:
 |---|---|---|
 | GitHub Releases | ✅ | — |
 | npm | ✅ (gated) | — |
-| Homebrew tap | ❌ | Job that fills templates + opens PR to tap repo |
-| Scoop bucket | ❌ | Same shape as Homebrew |
-| Chocolatey | ❌ | Job that runs `choco pack && push` on a Windows runner |
+| Homebrew tap | 🟡 manifests generated as a release artifact | Auto-PR to tap repo (`TAP_DEPLOY_TOKEN`) |
+| Scoop bucket | 🟡 manifest generated as a release artifact | Auto-PR to bucket repo (`BUCKET_DEPLOY_TOKEN`) |
+| Chocolatey | 🟡 nuspec generated as a release artifact | Windows-runner job that runs `choco push` |
+| Google Play | ✅ build (gated) + ✅ upload (gated) | Production-track promotion stays manual |
 | MS Store | ❌ | Partner Center has no public submission API; stays manual |
 | Mac App Store | ❌ | Tauri MAS build path needs to land first |
 | Snap | ❌ | Snapcraft GitHub Action exists; cheap to add later |

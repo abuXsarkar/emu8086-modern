@@ -4,6 +4,8 @@ name: Release
 #   - modern8086-cli native binary for four platforms
 #   - modern8086-desktop Tauri bundles (DEB/AppImage on Linux, DMG/.app
 #     on macOS, MSI/NSIS on Windows)
+#   - modern8086 Android AAB (gated on vars.ANDROID_BUILD_ENABLED, with
+#     optional auto-publish to Play Console behind vars.PLAY_STORE_UPLOAD_ENABLED)
 # Uploads everything, plus a checksums.txt, to the matching GitHub
 # Release.
 #
@@ -196,8 +198,161 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  android:
+    name: Android AAB (Play Store)
+    # Gated on a repo variable so the job is inert until the
+    # maintainer follows packaging/android/SETUP.md and populates
+    # the keystore secrets. Without them, an unsigned AAB would
+    # still build but Play Console rejects it, so save the runner
+    # minutes.
+    if: vars.ANDROID_BUILD_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK (NDK comes from `sdkmanager` below)
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK r26
+        # Tauri Android targets need an NDK that supports the
+        # `aarch64-linux-android` triple. r26 is the current LTS
+        # branch; pin so a future SDK Manager change doesn't shift
+        # us under our feet.
+        run: |
+          sdkmanager --install "ndk;26.1.10909125"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/26.1.10909125" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/26.1.10909125" >> $GITHUB_ENV
+
+      - name: Set up Rust + Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9.12.0"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: "v0.13.1"
+
+      - name: Build wasm-api pkg
+        run: wasm-pack build packages/wasm-api --target web --out-dir pkg --release
+
+      - name: Install tauri-cli
+        run: cargo install tauri-cli@^2 --locked
+
+      - name: Read tag version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Initialise Tauri Android scaffold
+        # `gen/android/` is gitignored — regenerated each run from
+        # tauri.conf.json + the gradle-signing patch.
+        working-directory: packages/desktop
+        run: cargo tauri android init --ci
+
+      - name: Patch gradle for release signing
+        run: bash packaging/android/gradle-signing-patch.sh packages/desktop/gen/android/app/build.gradle.kts
+
+      - name: Decode keystore + write keystore.properties
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KS:-}" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is missing — see packaging/android/SETUP.md" >&2
+            exit 1
+          fi
+          ks_path="$RUNNER_TEMP/upload.keystore"
+          echo "$KS" | base64 -d > "$ks_path"
+          cat > packages/desktop/gen/android/keystore.properties <<EOF
+          storeFile=$ks_path
+          storePassword=$KS_PASS
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASS
+          EOF
+
+      - name: Build release AAB
+        working-directory: packages/desktop
+        run: cargo tauri android build --aab
+
+      - name: Stage AAB with stable name
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          # Tauri's output path varies by tauri-cli version; find it.
+          aab=$(find packages/desktop/gen/android -name '*.aab' -path '*/release/*' | head -n1)
+          if [ -z "$aab" ]; then
+            echo "::error::no .aab produced — check Gradle output" >&2
+            find packages/desktop/gen/android -name '*.aab' || true
+            exit 1
+          fi
+          cp "$aab" "dist/modern8086-android-${{ steps.ver.outputs.version }}.aab"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: modern8086-android-${{ steps.ver.outputs.version }}
+          path: dist/*.aab
+          retention-days: 7
+
+      - name: Attach AAB to GitHub Release
+        # Mirror what checksums-and-release does for the CLI / desktop
+        # bundles, but inline so we don't have to wire android into
+        # that job's needs[] (which would block checksums when
+        # ANDROID_BUILD_ENABLED is off).
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.aab
+
+      - name: Upload to Play Console (Internal track)
+        # Second gate — once the maintainer has uploaded a first
+        # build to Play Console manually and wired the Play API
+        # service account, subsequent tags push to the chosen track
+        # automatically. Stays on Internal by default; promote to
+        # Production from the Play Console UI after sanity checks.
+        if: vars.PLAY_STORE_UPLOAD_ENABLED == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
+          packageName: com.cyberdude.modern8086
+          releaseFiles: dist/modern8086-android-${{ steps.ver.outputs.version }}.aab
+          track: ${{ vars.PLAY_STORE_TRACK || 'internal' }}
+          status: completed
+          whatsNewDirectory: packaging/android/whats-new
+          releaseName: ${{ steps.ver.outputs.version }}
+
   checksums-and-release:
     name: Checksums + attach to Release
+    # Intentionally does not depend on `android` — when
+    # ANDROID_BUILD_ENABLED is off the android job is skipped and
+    # any `needs` reference to it cascades to a skipped checksums
+    # job, which would block the rest of the pipeline.
     needs: [build, desktop]
     runs-on: ubuntu-latest
     steps:

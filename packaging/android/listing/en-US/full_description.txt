@@ -1,0 +1,22 @@
+modern8086 is a modern, open-source 8086 microprocessor emulator and assembly-language IDE built for the way computer-architecture courses are actually taught today: in browsers, on Chromebooks, in mixed-OS labs, with Git, and with autograding.
+
+The same code that powers the web app at modern8086.com runs locally on your Android device — full editor, assembler, and emulator, no network round-trips.
+
+What you get
+
+• Monaco-quality editor with 8086 syntax, snippets, and inline error markers.
+• Deterministic 8086 CPU core written in Rust, compiled to WebAssembly. The full mainline ISA plus the DOS subset of INT 21h that lab manuals use.
+• Time-travel debugger: step forward, step backward, set conditional breakpoints, watch expressions, see register and flag changes per instruction.
+• Eight live peripherals — traffic light, stepper motor, 8×8 LED matrix, 7-segment display, 80×25 text screen, keyboard FIFO, LPT1 printer, 9×9 robot grid. Each one is a draggable panel.
+• 10 interactive tutorials covering registers, addressing modes, the stack, procedures, interrupts, the debugger, and sharing.
+• Share programs via URL fragment — paste a link into chat and the receiver sees the exact same program.
+• Source-compatible with the legacy emu8086 dialect and the four major South Asian lab manuals (Hashemite, Gopalan, Sri Indu, BMSIT).
+• 13 UI languages (English, Spanish, plus 11 Indian regional languages) with graceful English fallback.
+
+Built for classrooms
+
+modern8086 is free, MIT-licensed, has no ads, and collects no personal data. There is no account, no sign-in, and no telemetry by default. If you opt into local-only metrics from Settings, the data never leaves your device.
+
+The web build, the desktop builds, and this Android app all share one Rust core. A program that runs on one runs on all of them with identical behaviour, so course materials port without rewriting.
+
+Open source: github.com/abuXsarkar/modern8086.

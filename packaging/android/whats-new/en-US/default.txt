@@ -1,0 +1,7 @@
+First Android release of modern8086.
+
+• Full editor, assembler, and 8086 emulator running locally on-device.
+• Time-travel debugger with step-back, conditional breakpoints, and watch expressions.
+• Eight live virtual peripherals, popped out as draggable panels.
+• 10 hands-on tutorials, 13 UI languages.
+• Source-compatible with classic emu8086 lab manuals.
