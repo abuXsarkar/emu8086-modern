@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Google Play feature graphic. Displayed full-width at the top of the
+  store listing page (1024 × 500). Rendered ~2× on high-density
+  devices, so keep type weights heavy and avoid sub-pixel details.
+
+  Export to PNG:
+    rsvg-convert -w 1024 -h 500 -o feature-graphic.png feature-graphic.svg
+  or any online SVG→PNG converter; the file is plain SVG without
+  external font references (kept system-font + monospace fallback) so
+  it rasterises identically anywhere.
+
+  Palette mirrors the IDE's paper theme so the store listing reads as
+  the same product as the in-app experience.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F8F4EE"/>
+      <stop offset="1" stop-color="#EFE7DA"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#0C111B" stroke-opacity="0.06" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <!-- Paper background with a subtle engineering-grid texture -->
+  <rect width="1024" height="500" fill="url(#bg)"/>
+  <rect width="1024" height="500" fill="url(#grid)"/>
+
+  <!-- Hairline rule along the bottom — echoes the IDE's section dividers -->
+  <line x1="0" y1="499" x2="1024" y2="499" stroke="#0C111B" stroke-opacity="0.18" stroke-width="1"/>
+
+  <!-- Brand mark: scaled-up version of icon.svg, parked on the left -->
+  <g transform="translate(80 110)">
+    <rect width="280" height="280" rx="48" fill="#0a7"/>
+    <text x="140" y="200"
+          font-family="ui-monospace, 'Geist Mono', Menlo, Consolas, monospace"
+          font-weight="700" font-size="140" fill="#ffffff" text-anchor="middle">86</text>
+  </g>
+
+  <!-- Wordmark + tagline -->
+  <g transform="translate(420 0)">
+    <text x="0" y="190"
+          font-family="'Instrument Serif', 'Source Serif Pro', Georgia, serif"
+          font-weight="400" font-size="86" fill="#0C111B"
+          letter-spacing="-1.5">
+      modern<tspan font-style="italic">8086</tspan>
+    </text>
+    <text x="0" y="240"
+          font-family="ui-monospace, 'Geist Mono', Menlo, Consolas, monospace"
+          font-size="22" fill="#0C111B" fill-opacity="0.62"
+          letter-spacing="3">
+      8086 EMULATOR · ASSEMBLY IDE
+    </text>
+
+    <!-- Three feature beats, separated by hairline dividers -->
+    <g transform="translate(0 300)" font-family="'Instrument Serif', Georgia, serif"
+       fill="#0C111B" font-size="26">
+      <text x="0" y="0">Time-travel debugger</text>
+      <text x="0" y="42" fill-opacity="0.7" font-style="italic">eight live peripherals</text>
+      <text x="0" y="84">classroom-ready · open source</text>
+    </g>
+  </g>
+
+  <!-- modern8086.com — bottom-right corner mark -->
+  <text x="990" y="476"
+        font-family="ui-monospace, 'Geist Mono', Menlo, Consolas, monospace"
+        font-size="16" fill="#0C111B" fill-opacity="0.55" text-anchor="end"
+        letter-spacing="1">
+    modern8086.com
+  </text>
+</svg>
