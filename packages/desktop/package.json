@@ -1,6 +1,6 @@
 {
   "name": "@modern8086/desktop",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Native desktop shell (Tauri 2) for the modern8086 web IDE.",
   "license": "MIT",

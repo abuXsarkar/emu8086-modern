@@ -1,6 +1,6 @@
 {
   "name": "@modern8086/web",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Web IDE for modern8086 (React + Vite + Monaco).",
   "license": "MIT",

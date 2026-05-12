@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.1] — 2026-05-13
+
+Patch release. v1.1.0 published cleanly for desktop / CLI but the
+Android job failed to compile because `packages/desktop/src/lib.rs`
+referenced desktop-only Tauri APIs (`tauri::menu`,
+`tauri-plugin-window-state`, `tauri-plugin-updater`) without
+`#[cfg(desktop)]` gates. Cross-compiling for
+`aarch64-linux-android` failed at symbol resolution.
+
+### Fixed
+
+- **Android build** (#82). `packages/desktop/src/lib.rs` now gates
+  the menu module, the window-state + updater plugin
+  registrations, and the `setup` + `on_menu_event` chain on
+  `#[cfg(desktop)]`. `packages/desktop/Cargo.toml` moves
+  `tauri-plugin-window-state` and `tauri-plugin-updater` into a
+  `[target.'cfg(not(any(target_os = "ios", target_os =
+  "android")))'.dependencies]` block so cargo doesn't try to
+  resolve them on mobile.
+- This means v1.1.1's release page is the first one to actually
+  ship the per-ABI signed APKs + universal AAB the Android
+  pipeline was designed to produce.
+
+No source-level changes to CPU semantics, the assembler, the web
+IDE, or the desktop app behaviour. Existing v1.1.0 desktop /
+browser users do not need to update.
+
 ## [1.1.0] — 2026-05-12
 
 Brand-and-distribution release. The product is the same; everything

@@ -5,7 +5,7 @@
 > desktop app, and (soon) on every major app store.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.0-1E3A8A.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.1-1E3A8A.svg)](CHANGELOG.md)
 [![Live IDE](https://img.shields.io/badge/live-modern8086.com-0a7?logo=googlechrome&logoColor=white)](https://modern8086.com)
 [![CI](https://img.shields.io/github/actions/workflow/status/abuXsarkar/modern8086/ci.yml?branch=main&label=CI)](https://github.com/abuXsarkar/modern8086/actions/workflows/ci.yml)
 [![Platforms](https://img.shields.io/badge/platforms-web%20·%20linux%20·%20macOS%20·%20windows%20·%20android-1E3A8A.svg)](#install)
@@ -70,11 +70,11 @@ linked below come from the
 
 | Your machine | Recommended download | Notes |
 |---|---|---|
-| **macOS** — Apple Silicon (M1+) or Intel | [`modern8086_1.1.0_universal.dmg`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086_1.1.0_universal.dmg) | One universal `.dmg` covers both Intel and Apple Silicon. |
-| **Windows 10/11** — most users | [`modern8086_1.1.0_x64-setup.exe`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086_1.1.0_x64-setup.exe) | NSIS installer; doesn't need admin rights (`installMode: currentUser`). |
-| **Windows** — corporate / Group Policy | [`modern8086_1.1.0_x64_en-US.msi`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086_1.1.0_x64_en-US.msi) | WiX MSI for IT-managed deployments. |
-| **Linux** — Debian / Ubuntu / Mint | [`modern8086_1.1.0_amd64.deb`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086_1.1.0_amd64.deb) | `sudo dpkg -i …` |
-| **Linux** — any distro, no install | [`modern8086_1.1.0_amd64.AppImage`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086_1.1.0_amd64.AppImage) | `chmod +x` and run; portable, no system changes. |
+| **macOS** — Apple Silicon (M1+) or Intel | [`modern8086_1.1.1_universal.dmg`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086_1.1.1_universal.dmg) | One universal `.dmg` covers both Intel and Apple Silicon. |
+| **Windows 10/11** — most users | [`modern8086_1.1.1_x64-setup.exe`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086_1.1.1_x64-setup.exe) | NSIS installer; doesn't need admin rights (`installMode: currentUser`). |
+| **Windows** — corporate / Group Policy | [`modern8086_1.1.1_x64_en-US.msi`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086_1.1.1_x64_en-US.msi) | WiX MSI for IT-managed deployments. |
+| **Linux** — Debian / Ubuntu / Mint | [`modern8086_1.1.1_amd64.deb`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086_1.1.1_amd64.deb) | `sudo dpkg -i …` |
+| **Linux** — any distro, no install | [`modern8086_1.1.1_amd64.AppImage`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086_1.1.1_amd64.AppImage) | `chmod +x` and run; portable, no system changes. |
 
 Or via Homebrew Cask on macOS:
 
@@ -90,11 +90,11 @@ alongside the universal AAB. Pick the one that matches your phone.
 
 | Your device | Download | When to use |
 |---|---|---|
-| **Modern phones** (Pixel, Galaxy S/A, OnePlus, Xiaomi — anything 2019+) | [`modern8086-android-1.1.0-arm64-v8a.apk`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086-android-1.1.0-arm64-v8a.apk) | Default pick. 95% of Android phones in use today. |
-| **Older 32-bit phones** (pre-2019, budget devices) | [`modern8086-android-1.1.0-armeabi-v7a.apk`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086-android-1.1.0-armeabi-v7a.apk) | Use only if `arm64-v8a` says "incompatible". |
-| **Android emulators** (BlueStacks, Genymotion, x86 images) | [`modern8086-android-1.1.0-x86_64.apk`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086-android-1.1.0-x86_64.apk) | x86_64 emulator images. |
-| **Very old x86 emulators** | [`modern8086-android-1.1.0-x86.apk`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086-android-1.1.0-x86.apk) | Rare; legacy 32-bit x86. |
-| Play Store (when live) | [`modern8086-android-1.1.0.aab`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086-android-1.1.0.aab) | Not for sideload — Play Console only. |
+| **Modern phones** (Pixel, Galaxy S/A, OnePlus, Xiaomi — anything 2019+) | [`modern8086-android-1.1.1-arm64-v8a.apk`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086-android-1.1.1-arm64-v8a.apk) | Default pick. 95% of Android phones in use today. |
+| **Older 32-bit phones** (pre-2019, budget devices) | [`modern8086-android-1.1.1-armeabi-v7a.apk`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086-android-1.1.1-armeabi-v7a.apk) | Use only if `arm64-v8a` says "incompatible". |
+| **Android emulators** (BlueStacks, Genymotion, x86 images) | [`modern8086-android-1.1.1-x86_64.apk`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086-android-1.1.1-x86_64.apk) | x86_64 emulator images. |
+| **Very old x86 emulators** | [`modern8086-android-1.1.1-x86.apk`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086-android-1.1.1-x86.apk) | Rare; legacy 32-bit x86. |
+| Play Store (when live) | [`modern8086-android-1.1.1.aab`](https://github.com/abuXsarkar/modern8086/releases/latest/download/modern8086-android-1.1.1.aab) | Not for sideload — Play Console only. |
 
 **To install an APK on Android:** Settings → enable "Install from
 unknown sources" for your file manager or browser → open the
