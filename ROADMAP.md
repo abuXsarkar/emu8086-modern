@@ -169,7 +169,7 @@ A milestone is "done" only when the **exit criteria** are met. We do not slip ex
 ### Exit criteria
 - All milestones M0–M6 closed.
 - `npm install -g @modern8086/cli` works from a clean machine.
-- Hosted `https://emu8086.app` (or chosen domain) serves the IDE over HTTPS with <1.5 s TTI.
+- Hosted `https://modern8086.com` (or chosen domain) serves the IDE over HTTPS with <1.5 s TTI.
 
 ---
 

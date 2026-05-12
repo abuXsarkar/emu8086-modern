@@ -27,7 +27,7 @@ Short list — the long list is in [`pain-points.md`](pain-points.md):
 
 ### Path A — Hosted (zero-infrastructure)
 
-For institutes that can let students load `https://emu8086.app` (or the chosen hosted URL).
+For institutes that can let students load `https://modern8086.com` (or the chosen hosted URL).
 
 - Students: open the URL.
 - Instructors: same.
