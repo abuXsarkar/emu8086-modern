@@ -81,11 +81,22 @@ brew install --cask modern8086
 
 ### Android (sideload)
 
-The signed AAB ships with every release. Download
-`modern8086-android-1.1.0.aab` from
-[Releases](https://github.com/abuXsarkar/modern8086/releases/latest)
-and install via [`bundletool`](https://developer.android.com/tools/bundletool)
-or any app-installer that accepts `.aab`.
+Every release ships **signed APKs** (one per ABI) alongside the
+universal AAB. Most modern phones (Android 5.0+) want the
+`arm64-v8a` build:
+
+```
+modern8086-android-1.1.0-arm64-v8a.apk    ← most devices
+modern8086-android-1.1.0-armeabi-v7a.apk  ← older 32-bit ARM
+modern8086-android-1.1.0-x86_64.apk       ← x86_64 emulators
+modern8086-android-1.1.0-x86.apk          ← x86 emulators
+modern8086-android-1.1.0.aab              ← Play Store format
+```
+
+Grab the one matching your device from
+[Releases](https://github.com/abuXsarkar/modern8086/releases/latest),
+allow installs from the source, and open the APK. (Play Store
+listing in flight; see [Coming soon](#coming-soon).)
 
 ### Self-host
 

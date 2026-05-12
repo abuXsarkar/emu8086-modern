@@ -1,7 +1,7 @@
 # Android / Google Play Store setup
 
 What you (the maintainer) do **once**, before the CI Android job can
-ship a signed AAB to Play Console.
+ship signed APKs (for sideload) + a signed AAB (for Play Console).
 
 ## 1. Generate the upload keystore
 
@@ -37,9 +37,10 @@ updates to the same listing — you'd have to register a new app.
 | `ANDROID_KEY_ALIAS` | `upload` (or whatever you passed to `-alias`) | Secrets |
 | `ANDROID_BUILD_ENABLED` | `true` | Variables |
 
-Once these are set, the next tag push builds a release-signed AAB
-and attaches it to the GitHub Release. You upload it manually to
-Play Console for the first release.
+Once these are set, the next tag push builds release-signed APKs
+(one per ABI) and a universal AAB, then attaches all of them to the
+GitHub Release. You upload the AAB manually to Play Console for the
+first listing; the APKs are immediately sideload-installable.
 
 ## 3. Create the Play Console listing (one-time, manual)
 

@@ -297,38 +297,68 @@ jobs:
           keyPassword=$KEY_PASS
           EOF
 
-      - name: Build release AAB
+      - name: Build release APK + AAB
+        # Both formats from one Gradle run. The AAB is the Play
+        # Store upload format; the per-ABI APKs are what users
+        # sideload directly when Play Store isn't an option (or
+        # before the listing goes live). Tauri builds split APKs
+        # per ABI by default — four files (arm64-v8a, armeabi-v7a,
+        # x86_64, x86) — so older devices can grab the one that
+        # matches their architecture.
         working-directory: packages/desktop
-        run: cargo tauri android build --aab
+        run: cargo tauri android build --apk --aab
 
-      - name: Stage AAB with stable name
+      - name: Stage artifacts with stable names
         run: |
           set -euo pipefail
           mkdir -p dist
-          # Tauri's output path varies by tauri-cli version; find it.
+          v="${{ steps.ver.outputs.version }}"
+
+          # AAB — single universal bundle for Play Store.
           aab=$(find packages/desktop/gen/android -name '*.aab' -path '*/release/*' | head -n1)
           if [ -z "$aab" ]; then
             echo "::error::no .aab produced — check Gradle output" >&2
             find packages/desktop/gen/android -name '*.aab' || true
             exit 1
           fi
-          cp "$aab" "dist/modern8086-android-${{ steps.ver.outputs.version }}.aab"
+          cp "$aab" "dist/modern8086-android-${v}.aab"
+
+          # APKs — one per ABI (Tauri's default split build).
+          apk_count=0
+          while IFS= read -r apk; do
+            # Filename shape: app-<abi>-release.apk or app-<abi>-release-unsigned.apk
+            abi=$(basename "$apk" | sed -E 's/^app-(.+)-release.*\.apk$/\1/')
+            cp "$apk" "dist/modern8086-android-${v}-${abi}.apk"
+            apk_count=$((apk_count+1))
+          done < <(find packages/desktop/gen/android -name 'app-*-release*.apk' -path '*/release/*')
+
+          if [ "$apk_count" -eq 0 ]; then
+            echo "::error::no .apk produced — check Gradle output" >&2
+            find packages/desktop/gen/android -name '*.apk' || true
+            exit 1
+          fi
+          echo "Staged $apk_count APK(s) + 1 AAB."
+          ls -la dist/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: modern8086-android-${{ steps.ver.outputs.version }}
-          path: dist/*.aab
+          path: |
+            dist/*.aab
+            dist/*.apk
           retention-days: 7
 
-      - name: Attach AAB to GitHub Release
+      - name: Attach APK + AAB to GitHub Release
         # Mirror what checksums-and-release does for the CLI / desktop
         # bundles, but inline so we don't have to wire android into
         # that job's needs[] (which would block checksums when
         # ANDROID_BUILD_ENABLED is off).
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.aab
+          files: |
+            dist/*.aab
+            dist/*.apk
 
       - name: Upload to Play Console (Internal track)
         # Second gate — once the maintainer has uploaded a first

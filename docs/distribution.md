@@ -202,15 +202,17 @@ The release workflow's `android` job:
    via `packaging/android/gradle-signing-patch.sh`.
 5. Writes `keystore.properties` from the `ANDROID_KEYSTORE_*`
    secrets.
-6. Runs `cargo tauri android build --aab` to produce a signed AAB.
-7. Attaches the AAB to the GitHub Release.
+6. Runs `cargo tauri android build --apk --aab` to produce signed
+   per-ABI APKs (for direct sideload) **and** a universal AAB (for
+   Play Store).
+7. Attaches every APK and the AAB to the GitHub Release.
 8. If `vars.PLAY_STORE_UPLOAD_ENABLED=true`, uploads to the
    Internal-test track (or `vars.PLAY_STORE_TRACK` if set) via
    `r0adkll/upload-google-play@v1`.
 
 ### Two gates
 
-- `vars.ANDROID_BUILD_ENABLED=true` — enables the AAB build at all.
+- `vars.ANDROID_BUILD_ENABLED=true` — enables the APK + AAB build at all.
 - `vars.PLAY_STORE_UPLOAD_ENABLED=true` — enables the auto-upload
   step on top. Useful to flip the build on without the upload first,
   test the AAB locally, then flip the upload on for the next tag.
