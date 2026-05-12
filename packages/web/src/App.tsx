@@ -166,9 +166,11 @@ export function App() {
   const [editorTheme, setEditorTheme] = useState<"vs-dark" | "vs">(() => {
     try {
       const v = localStorage.getItem("modern8086.editor-theme");
-      return v === "vs" ? "vs" : "vs-dark";
+      // Paper/light is the default — only an explicit "vs-dark" opts
+      // into dark mode. Matches the pre-paint logic in index.html.
+      return v === "vs-dark" ? "vs-dark" : "vs";
     } catch {
-      return "vs-dark";
+      return "vs";
     }
   });
   const [coreState, setCoreState] = useState<CoreState>({ kind: "loading" });
@@ -842,6 +844,45 @@ export function App() {
               <strong className="smallcaps" id="hd-drop-file">{t.dropFileLabel}</strong>
               <p className="drop-hint">{t.dropFileHint}</p>
             </div>
+            <section className="aside-section left-rail-registers" aria-labelledby="hd-registers">
+              <strong className="smallcaps" id="hd-registers">{t.registers}</strong>
+              {result?.registers ? (
+                <table className="reg-table mono">
+                  <tbody>
+                    {(["ax", "bx", "cx", "dx", "si", "di", "bp", "sp", "ip"] as const).map(
+                      (k) => (
+                        <tr key={k}>
+                          <td className="reg-name">{k.toUpperCase()}</td>
+                          <td className="reg-val">
+                            0x{hex(result.registers[k] ?? 0)}
+                          </td>
+                        </tr>
+                      ),
+                    )}
+                    {(["cs", "ds", "es", "ss"] as const).map((k) => (
+                      <tr key={k}>
+                        <td className="reg-name">{k.toUpperCase()}</td>
+                        <td className="reg-val">
+                          0x{hex(result.registers[k] ?? 0)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="aside-empty">{t.noRegistersYet}</div>
+              )}
+            </section>
+            <section className="aside-section" aria-labelledby="hd-flags">
+              <strong className="smallcaps" id="hd-flags">{t.flags}</strong>
+              <div className="flags-row">
+                {result?.registers
+                  ? FLAG_BITS.map(([name, mask]) =>
+                      flagBadge(name, (result.registers.flags & mask) !== 0),
+                    )
+                  : null}
+              </div>
+            </section>
           </aside>
           <section aria-labelledby="hd-source">
             <div className="run-toolbar">
@@ -1041,47 +1082,6 @@ export function App() {
           </section>
 
           <aside className="aside-region" aria-label={t.devices}>
-            <section className="aside-section" aria-labelledby="hd-registers">
-              <strong className="smallcaps" id="hd-registers">{t.registers}</strong>
-              {result?.registers ? (
-                <table className="reg-table mono">
-                  <tbody>
-                    {(["ax", "bx", "cx", "dx", "si", "di", "bp", "sp", "ip"] as const).map(
-                      (k) => (
-                        <tr key={k}>
-                          <td className="reg-name">{k.toUpperCase()}</td>
-                          <td className="reg-val">
-                            0x{hex(result.registers[k] ?? 0)}
-                          </td>
-                        </tr>
-                      ),
-                    )}
-                    {(["cs", "ds", "es", "ss"] as const).map((k) => (
-                      <tr key={k}>
-                        <td className="reg-name">{k.toUpperCase()}</td>
-                        <td className="reg-val">
-                          0x{hex(result.registers[k] ?? 0)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="aside-empty">{t.noRegistersYet}</div>
-              )}
-            </section>
-
-            <section className="aside-section" aria-labelledby="hd-flags">
-              <strong className="smallcaps" id="hd-flags">{t.flags}</strong>
-              <div className="flags-row">
-                {result?.registers
-                  ? FLAG_BITS.map(([name, mask]) =>
-                      flagBadge(name, (result.registers.flags & mask) !== 0),
-                    )
-                  : null}
-              </div>
-            </section>
-
             <section className="aside-section" aria-labelledby="hd-devices">
               <strong className="smallcaps" id="hd-devices">{t.devices}</strong>
               <div className="device-row">

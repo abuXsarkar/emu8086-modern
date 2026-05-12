@@ -80,6 +80,32 @@ body.layout-equal .app-layout {
   .source-editor-frame {
     height: 280px !important;
   }
+
+  /* Floaters on phones: a saved desktop position (e.g. x=580) is
+     usually off-screen, and the body's intrinsic width can exceed
+     viewport. Pin to the left edge, cap width to fit, and let the
+     content scroll internally if it's taller than the screen. The
+     inline `top` from the saved position still applies but the body
+     stays reachable because the floater can't be wider than viewport. */
+  .floater {
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 32px);
+    left: 8px !important;
+    right: 8px;
+    overflow: auto;
+  }
+  .floater-body {
+    padding: 8px;
+  }
+
+  /* Stack the gear + tutorial triggers vertically on phones so a
+     fat-thumb tap never hits the wrong one. Same right edge; the
+     tutorial trigger climbs above the gear by one button-height plus
+     a gap (36 + 8 = 44 from the gear's bottom edge → bottom: 58). */
+  .tutorial-trigger {
+    right: 14px;
+    bottom: 58px;
+  }
 }
 
 /* Device-row wrapping: on desktop the peripherals tile across the
