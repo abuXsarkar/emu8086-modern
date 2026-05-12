@@ -5,7 +5,7 @@ export function GetStarted() {
     <Slide
       slug="get-started"
       kicker="Ready in 30 seconds."
-      title="Three ways in."
+      title="Four ways in."
     >
       <div className="get-started-grid">
         <a className="get-started-card primary" href="/">
@@ -27,10 +27,10 @@ export function GetStarted() {
           <h3>As a desktop app</h3>
           <p>
             Native Tauri shell for Linux, macOS, and Windows.
-            Installs from the latest GitHub Release. Same IDE,
-            same data, no browser tab to lose.
+            Universal macOS DMG (Intel + Apple Silicon), Windows
+            NSIS / MSI, Linux .deb / AppImage.
           </p>
-          <span className="get-started-cta">Download →</span>
+          <span className="get-started-cta">Pick your bundle →</span>
         </a>
         <div className="get-started-card">
           <span className="get-started-num mono">03</span>
@@ -44,6 +44,21 @@ export function GetStarted() {
             <code className="mono">m86 --help</code>
           </span>
         </div>
+        <a
+          className="get-started-card"
+          href="https://github.com/abuXsarkar/modern8086/releases/latest"
+          target="_blank"
+          rel="noopener"
+        >
+          <span className="get-started-num mono">04</span>
+          <h3>On Android</h3>
+          <p>
+            Signed APKs per architecture. Most phones want{" "}
+            <code className="mono">-arm64-v8a.apk</code>. Play Store
+            listing in flight.
+          </p>
+          <span className="get-started-cta">Sideload from Releases →</span>
+        </a>
       </div>
     </Slide>
   );
