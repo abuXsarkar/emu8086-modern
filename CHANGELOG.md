@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.4] — 2026-05-13
+
+Android staging fix. v1.1.3's Gradle build produced the files in
+`outputs/bundle/universalRelease/` and `outputs/apk/universal/release/`
+but the stage step's find glob was too strict. Also Tauri only signs
+the AAB, so the APK now gets signed with apksigner in CI.
+
+One universal APK, one universal AAB. Per-ABI splits dropped — Tauri's
+default is universal anyway.
+
 ## [1.1.3] — 2026-05-13
 
 Third Android-fix patch. v1.1.2's capability-split fix worked at the
