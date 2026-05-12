@@ -56,10 +56,12 @@ jobs:
       - name: Build wasm-api package
         run: wasm-pack build packages/wasm-api --target web --out-dir pkg --release
 
-      - name: Build web bundle (sub-path = repo name)
-        # GitHub Pages serves project sites under /<repo>/. Vite needs
-        # the matching `base` so script + wasm fetches resolve. The
-        # PWA manifest scope/start_url derive from the same env var.
+      - name: Build web bundle
+        # We serve from a custom domain (modern8086.com via the
+        # `CNAME` file in packages/web/public/), so `base` defaults to
+        # "/". If you ever revert to the github.io sub-path deploy,
+        # re-introduce `VITE_BASE: /${{ github.event.repository.name }}/`
+        # so script + wasm fetches resolve under the project path.
         #
         # VITE_CLASSROOM_WS_URL is honored from a repo variable if set
         # (Settings → Secrets and variables → Actions → Variables);
@@ -71,7 +73,6 @@ jobs:
         # any self-hosted relay you control.
         run: pnpm --filter @modern8086/web build
         env:
-          VITE_BASE: /${{ github.event.repository.name }}/
           VITE_CLASSROOM_WS_URL: ${{ vars.VITE_CLASSROOM_WS_URL }}
 
       - name: Configure Pages

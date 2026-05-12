@@ -22,7 +22,7 @@
     Linux DEB deps.
   - Capability set (`capabilities/default.json`) — minimal: open
     external URLs in the project's allow-list (GitHub repo,
-    workers.dev classroom URLs, future `emu8086.app` domain) plus
+    workers.dev classroom URLs, future `modern8086.com` domain) plus
     the updater. No filesystem, no shell.execute.
   - CI's release workflow learns to build the desktop bundles on
     every `v*.*.*` tag (Linux DEB+AppImage, macOS universal DMG +

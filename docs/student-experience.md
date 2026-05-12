@@ -4,7 +4,7 @@ This document captures the experience we are trying to deliver to a student open
 
 ## North star
 
-> A first-year student, who has never seen assembly before, opens `modern8086.app` on a school Chromebook, types `mov ax, 5`, and within sixty seconds understands what just happened — without needing a teacher, a textbook, or a tutorial.
+> A first-year student, who has never seen assembly before, opens `modern8086.com` on a school Chromebook, types `mov ax, 5`, and within sixty seconds understands what just happened — without needing a teacher, a textbook, or a tutorial.
 
 If a feature, a panel, or an error message helps that scenario, it stays. If it doesn't, it has to justify itself.
 
