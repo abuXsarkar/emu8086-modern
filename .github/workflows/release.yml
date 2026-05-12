@@ -299,46 +299,45 @@ jobs:
           EOF
 
       - name: Build release APK + AAB
-        # Both formats from one Gradle run. The AAB is the Play
-        # Store upload format; the per-ABI APKs are what users
-        # sideload directly when Play Store isn't an option (or
-        # before the listing goes live). Tauri builds split APKs
-        # per ABI by default — four files (arm64-v8a, armeabi-v7a,
-        # x86_64, x86) — so older devices can grab the one that
-        # matches their architecture.
+        # Tauri's default Android build emits one universal AAB
+        # (signed via keystore.properties) and one universal APK
+        # (unsigned — Tauri only signs the AAB).
         working-directory: packages/desktop
         run: cargo tauri android build --apk --aab
 
-      - name: Stage artifacts with stable names
+      - name: Sign + stage artifacts
+        env:
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           set -euo pipefail
           mkdir -p dist
           v="${{ steps.ver.outputs.version }}"
+          gen=packages/desktop/gen/android
 
-          # AAB — single universal bundle for Play Store.
-          aab=$(find packages/desktop/gen/android -name '*.aab' -path '*/release/*' | head -n1)
+          aab=$(find "$gen/app/build/outputs/bundle" -name '*.aab' | head -n1)
           if [ -z "$aab" ]; then
-            echo "::error::no .aab produced — check Gradle output" >&2
-            find packages/desktop/gen/android -name '*.aab' || true
-            exit 1
+            echo "::error::no .aab found"; find "$gen" -name '*.aab'; exit 1
           fi
           cp "$aab" "dist/modern8086-android-${v}.aab"
 
-          # APKs — one per ABI (Tauri's default split build).
-          apk_count=0
-          while IFS= read -r apk; do
-            # Filename shape: app-<abi>-release.apk or app-<abi>-release-unsigned.apk
-            abi=$(basename "$apk" | sed -E 's/^app-(.+)-release.*\.apk$/\1/')
-            cp "$apk" "dist/modern8086-android-${v}-${abi}.apk"
-            apk_count=$((apk_count+1))
-          done < <(find packages/desktop/gen/android -name 'app-*-release*.apk' -path '*/release/*')
-
-          if [ "$apk_count" -eq 0 ]; then
-            echo "::error::no .apk produced — check Gradle output" >&2
-            find packages/desktop/gen/android -name '*.apk' || true
-            exit 1
+          # apksigner: pick the version under build-tools/. The unsigned
+          # universal APK gets signed with the same keystore as the AAB.
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -n1)
+          unsigned=$(find "$gen/app/build/outputs/apk" -name 'app-*-unsigned.apk' | head -n1)
+          if [ -z "$unsigned" ]; then
+            echo "::error::no unsigned .apk found"; find "$gen" -name '*.apk'; exit 1
           fi
-          echo "Staged $apk_count APK(s) + 1 AAB."
+          signed=dist/modern8086-android-${v}.apk
+          "$apksigner" sign \
+            --ks "$RUNNER_TEMP/upload.keystore" \
+            --ks-pass "pass:$KS_PASS" \
+            --key-pass "pass:$KEY_PASS" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --out "$signed" \
+            "$unsigned"
+          "$apksigner" verify "$signed"
           ls -la dist/
 
       - name: Upload artifact
