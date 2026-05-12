@@ -1,6 +1,6 @@
 {
   "name": "@modern8086/plugin-sdk",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "description": "Plugin SDK for modern8086. Author a device that observes port writes and renders inside the IDE.",
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "@modern8086/classroom-server-worker",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "description": "Cloudflare Workers + Durable Objects deployment of the classroom-mode WebSocket relay. Same Room state machine as the Node target; different I/O glue.",
   "license": "MIT",
