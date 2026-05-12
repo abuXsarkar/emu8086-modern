@@ -120,16 +120,26 @@ function byteOffsetToLine(source: string, byteOffset: number): number {
   return line;
 }
 
-/// Find the source line corresponding to the largest line_map entry whose
-/// IP <= the given linear ip. Returns 0 if no match.
+/// Find the source line corresponding to the largest `line_map`
+/// entry whose IP ≤ the given current IP. Returns 0 if no match.
+///
+/// Note on units: line_map entries store the raw 16-bit IP
+/// (`origin + cursor`, e.g. `0x100..0x300` for a .com program),
+/// **not** the 20-bit linear address `(cs << 4) + ip`. Pass the
+/// raw `ip` register here, not a linear address — passing a
+/// linear address makes every entry trivially satisfy
+/// `entry_ip ≤ ip` and the function collapses to "always return
+/// the highest entry."
 function lineForIp(
   source: string,
   lineMap: Array<[number, number]>,
-  linearIp: number,
+  ip: number,
 ): number {
+  let bestIp = -1;
   let bestByte = -1;
-  for (const [ip, byte] of lineMap) {
-    if (ip <= linearIp && ip > bestByte) {
+  for (const [entryIp, byte] of lineMap) {
+    if (entryIp <= ip && entryIp > bestIp) {
+      bestIp = entryIp;
       bestByte = byte;
     }
   }
@@ -656,10 +666,10 @@ export function App() {
     setStepLoaded(true);
     setBreakpointHit("");
     lineMapRef.current = parsed.line_map ?? [];
-    // Highlight the line of the very first instruction (current IP).
-    const linearIp =
-      ((parsed.registers.cs ?? 0) << 4) + (parsed.registers.ip ?? 0);
-    highlightLine(lineForIp(src, lineMapRef.current, linearIp));
+    // Highlight the line of the very first instruction. line_map
+    // entries are keyed on the raw IP (origin + cursor), so pass the
+    // raw IP register here — not the linear address.
+    highlightLine(lineForIp(src, lineMapRef.current, parsed.registers.ip ?? 0));
     refreshMemHex(parsed.registers);
     refreshDevices();
     if (srcOverride === undefined) flashToast(t.resetDone);
@@ -692,9 +702,7 @@ export function App() {
     setStepLog((prev) =>
       prev.replace(/[^\n]*\n$/, ""),
     );
-    const linearIp =
-      ((parsed.registers.cs ?? 0) << 4) + (parsed.registers.ip ?? 0);
-    highlightLine(lineForIp(source, lineMapRef.current, linearIp));
+    highlightLine(lineForIp(source, lineMapRef.current, parsed.registers.ip ?? 0));
     refreshMemHex(parsed.registers);
     refreshDevices();
   };
@@ -732,9 +740,10 @@ export function App() {
       };
     });
     setStepLog((prev) => prev + parsed.mnemonic + (parsed.stopped ? ` [${parsed.stopped}]` : "") + "\n");
-    // Move the current-IP highlight to the next instruction.
-    const linearIp = ((parsed.registers.cs ?? 0) << 4) + (parsed.registers.ip ?? 0);
-    highlightLine(parsed.halted ? 0 : lineForIp(source, lineMapRef.current, linearIp));
+    // Move the current-IP highlight to the next instruction. Pass
+    // the raw IP register — line_map is keyed on `origin + cursor`,
+    // not the 20-bit linear address.
+    highlightLine(parsed.halted ? 0 : lineForIp(source, lineMapRef.current, parsed.registers.ip ?? 0));
     // Stay in the step session even on halt so Back can rewind into the
     // halted instruction. The wasm history is still there.
     refreshMemHex(parsed.registers);
