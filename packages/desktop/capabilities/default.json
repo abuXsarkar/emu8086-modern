@@ -1,27 +1,18 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability set for the main desktop window. Minimal: open external URLs (for the Help menu) and consult the updater endpoint. No filesystem, no shell.execute.",
+  "description": "Cross-platform capability set for the main webview. Minimal: open external URLs (for the Help menu). No filesystem, no shell.execute.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     {
       "identifier": "opener:allow-open-url",
       "allow": [
-        {
-          "url": "https://github.com/abuXsarkar/modern8086/**"
-        },
-        {
-          "url": "https://abuxsarkar.github.io/modern8086/**"
-        },
-        {
-          "url": "https://*.workers.dev/**"
-        },
-        {
-          "url": "https://modern8086.com/**"
-        }
+        { "url": "https://github.com/abuXsarkar/modern8086/**" },
+        { "url": "https://abuxsarkar.github.io/modern8086/**" },
+        { "url": "https://*.workers.dev/**" },
+        { "url": "https://modern8086.com/**" }
       ]
-    },
-    "updater:default"
+    }
   ]
 }

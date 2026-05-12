@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-only",
+  "description": "Permissions only available on the desktop build. The updater plugin is upstream-gated on cfg(desktop) and doesn't exist when cross-compiling for Android / iOS — segregating its permission into a desktop-only capability file lets the same workspace produce mobile bundles without a 'permission not found' error.",
+  "platforms": ["macOS", "windows", "linux"],
+  "windows": ["main"],
+  "permissions": ["updater:default"]
+}
