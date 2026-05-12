@@ -126,11 +126,13 @@ Windows CLI distribution. Single JSON manifest in a bucket repo.
 
 1. Create a public repo `abuXsarkar/scoop-modern8086` with the
    directory layout:
-   ```
+
+   ```text
    /
    └── bucket/
        └── m86.json
    ```
+
 2. Generate a fine-grained PAT (same scopes as the Homebrew one but
    for this repo).
 3. Add `BUCKET_DEPLOY_TOKEN` secret + `SCOOP_BUCKET_ENABLED=true`
