@@ -6,6 +6,108 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-05-12
+
+Brand-and-distribution release. The product is the same; everything
+around it is renamed, sharpened, and pointed at a real domain. No
+breaking changes to assembly programs or the CPU semantics.
+
+### Headlines
+
+- **Rebrand to `modern8086`**. The project, the npm scope
+  (`@modern8086/*`), every Cargo crate (`modern8086-{core,assembler,
+  devices,cli,wasm-api,desktop}`), the CLI binary (now **`m86`**, was
+  `emu8086`), the Cloudflare worker (`modern8086-classroom`), and
+  every localStorage key (`modern8086.*`). Done in one mechanical
+  sweep so the v1.1.0 tag publishes against the rebranded
+  identifiers everywhere. Refs to the legacy emu8086 *product* (the
+  dialect name, lab-manual compatibility, `emu8086.inc` macro pack,
+  credits) are deliberately preserved.
+- **Custom domain — `modern8086.com`**. CNAME committed to
+  `packages/web/public/`, deploy workflow drops the github.io
+  sub-path base, desktop opener allowlist points at the new
+  domain. Hosted IDE is live at https://modern8086.com.
+- **Android pipeline.** Tauri Android target wired into
+  `release.yml`. Every tag now produces signed APKs (one per ABI)
+  + a universal AAB. Gated on `vars.ANDROID_BUILD_ENABLED`; with
+  `vars.PLAY_STORE_UPLOAD_ENABLED` flipped on the AAB
+  auto-uploads to Play Console's Internal track via
+  `r0adkll/upload-google-play`. Play Store listing in flight
+  separately. `packaging/android/` carries the Play Store
+  listing copy, the keystore setup walkthrough, the Gradle
+  signing-config patch, and 1024×500 feature graphic + 1080×2160
+  phone screenshots.
+- **Distribution scaffolding for the four free-tier channels.**
+  In-repo templates + a release-pipeline job that fills them
+  on each tag and attaches the bundle as a release artifact:
+  Homebrew tap (`Formula/m86.rb` + `Casks/modern8086.rb`), Scoop
+  bucket (`m86.json`), Chocolatey (`m86.nuspec` + install
+  scripts). One generator script
+  (`packaging/scripts/generate-distribution-manifests.sh`)
+  fills version + per-asset SHA-256 from the
+  just-published Release's `checksums.txt`.
+- **Light theme is the new default.** First-time visitors land
+  on the paper palette. Only an explicit `vs-dark` in localStorage
+  opts into dark, in both the pre-paint script and the React
+  initialiser. (Saved preferences from v1.0.0 are preserved.)
+- **Registers + Flags moved from the right rail to the left
+  rail**, under Load Example / Drop File. The right rail is now
+  devices-only, which lets the device gallery breathe
+  vertically.
+- **Gear + tutorial triggers aligned.** Both 36 × 36, same
+  bottom edge, same shadow, 16 px between them. On phones they
+  stack vertically with 8 px between them so a fat-thumb tap
+  can't hit both.
+- **Mobile floater clamp.** Floaters now respect the viewport on
+  ≤ 760 px screens — saved desktop positions no longer strand a
+  device pop-out off-screen, and tall content scrolls inside the
+  floater frame.
+- **Distribution-chip footer.** The website footer gains a row
+  of install chips (npm / Homebrew / Scoop / Chocolatey / Desktop
+  ↓) plus dashed "soon" chips for Play / App / Microsoft Stores.
+  Hidden inside Tauri (the desktop user already has the app).
+- **README overhaul.** Reorganised around the user journey:
+  try-it-now → install → coming-to-stores → features → educator
+  / developer paths → docs. Adds a per-platform "pick your
+  download" table for desktop and per-ABI table for Android.
+
+### Fixed
+
+- **Multi-page navigation cascades.** From `/about/`, clicking
+  "docs" used to resolve to `/about/docs/`; clicking again
+  cascaded to `/about/docs/docs/`. Same shape from `/docs/` back
+  to about. Every internal href is now root-absolute (`/`,
+  `/about/`, `/docs/`).
+- **IDE brand mark wasn't clickable.** Now wrapped in
+  `<a href="/">` matching the convention on the about + docs
+  pages.
+- **Stale "M0–M5 shipped at alpha" footer copy.** Replaced
+  with `v1.1.0 · MIT`.
+
+### Removed
+
+- Stale `t.footerNote` rendering. Key remains in i18n types /
+  locale files (dead key only, removable in a later cleanup pass)
+  to avoid touching 13 locale files for a single dropped string.
+
+### Distribution
+
+Per-channel status as of v1.1.0 tag:
+
+| Channel | Status |
+|---|---|
+| GitHub Releases | Auto, every tag. |
+| `@modern8086/cli` on npm | Auto-publishes on tag with `vars.NPM_PUBLISH_ENABLED=true` + `NPM_TOKEN`. |
+| Android AAB + per-ABI APKs | Builds on tag with `vars.ANDROID_BUILD_ENABLED=true` + keystore secrets. |
+| Homebrew tap | Manifests filled in-pipeline and attached to the Release for copy into the tap repo. |
+| Scoop bucket | Same shape as Homebrew. |
+| Chocolatey | Nuspec filled in-pipeline; `choco pack && push` from a maintainer machine. |
+| Play Store | Pipeline ready; listing still being seeded — Plan B for v1.1.0 is sideload via the per-ABI APK on the GitHub Release. |
+| Microsoft Store | Pipeline ready (MSI). Partner Center submission deferred. |
+| Mac App Store | Awaiting Apple Developer Program enrolment. |
+
+Full distribution playbook: [`docs/distribution.md`](docs/distribution.md).
+
 ## [1.0.0] — 2026-05-11
 
 First stable release. Everything documented in
