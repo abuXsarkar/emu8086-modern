@@ -1,224 +1,300 @@
 # modern8086
 
-> A modern, open-source, cross-platform 8086 emulator and assembly-language IDE — purpose-built for students and easy for institutes to adopt.
+> A modern, open-source 8086 emulator and assembly-language IDE.
+> Built for classrooms, runs in a browser tab, ships as a CLI, a
+> desktop app, and (soon) on every major app store.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Status: M5 shipped (alpha)](https://img.shields.io/badge/status-M5%20shipped%20(alpha)-yellowgreen)
-![Tests: 200+](https://img.shields.io/badge/tests-200%2B%20passing-brightgreen)
-![Platforms: Web · Linux · macOS · Windows](https://img.shields.io/badge/platforms-web%20%7C%20linux%20%7C%20macos%20%7C%20windows-blue)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.1.0-1E3A8A.svg)](CHANGELOG.md)
+[![Live IDE](https://img.shields.io/badge/live-modern8086.com-0a7?logo=googlechrome&logoColor=white)](https://modern8086.com)
+[![CI](https://img.shields.io/github/actions/workflow/status/abuXsarkar/modern8086/ci.yml?branch=main&label=CI)](https://github.com/abuXsarkar/modern8086/actions/workflows/ci.yml)
+[![Platforms](https://img.shields.io/badge/platforms-web%20·%20linux%20·%20macOS%20·%20windows%20·%20android-1E3A8A.svg)](#install)
 
-`modern8086` is a clean-room reimplementation of the classroom-favorite emu8086 IDE, built for the way courses are taught today: in browsers, on Chromebooks, in Linux labs, with Git, and with autograding. It keeps source compatibility with existing emu8086 course materials wherever practical, while fixing the legacy software's biggest pain points.
+---
+
+## Try it now
+
+Open [**modern8086.com**](https://modern8086.com) in any modern
+browser. The full IDE — Monaco editor, assembler, emulator,
+time-travel debugger, eight live peripherals, ten interactive
+tutorials, classroom mode — runs entirely client-side. No sign-in,
+no install, no data leaves your device.
+
+> Works on Chromebooks, iPads, Android tablets, and every desktop
+> browser. The wasm core fits in ~370 KB and the IDE is fully
+> offline-capable once loaded (PWA).
+
+---
+
+## Install
+
+There's a path for every kind of user. Pick the one that fits.
+
+### Browser (no install)
+
+```
+https://modern8086.com
+```
+
+### CLI — `m86`
+
+```bash
+# Cross-platform via npm (Node 18+)
+npm install -g @modern8086/cli
+
+# macOS / Linux via Homebrew
+brew tap abuxsarkar/modern8086
+brew install m86
+
+# Windows via Scoop
+scoop bucket add modern8086 https://github.com/abuXsarkar/scoop-modern8086
+scoop install m86
+
+# Windows via Chocolatey
+choco install m86
+
+# Or from source
+cargo install --git https://github.com/abuXsarkar/modern8086 modern8086-cli
+```
+
+The `m86` CLI assembles, runs, traces, and grades 8086 assembly
+programs headlessly. Drops into GitHub Classroom via the bundled
+composite action.
+
+### Desktop app
+
+Native windows that wrap the same web IDE. Single source,
+single binary, native menus and file-system access.
+
+| Platform | Download |
+|---|---|
+| **macOS** (Intel + Apple Silicon, universal) | [`modern8086_1.1.0_universal.dmg`](https://github.com/abuXsarkar/modern8086/releases/latest) |
+| **Windows** | [`modern8086_1.1.0_x64-setup.exe`](https://github.com/abuXsarkar/modern8086/releases/latest) (NSIS) or [`.msi`](https://github.com/abuXsarkar/modern8086/releases/latest) (WiX) |
+| **Linux** | [`.deb`](https://github.com/abuXsarkar/modern8086/releases/latest), [`.AppImage`](https://github.com/abuXsarkar/modern8086/releases/latest) |
+
+Or via Homebrew Cask on macOS:
+
+```bash
+brew tap abuxsarkar/modern8086
+brew install --cask modern8086
+```
+
+### Android (sideload)
+
+The signed AAB ships with every release. Download
+`modern8086-android-1.1.0.aab` from
+[Releases](https://github.com/abuXsarkar/modern8086/releases/latest)
+and install via [`bundletool`](https://developer.android.com/tools/bundletool)
+or any app-installer that accepts `.aab`.
+
+### Self-host
+
+A single Docker image runs the IDE and (optionally) the classroom
+relay on your campus network — no outbound internet required.
+
+```bash
+docker compose up --build
+# IDE              http://localhost:8080
+# Classroom relay  ws://localhost:8787
+```
+
+See [`docs/educator-guide.md`](docs/educator-guide.md) for the
+full pilot-deployment recipe.
+
+---
+
+## Coming soon
+
+These channels are in flight. Tracking issues / setup docs linked.
+
+| Channel | Status | Tracking |
+|---|---|---|
+| **Google Play Store** | Closed-test running; production gated on Google's 14-day pilot | [`packaging/android/SETUP.md`](packaging/android/SETUP.md) |
+| **Microsoft Store** | MSI ready; Partner Center submission queued | [`docs/distribution.md#6-microsoft-store`](docs/distribution.md) |
+| **Mac App Store** | Awaiting Apple Developer Program enrolment | [`docs/distribution.md#7-mac-app-store`](docs/distribution.md) |
+| **Snap / Flathub** | Linux desktop store packaging | [`docs/distribution.md#8-snap-flathub-aur`](docs/distribution.md) |
+
+The release pipeline emits every artifact on every tag —
+distribution catches up as each gate is opened.
+
+---
+
+## What's in the box
+
+- **8086 CPU core** in Rust → wasm. Full mainline ISA, the DOS
+  subset of `INT 21h` that lab manuals use, the BIOS subset of
+  `INT 10h` / `INT 16h`. Deterministic snapshot/restore.
+- **Time-travel debugger.** Step forward, step **back**,
+  conditional breakpoints, watch expressions, source-line
+  highlighting, memory-diff highlights.
+- **Eight live peripherals.** Traffic light, stepper motor, 8×8
+  LED matrix, 7-segment display, 80×25 text screen at `B800:0000`,
+  keyboard FIFO, LPT1 printer, 9×9 robot grid. Each pops out into a
+  draggable floater with persistent position.
+- **Plugin SDK.** TypeScript-only authoring surface for custom
+  OUT-driven device plugins. One `registerDevicePlugin(...)` call;
+  the IDE picks it up. Ships with an example buzzer plugin.
+- **Classroom mode.** Friendly word-pair room codes
+  (`blue-fox-42`), roll-number-based identity, always-on teacher
+  view with unilateral take-control, per-student notes, broadcast
+  pane on the student side, A4 print-friendly session summary
+  plus CSV export. Self-hosted via the bundled `docker-compose.yml`
+  or deployed to Cloudflare Workers (free tier).
+- **Autograder.** `m86 grade spec.yml submission.asm` runs a YAML
+  test spec against a submission and emits JUnit XML for CI. The
+  bundled GitHub Action wires this into GitHub Classroom in five
+  lines.
+- **Share links.** Programs encode into the URL fragment — paste a
+  link into chat and the receiver gets the exact same source +
+  state.
+- **13 UI languages.** English, Spanish, plus 11 Indian regional
+  languages (Bengali, Hindi, Tamil, Telugu, Gujarati, Marathi,
+  Kannada, Malayalam, Punjabi, Odia, Assamese). Graceful fallback
+  to English for any missing string.
+- **Source-compatible** with the classic emu8086 dialect and the
+  four major South Asian lab manuals (Hashemite, Gopalan, Sri Indu,
+  BMSIT). Coverage tracked in
+  [`docs/emu8086-compatibility.md`](docs/emu8086-compatibility.md).
 
 ---
 
 ## Why this project exists
 
-Legacy emu8086 has been the de-facto teaching tool for 8086 assembly for two decades. It is also:
+Legacy emu8086 has been the de-facto teaching tool for 8086
+assembly for two decades. It is also:
 
-- **Windows-only** (works on macOS/Linux only via Wine, with rendering glitches),
+- **Windows-only** (broken under Wine on macOS/Linux),
 - **Shareware** with nag screens and a paid full version,
-- **Closed-source**, so bugs cannot be fixed by educators,
-- **Stuck in a Win9x-era UI** that students find alien,
-- **Hard to integrate** with version control, online assignments, or autograders,
-- **Cryptic** in its error messages, with little context for new learners.
+- **Closed-source**, so bugs can't be fixed by educators,
+- **Stuck in a Win9x UI** that students find alien,
+- **Hard to integrate** with version control, online assignments,
+  or autograders,
+- **Cryptic** in its error messages.
 
-Our students still need to learn 8086 — it is in the syllabus of hundreds of CS/ECE programmes worldwide because it is the cleanest entry point into real ISA-level thinking. We don't want to replace the *curriculum*. We want to replace the *tool*.
+8086 is still in the syllabus of hundreds of CS/ECE programmes
+because it's the cleanest entry point into real ISA-level
+thinking. We don't want to replace the curriculum — we want to
+replace the tool.
 
-## The product in one paragraph
-
-A free, MIT-licensed 8086 emulator that runs in a browser tab (and as a native desktop app), drives the same virtual peripherals as emu8086 (traffic light, stepper motor, 7-segment display, LED matrix, printer, robot), assembles a superset of emu8086 syntax, and ships with a modern editor, time-travel debugger, classroom-ready share links, and a CLI autograder that drops into GitHub Classroom.
-
----
-
-## Pain points we are explicitly solving
-
-| Legacy emu8086 pain point | What `modern8086` does instead |
+| Legacy emu8086 | `modern8086` |
 |---|---|
-| Windows-only; broken under Wine | Browser-first (works on Chromebooks, iPads); native builds for Windows / macOS / Linux via Tauri |
-| Closed-source shareware with nag screens | MIT-licensed, no paywall, no telemetry by default |
-| Tiny, dated text editor | Monaco editor with syntax highlighting, autocomplete, hover docs, snippets, multi-cursor |
-| Cryptic single-line errors | `rustc`-style diagnostics: source span, caret, "did you mean…?", links to instruction reference |
-| No version control | Built-in load-from-Git, save-to-Gist, share-link (`?gist=…`), import-from-file-drop |
-| Step-only debugger | Step **forward and backward** (time-travel), conditional breakpoints, watch expressions, memory-diff highlighting |
-| Single-user only | Optional live collaboration (Yjs CRDT), classroom mode for teachers to broadcast a session |
-| Static peripheral windows | Themable, accessible, scriptable virtual devices; plugin SDK for custom devices |
-| No autograding | Headless CLI runner + GitHub Action; JSON test spec; works with GitHub Classroom out of the box |
-| English-only UI | Localized UI (i18n from day one); RTL support |
-| Inaccessible (poor contrast, mouse-only) | WCAG 2.1 AA target, full keyboard control, screen-reader labels |
-| No mobile/tablet | Responsive layout; tablet-friendly debug controls |
+| Windows-only; broken under Wine | Browser-first; native builds for Win/macOS/Linux/Android |
+| Closed-source shareware | MIT-licensed, no paywall, no telemetry by default |
+| Tiny dated text editor | Monaco — syntax highlighting, autocomplete, hover docs, snippets |
+| Cryptic single-line errors | `rustc`-style diagnostics: source span, caret, "did you mean…?" |
+| No version control | Load-from-Git, save-to-Gist, share-link via URL fragment |
+| Step-only debugger | Time-travel: **step backward**, conditional breakpoints, watches |
+| Single-user only | Live classroom sessions, teacher broadcast, student takeover |
+| Static peripheral windows | Themable, accessible, scriptable; plugin SDK for custom devices |
+| No autograding | Headless CLI + GitHub Action; YAML spec; works with GitHub Classroom |
+| English-only UI | 13 languages, RTL support |
+| Inaccessible (mouse-only, poor contrast) | WCAG 2.1 AA target; full keyboard control; ARIA labels |
 
-A more detailed breakdown lives in [`docs/pain-points.md`](docs/pain-points.md).
-
----
-
-## Source compatibility with emu8086
-
-The legacy emu8086 has syntax quirks that thousands of textbooks and lab manuals depend on (`.MODEL SMALL` shortcuts, the `org 100h` `.com` template, `OFFSET msg` / `LEN EQU $-MSG` patterns in `INT 21h` print idioms, the virtual `OUT` ports for vintage peripherals, and the `emu8086.inc` macro pack). Our goal is to accept these without source modification under the default `emu8086` dialect.
-
-The current state is partial. As of 2026-05-08 we run roughly **45% of the programs across four representative public lab manuals** as written. The remaining gaps are tracked individually with `GAP-NNN` IDs and mapped to the PRs that close them.
-
-- **[`docs/lab-manual-audit.md`](docs/lab-manual-audit.md)** — the audit itself. Documents how the four manuals were sourced (URLs + access dates), per-manual program inventories with run/blocked status, the full gap list with severity, and an 8-PR plan that closes every gap (no item deferred indefinitely).
-- **[`docs/emu8086-compatibility.md`](docs/emu8086-compatibility.md)** — feature-by-feature matrix (templates, number bases, directives, expression operators, INT subfunctions, port maps), with each ❌ row linking to the gap that tracks it.
+A deeper breakdown lives in [`docs/pain-points.md`](docs/pain-points.md).
 
 ---
 
-## What works today
+## For educators
 
-- **Emulator core (Rust + wasm).** Complete 8086 mainline ISA: full register file with high/low aliasing, 1 MiB segmented memory, mod-r/m addressing with segment overrides, the MOV family (incl. `LEA`, `XCHG`, segment registers, accumulator moffs, `LDS`/`LES`), arithmetic with 8086-correct flag math (CF/OF/SF/ZF/AF/PF), logical + shift/rotate group, full stack, control flow with all 16 conditional jumps + LOOP family + JCXZ, near *and* far `CALL`/`RET`/`JMP`, string ops with REP/REPE/REPNE, `MUL`/`IMUL`/`DIV`/`IDIV` with divide-error trap, port I/O (`IN`/`OUT`), software interrupts including a DOS `INT 21h` subset (01h, 02h, 06h, 09h, 4Ch), and the BCD-adjust opcodes (DAA/DAS/AAA/AAS/AAM/AAD). **Time-travel debugger:** `step_back` walks one instruction back via diff snapshots (registers + per-step memory writes + stdout/exit_code).
-- **Assembler (Rust).** Lex + macro preprocessor + two-pass parse + encode. Mnemonics: nearly every M1 opcode — `mov`, the eight ALU ops (with full mod-r/m memory operands like `add ax, [bx+si+4]`), the seven shift/rotate ops by 1 or `cl`, `mul`/`imul`/`div`/`idiv`, `neg`/`not`/`test`, `int`, `push`/`pop` (incl. segregs), `inc`/`dec`, all 16 `Jcc`, `LOOP`/`JCXZ`, `JMP`/`CALL` near, `RET`/`RETF`, `IN`/`OUT`, the BCD adjusts, single-byte flag/halt/no-op opcodes, `cbw`, `cwd`, `lahf`, `sahf`, `xlat`, `pushf`, `popf`, the ten string ops (`movsb` … `scasw`), REP/REPE/REPNE prefixes. Directives: `org`, `db`, `dw`, `equ`, `dup`, `BYTE PTR` / `WORD PTR`. **User-defined macros** via `name MACRO/ENDM` with positional args and per-call-unique `@@` labels. Number bases: dec, `0FFh` MASM hex, `1011b` binary, `077o` octal, `0x10` C-style hex. Char literals `'A'`. Labels with forward references. Full mod-r/m memory operands.
-- **CLI (`emu8086`).** `assemble`, `run`, `run-asm`, `trace` (JSON step-by-step execution log), `grade` (run a YAML test spec against a submission with optional JUnit XML output), `version`. Source diagnostics show the file path, 1-based line:column, source line, and a caret on the offending span — `rustc`-style.
-- **Web IDE (React + Vite + Monaco + wasm).** Monaco editor with 8086-asm syntax highlighting, snippets, hover docs over every mnemonic, red-squiggle error markers, example loader, localStorage autosave, Ctrl/Cmd+Enter to run, **Reset / ◀ Back / Step ▶ / Run** buttons backed by a stateful emulator with diff-snapshot time travel, **share-link** button that base64url-encodes the buffer into the URL fragment, **register dump + flag badges + memory hex viewer + 7-segment display + traffic-light peripheral** all updating live as you step. The whole pipeline (assembler + emulator) ships as wasm so the browser is the runtime.
-- **CI.** Rust on Linux/macOS/Windows, web build, markdown lint.
+A first-class goal of the project is **frictionless institute
+adoption**. We commit to:
 
-The same hello-world program can be run through any of these surfaces and produces identical output.
+1. **No-install path.** The hosted IDE at
+   [modern8086.com](https://modern8086.com) works on any modern
+   browser, including school-managed Chromebooks.
+2. **Self-host bundle.** A single Docker image runs the web IDE,
+   autograder, and the classroom-mode relay entirely on a campus
+   network — no outbound internet required.
+3. **Curriculum portability.** Existing emu8086 lab manuals run
+   unchanged under the `emu8086` dialect.
+4. **LMS integration.** GitHub Classroom out of the box; LTI 1.3
+   launch from Moodle / Canvas / Blackboard in flight.
+5. **Accessibility & i18n.** WCAG 2.1 AA; UI translatable; RTL
+   support. Important for adoption outside the Anglosphere.
 
-## Quick start
+The step-by-step pilot plan lives in
+[`docs/educator-guide.md`](docs/educator-guide.md).
+
+---
+
+## For developers
 
 ```bash
-# Build and run the CLI
-cargo build -p modern8086-cli --release
-cargo run  -p modern8086-cli -- run-asm examples/hello.asm
-# → Hello, world!
-
-cargo run  -p modern8086-cli -- run-asm examples/sum.asm
-# → 55
-
-cargo run  -p modern8086-cli -- run-asm examples/array_sum.asm
-# → 55  (walks an array via LODSB and sums it)
-
-cargo run  -p modern8086-cli -- run-asm examples/streq.asm
-# → =   (REPE CMPSB compares two embedded strings)
-
-# Trace a program (JSON array of step records, one per instruction)
-cargo run  -p modern8086-cli -- trace examples/hello.asm | jq .[0]
-
-# Autograde a student submission against a YAML spec
-cargo run -p modern8086-cli -- grade \
-  examples/assignments/sum10/spec.yml \
-  examples/assignments/sum10/submission.asm
-# → 1/1 passed
-
-# Or build artifacts separately
-cargo run -p modern8086-cli -- assemble examples/hello.asm -o hello.com
-cargo run -p modern8086-cli -- run hello.com
-
-# Run the web IDE locally
+# Clone and bootstrap
+git clone https://github.com/abuXsarkar/modern8086
+cd modern8086
 pnpm install
+
+# Build the wasm core, then run the IDE
 wasm-pack build packages/wasm-api --target web --out-dir pkg --release
-pnpm --filter @modern8086/web dev    # opens http://localhost:5173
+pnpm --filter @modern8086/web dev          # opens http://localhost:5173
+
+# Run the test suite
+cargo test --workspace                      # 219 tests across the Rust crates
+pnpm -r test                                # classroom server + protocol tests
+
+# Try the CLI without installing
+cargo run -p modern8086-cli -- run-asm examples/hello.asm
 ```
 
-### Deployment
+Project layout:
 
-The web IDE is a pure static bundle (the assembler + emulator run in
-the browser via wasm), so any static host works. The repo ships a
-`.github/workflows/deploy.yml` that publishes to GitHub Pages on every
-push to `main`:
-
-1. Push to `main` (or run the workflow manually from the Actions tab).
-   The first run self-bootstraps Pages via `enablement: true`, so no
-   prior `Settings → Pages` toggle is required. If Pages was already
-   enabled with "Deploy from a branch", flip it to **Source = GitHub
-   Actions** once.
-2. The deploy step prints the live URL — typically
-   `https://<owner>.github.io/<repo>/`.
-
-For a custom domain (or self-host via the bundled `Dockerfile`), the
-build also accepts `VITE_BASE=/` (the default), so any deployment
-served from the root works without extra config.
-
-### Self-host with classroom mode
-
-Bring up both the IDE and the classroom-mode WebSocket relay with
-the bundled compose file:
-
-```bash
-# Mint a stable HMAC secret for host-token signing (change on each
-# rotation, see docs/classroom-mode.md §"HMAC secret rotation").
-export M86_CLASSROOM_HMAC_SECRET=$(openssl rand -base64 32)
-
-docker compose up --build
-# IDE:              http://localhost:8080
-# Classroom server: ws://localhost:8787  (also /healthz over HTTP)
-```
-
-The classroom-server is optional — the IDE works on its own at
-`:8080` and only consults the relay when a teacher starts a session
-or a student joins via `?room=…`.
-
-What is **not** built yet (planned, see [`ROADMAP.md`](ROADMAP.md)):
-
-- Memory-operand watches and breakpoints (e.g. `[BX+SI] == 0` predicates) — register / flag forms already ship.
-- LTI 1.3 launch (Moodle / Canvas).
-- Native desktop builds via Tauri (M7).
-- Plugin SDK 1.0, code-signed release artifacts, external accessibility audit, pilot-course validation — M6/M7 work that needs external infrastructure.
-
----
-
-## Project layout
-
-```
+```text
 modern8086/
 ├── packages/
-│   ├── core/         # Rust 8086 CPU core (compiles to wasm + native lib)
-│   ├── assembler/    # Rust assembler (emu8086 dialect, more soon)
-│   ├── wasm-api/     # wasm-bindgen surface combining core + assembler
-│   ├── devices/      # Virtual peripherals (traffic light, 7-seg, …)
-│   ├── web/          # React + TS IDE (Monaco editor + live device panels)
-│   └── cli/          # Headless runner / autograder
-├── examples/         # Sample programs (hello.asm, sum.asm, …)
-├── tests/            # Conformance test suite (ISA + dialect)
-├── docs/             # Architecture, ADRs, educator guide, …
-└── .github/          # CI, issue/PR templates
+│   ├── core/         Rust 8086 CPU core (compiles to wasm + native lib)
+│   ├── assembler/    Rust assembler (emu8086 dialect)
+│   ├── wasm-api/     wasm-bindgen surface
+│   ├── devices/      Virtual peripherals
+│   ├── web/          React + Vite IDE
+│   ├── cli/          modern8086-cli (binary: m86)
+│   ├── cli-npm/      Node-shim wrapper that downloads the right binary
+│   ├── desktop/      Tauri 2 shell (Linux / macOS / Windows / Android)
+│   ├── plugin-sdk/   TypeScript SDK for custom device plugins
+│   └── plugins/      Bundled example plugins (buzzer)
+├── examples/         Sample programs (hello.asm, sum.asm, …)
+├── tests/            Conformance test suite
+├── docs/             Architecture, ADRs, educator guide, …
+├── packaging/        Per-channel distribution manifests + Android scaffold
+└── .github/          CI, release workflow, issue/PR templates
 ```
 
-Full architecture in [`ARCHITECTURE.md`](ARCHITECTURE.md).
+Full architecture in [`ARCHITECTURE.md`](ARCHITECTURE.md). The
+day-one stack decision: [`docs/adr/0001-tech-stack.md`](docs/adr/0001-tech-stack.md).
 
 ---
 
 ## Documentation
 
-- [`docs/user-manual.md`](docs/user-manual.md) — single-page user reference covering the IDE, debugger, devices, CLI, and self-host
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — system design, module map, data flow
-- [`ROADMAP.md`](ROADMAP.md) — milestones M0 → M7 with exit criteria
-- [`BUILD_PLAN.md`](BUILD_PLAN.md) — week-by-week build schedule, risks, DoD
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to set up the repo and submit changes
-- [`SECURITY.md`](SECURITY.md) — vulnerability disclosure policy
-- [`SEMVER.md`](SEMVER.md) — versioning policy: what's a breaking change for each surface
-- [`docs/release-process.md`](docs/release-process.md) — maintainer checklist for cutting a release
-- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — community standards
-- [`docs/pain-points.md`](docs/pain-points.md) — detailed legacy comparison
-- [`docs/lab-manual-audit.md`](docs/lab-manual-audit.md) — public-search lab-manual audit, per-manual run-status, full gap list, 8-PR close-out plan
-- [`docs/emu8086-compatibility.md`](docs/emu8086-compatibility.md) — dialect compatibility matrix (every ❌ row links to a `GAP-NNN` in the audit)
-- [`docs/student-experience.md`](docs/student-experience.md) — UX principles
-- [`docs/educator-guide.md`](docs/educator-guide.md) — guide for institutes adopting the tool
-- [`docs/classroom-mode.md`](docs/classroom-mode.md) — live classroom feature design + protocol
-- [`packages/classroom-server-worker/README.md`](packages/classroom-server-worker/README.md) — Cloudflare Workers deploy of the classroom relay (free tier, recommended for GitHub Pages installs)
-- [`docs/plugin-sdk.md`](docs/plugin-sdk.md) — author custom device plugins (TS-only; ships with an example)
-- [`docs/adr/0001-tech-stack.md`](docs/adr/0001-tech-stack.md) — architecture decision: Rust + wasm + React
-
----
-
-## How institutes can adopt this
-
-A first-class goal of the project is **frictionless institute adoption**. We commit to:
-
-1. **No-install path.** The hosted web IDE works on any modern browser, including school-managed Chromebooks.
-2. **Self-host bundle.** A single Docker image runs the web IDE, autograder, and a share-link service entirely on a campus network — no outbound internet required.
-3. **Curriculum portability.** Existing emu8086 lab manuals run unchanged under the `emu8086` dialect.
-4. **LMS integration.** LTI 1.3 launch from Moodle / Canvas / Blackboard. Assignments return a numeric score automatically.
-5. **GitHub Classroom integration.** A GitHub Action grades pushed assignments using a YAML test spec.
-6. **Accessibility & i18n.** WCAG 2.1 AA; UI strings translatable; RTL support. Important for adoption outside the Anglosphere.
-
-Details and a step-by-step pilot plan live in [`docs/educator-guide.md`](docs/educator-guide.md).
+| Topic | Document |
+|---|---|
+| Single-page user reference (IDE, debugger, devices, CLI, self-host) | [`docs/user-manual.md`](docs/user-manual.md) |
+| System design + module map | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| Roadmap (M0 → M7 with exit criteria) | [`ROADMAP.md`](ROADMAP.md) |
+| Distribution channels (npm / Homebrew / Scoop / Choco / Play / Store) | [`docs/distribution.md`](docs/distribution.md) |
+| Plugin authoring | [`docs/plugin-sdk.md`](docs/plugin-sdk.md) |
+| Educator pilot guide | [`docs/educator-guide.md`](docs/educator-guide.md) |
+| Classroom-mode protocol | [`docs/classroom-mode.md`](docs/classroom-mode.md) |
+| Lab-manual compatibility audit | [`docs/lab-manual-audit.md`](docs/lab-manual-audit.md) |
+| Dialect compatibility matrix | [`docs/emu8086-compatibility.md`](docs/emu8086-compatibility.md) |
+| Versioning policy (what counts as breaking) | [`SEMVER.md`](SEMVER.md) |
+| Release-cut checklist | [`docs/release-process.md`](docs/release-process.md) |
+| Security policy | [`SECURITY.md`](SECURITY.md) |
+| Code of conduct | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
+| Contributing | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 
 ---
 
 ## Contributing
 
-We welcome contributions from students, educators, and the open-source community. Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before opening an issue or PR.
+We welcome contributions from students, educators, and the
+open-source community. Read
+[`CONTRIBUTING.md`](CONTRIBUTING.md) and
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before opening an issue
+or PR.
 
-Good first issues are tagged [`good-first-issue`](https://github.com/abuXsarkar/modern8086/labels/good-first-issue) once the bootstrap milestone (M0) is complete.
+Good first issues are tagged
+[`good-first-issue`](https://github.com/abuXsarkar/modern8086/labels/good-first-issue).
 
 ## License
 
@@ -226,4 +302,8 @@ Good first issues are tagged [`good-first-issue`](https://github.com/abuXsarkar/
 
 ## Acknowledgements
 
-This project is independent of the original emu8086 software (© Emu8086, Inc.) and contains none of its code. We thank the original authors for two decades of teaching tooling, which we hope to honor by carrying the experience forward into a more open and modern era.
+This project is independent of the original emu8086 software
+(© Emu8086, Inc.) and contains none of its code. We thank the
+original authors for two decades of teaching tooling, which we
+hope to honour by carrying the experience forward into a more
+open and modern era.
