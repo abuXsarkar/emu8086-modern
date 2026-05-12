@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.2] — 2026-05-13
+
+Second Android-fix patch. v1.1.1's source-level cfg-gate (#82)
+cleared the Rust compile errors, but the build still failed on the
+*capability* layer: `packages/desktop/capabilities/default.json`
+listed `updater:default`, which is gated out on Android along
+with the plugin itself.
+
+### Fixed
+
+- **Android build (capability split)**. Capability files now split:
+  - `capabilities/default.json` — cross-platform; opener +
+    `core:default`.
+  - `capabilities/desktop.json` — gates `updater:default` behind
+    `"platforms": ["macOS", "windows", "linux"]`. Android / iOS
+    builds skip this file entirely.
+
+  Tauri merges every JSON in `capabilities/` at build time, and the
+  `platforms` field is the documented mechanism for per-target
+  exclusion.
+
+No code changes, no source-language semantic changes.
+
 ## [1.1.1] — 2026-05-13
 
 Patch release. v1.1.0 published cleanly for desktop / CLI but the
