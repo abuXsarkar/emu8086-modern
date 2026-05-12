@@ -18,8 +18,8 @@
 // added at call sites without a schema migration — unknown keys are
 // simply absent from existing payloads.
 
-const FLAG_KEY = "emu8086.metrics-enabled";
-const DATA_KEY = "emu8086.metrics-data";
+const FLAG_KEY = "modern8086.metrics-enabled";
+const DATA_KEY = "modern8086.metrics-data";
 
 export interface MetricsData {
   /** ISO date string (YYYY-MM-DD) of the first time metrics were enabled. */

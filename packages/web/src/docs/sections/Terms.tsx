@@ -68,7 +68,7 @@ export function Terms() {
       <h3>Trademarks</h3>
       <p>
         “emu8086” is a name used historically by other projects. We use
-        “emu8086-modern” specifically to disambiguate from the original.
+        “modern8086” specifically to disambiguate from the original.
         Don’t pass forks of this project off as the upstream — rename the
         binary if you ship something materially different.
       </p>

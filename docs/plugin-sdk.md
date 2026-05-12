@@ -17,7 +17,7 @@ component.
 A plugin is one object you pass to `registerDevicePlugin`:
 
 ```ts
-import { registerDevicePlugin } from "@emu8086/plugin-sdk";
+import { registerDevicePlugin } from "@modern8086/plugin-sdk";
 import { MyDevice } from "./MyDevice";
 
 registerDevicePlugin({
@@ -57,8 +57,8 @@ that handles the pop-out-to-floater affordance for you.
 
 ```tsx
 import { useEffect, useState } from "react";
-import { registerDevicePlugin } from "@emu8086/plugin-sdk";
-import type { DevicePluginProps } from "@emu8086/plugin-sdk";
+import { registerDevicePlugin } from "@modern8086/plugin-sdk";
+import type { DevicePluginProps } from "@modern8086/plugin-sdk";
 
 function Counter({ port, stepCount }: DevicePluginProps) {
   const [count, setCount] = useState(0);

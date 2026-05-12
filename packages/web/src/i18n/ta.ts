@@ -8,7 +8,7 @@ export const ta: Locale = {
   id: "ta",
   name: "தமிழ்",
   strings: {
-    appTitle: "emu8086-modern",
+    appTitle: "modern8086",
     appLead:
       "மாணவர்களுக்கான ஒரு நவீன, திறந்த-மூல 8086 எமுலேட்டர் மற்றும் அசெம்பிளி IDE. திருத்தவும், கிளிக் செய்யவும் ",
     appLeadRunVerb: "இயக்கு",

@@ -454,8 +454,8 @@ export const TUTORIALS: Tutorial[] = [
         id: "share.cli",
         title: "The CLI grader",
         body:
-          "Outside the IDE, the `emu8086` CLI takes a YAML spec and a student submission and emits a pass/fail report (plus JUnit XML for CI).\n\n" +
-          "Example: `emu8086 grade spec.yml submission.asm`. The spec lists test cases — stdin to feed, expected stdout, expected register values at exit, optional timeouts. Drop it into a GitHub Classroom workflow via the bundled `.github/actions/grade/` composite action.",
+          "Outside the IDE, the `m86` CLI takes a YAML spec and a student submission and emits a pass/fail report (plus JUnit XML for CI).\n\n" +
+          "Example: `m86 grade spec.yml submission.asm`. The spec lists test cases — stdin to feed, expected stdout, expected register values at exit, optional timeouts. Drop it into a GitHub Classroom workflow via the bundled `.github/actions/grade/` composite action.",
       },
       {
         id: "share.further",

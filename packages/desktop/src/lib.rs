@@ -25,9 +25,9 @@ use tauri::menu::{AboutMetadataBuilder, MenuBuilder, MenuItemBuilder, SubmenuBui
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 
-const DOCS_URL: &str = "https://abuxsarkar.github.io/emu8086-modern/docs/";
-const ISSUES_URL: &str = "https://github.com/abuXsarkar/emu8086-modern/issues/new";
-const REPO_URL: &str = "https://github.com/abuXsarkar/emu8086-modern";
+const DOCS_URL: &str = "https://abuxsarkar.github.io/modern8086/docs/";
+const ISSUES_URL: &str = "https://github.com/abuXsarkar/modern8086/issues/new";
+const REPO_URL: &str = "https://github.com/abuXsarkar/modern8086";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -86,16 +86,16 @@ fn build_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tau
     // before the first user menu using the bundle's CFBundleName,
     // populated with whatever PredefinedMenuItems we add here.
     let app_about = AboutMetadataBuilder::new()
-        .name(Some("emu8086-modern"))
+        .name(Some("modern8086"))
         .version(Some(env!("CARGO_PKG_VERSION")))
         .copyright(Some(
-            "© Abu Sufian Sarkar. MIT-licensed. github.com/abuXsarkar/emu8086-modern",
+            "© Abu Sufian Sarkar. MIT-licensed. github.com/abuXsarkar/modern8086",
         ))
         .website(Some(REPO_URL))
         .website_label(Some("Project on GitHub"))
         .build();
 
-    let app_submenu = SubmenuBuilder::new(app, "emu8086-modern")
+    let app_submenu = SubmenuBuilder::new(app, "modern8086")
         .about(Some(app_about.clone()))
         .separator()
         .services()

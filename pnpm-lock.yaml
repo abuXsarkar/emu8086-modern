@@ -26,7 +26,7 @@ importers:
 
   packages/classroom-server:
     dependencies:
-      '@emu8086/classroom-protocol':
+      '@modern8086/classroom-protocol':
         specifier: workspace:*
         version: link:../classroom-protocol
       ws:
@@ -48,10 +48,10 @@ importers:
 
   packages/classroom-server-worker:
     dependencies:
-      '@emu8086/classroom-protocol':
+      '@modern8086/classroom-protocol':
         specifier: workspace:*
         version: link:../classroom-protocol
-      '@emu8086/classroom-server':
+      '@modern8086/classroom-server':
         specifier: workspace:*
         version: link:../classroom-server
     devDependencies:
@@ -106,7 +106,7 @@ importers:
 
   packages/plugins/example-buzzer:
     dependencies:
-      '@emu8086/plugin-sdk':
+      '@modern8086/plugin-sdk':
         specifier: workspace:*
         version: link:../../plugin-sdk
     devDependencies:
@@ -125,13 +125,13 @@ importers:
 
   packages/web:
     dependencies:
-      '@emu8086/classroom-protocol':
+      '@modern8086/classroom-protocol':
         specifier: workspace:*
         version: link:../classroom-protocol
-      '@emu8086/plugin-example-buzzer':
+      '@modern8086/plugin-example-buzzer':
         specifier: workspace:*
         version: link:../plugins/example-buzzer
-      '@emu8086/plugin-sdk':
+      '@modern8086/plugin-sdk':
         specifier: workspace:*
         version: link:../plugin-sdk
       '@fontsource-variable/geist':

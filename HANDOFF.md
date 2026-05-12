@@ -1,8 +1,8 @@
-# Handoff — picking up `emu8086-modern` on a fresh dev box
+# Handoff — picking up `modern8086` on a fresh dev box
 
 This document is for the maintainer (you) coming back to the project on a different machine. It captures **everything you need to get a working WSL dev environment, run the project, understand what shipped, and decide what to do next.** Read it top to bottom once; after that, the per-section anchors are reasonable navigation.
 
-Last commit at handoff: `52bce97` on `main` (squash-merge of PR #1 — LED matrix, .MODEL/PROC/ENDP, Docker, IDE polish, conformance corpus). Repo: <https://github.com/abuXsarkar/emu8086-modern>.
+Last commit at handoff: `52bce97` on `main` (squash-merge of PR #1 — LED matrix, .MODEL/PROC/ENDP, Docker, IDE polish, conformance corpus). Repo: <https://github.com/abuXsarkar/modern8086>.
 
 ---
 
@@ -43,8 +43,8 @@ curl -fsSL https://github.com/cli/cli/releases/latest/download/gh_2.62.0_linux_a
 mkdir -p ~/.local/bin && cp /tmp/gh_*_linux_amd64/bin/gh ~/.local/bin/gh
 
 # 5. Clone + first build
-git clone https://github.com/abuXsarkar/emu8086-modern.git
-cd emu8086-modern
+git clone https://github.com/abuXsarkar/modern8086.git
+cd modern8086
 git config user.name "Abu Sufian Sarkar"
 git config user.email "abu@cyberdude.com"
 
@@ -53,13 +53,13 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 
 # 7. Run a sample program through the CLI
-cargo run -p emu8086-cli -- run-asm examples/hello.asm
+cargo run -p modern8086-cli -- run-asm examples/hello.asm
 # → Hello, world!
 
 # 8. Build + serve the web IDE
 pnpm install
 wasm-pack build packages/wasm-api --target web --out-dir pkg --release
-pnpm --filter @emu8086/web dev   # → http://localhost:5173
+pnpm --filter @modern8086/web dev   # → http://localhost:5173
 ```
 
 If you want gh auth without leaving the shell: `gh auth login --hostname github.com --git-protocol https --web` — then it'll pick up a fresh device-flow token and `gh auth setup-git` wires the credential helper for `git push`.
@@ -71,7 +71,7 @@ If pushing workflow files (anything under `.github/workflows/`) requires `workfl
 ## What's in this repo
 
 ```
-emu8086-modern/
+modern8086/
 ├── Cargo.toml              # workspace root
 ├── package.json            # pnpm workspace root
 ├── pnpm-workspace.yaml
@@ -93,9 +93,9 @@ emu8086-modern/
 │   ├── core/         # emu8086-core   (Rust 8086 CPU, compiles to wasm)
 │   ├── assembler/    # emu8086-assembler  (lex + macro preprocess + parse + encode)
 │   ├── wasm-api/     # emu8086-wasm-api   (wasm-bindgen surface for the IDE)
-│   ├── cli/          # emu8086-cli        (assemble, run, run-asm, trace, grade, compat-report)
+│   ├── cli/          # modern8086-cli        (assemble, run, run-asm, trace, grade, compat-report)
 │   ├── devices/      # rust + ts (placeholder; React device components live in web/)
-│   └── web/          # @emu8086/web       (React + Vite + Monaco IDE)
+│   └── web/          # @modern8086/web       (React + Vite + Monaco IDE)
 ├── examples/         # 11 working .asm programs + lib/stdlib.asm
 │   ├── lib/stdlib.asm     # PUTC / NEWLINE / PRINT / PRINTN / GOTOXY / CLEAR_SCREEN
 │   ├── hello.asm
@@ -136,9 +136,9 @@ emu8086-modern/
 |---|---|
 | **emu8086-core** | Mainline 8086 ISA: registers (with high/low aliasing), 1 MiB segmented memory + mod-r/m, MOV family (incl. LEA, XCHG, segregs, accumulator moffs, LDS/LES), arithmetic with full flag math (CF/OF/SF/ZF/AF/PF), logical, shifts/rotates, stack, control flow (all 16 Jcc + LOOP family + JCXZ + near *and* far CALL/RET/JMP), string ops with REP/REPE/REPNE, MUL/IMUL/DIV/IDIV with DivideError trap, port I/O, software interrupts including DOS INT 21h subset (01h/02h/06h/09h/4Ch), BCD adjusts (DAA/DAS/AAA/AAS/AAM/AAD). **Time-travel debugger** via diff-snapshot `step_back`. ~110 unit tests. |
 | **emu8086-assembler** | Lex + macro preprocess + 2-pass parse + encode for nearly every M1 mnemonic — incl. LEA, the three XCHG forms (mod-r/m + 90+rw accumulator), memory-form PUSH/POP, segment-override prefixes (`CS:` / `DS:` / `ES:` / `SS:`) on bracketed memory operands, and both directions of `mov segreg, r16` / `mov r16, segreg`. Directives: `org`, `db`, `dw`, `equ`, `dup`, `BYTE PTR`/`WORD PTR`, plus the MASM-style scaffold (`.MODEL`, `.STACK`, `.DATA`, `.CODE`, `.STARTUP`, `.EXIT`, `ASSUME`, `END`) which is dropped as a no-op, and `name PROC [NEAR\|FAR] ... name ENDP` blocks which collapse into labeled blocks. User-defined `MACRO`/`ENDM` with positional args, pre-expansion at definition site, `@@`-label uniquing per call. Mod-r/m memory operands like `[bx+si+disp]`. Labels with forward references. ~66 unit tests. |
-| **emu8086-cli** | `assemble`, `run`, `run-asm`, `trace` (JSON), `grade` (YAML spec → JUnit XML), `compat-report`, `version`. File-level `include "..."` resolution. ~10 e2e tests. |
+| **modern8086-cli** | `assemble`, `run`, `run-asm`, `trace` (JSON), `grade` (YAML spec → JUnit XML), `compat-report`, `version`. File-level `include "..."` resolution. ~10 e2e tests. |
 | **emu8086-wasm-api** | `compile_and_run`, stateful `Emulator` class with `load_source`/`step`/`step_back`/`run`, `port_byte`, `memory_hex`. |
-| **Web IDE (@emu8086/web)** | Monaco editor with 8086-asm syntax highlighting, snippets (8 idioms), hover docs (~80 mnemonics), red-squiggle error markers, example loader, localStorage autosave, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, **Reset / ◀ Back / Step ▶ / Run** debug controls, current-IP line highlight that follows source, register/flag/memory hex panels, **7-segment display** + **traffic-light** + **8×8 LED matrix** + **stepper motor** + **text-mode screen** (B800:0000, 80×25, monochrome) + **keyboard input** (focused textbox feeds the FIFO at ports 0x60/0x64) + **LPT1 printer** (port 0x378) + **robot** (port 0x12, 9×9 grid) peripherals updating live as you step. |
+| **Web IDE (@modern8086/web)** | Monaco editor with 8086-asm syntax highlighting, snippets (8 idioms), hover docs (~80 mnemonics), red-squiggle error markers, example loader, localStorage autosave, share-link button (base64url URL fragment), Ctrl/Cmd+Enter, **Reset / ◀ Back / Step ▶ / Run** debug controls, current-IP line highlight that follows source, register/flag/memory hex panels, **7-segment display** + **traffic-light** + **8×8 LED matrix** + **stepper motor** + **text-mode screen** (B800:0000, 80×25, monochrome) + **keyboard input** (focused textbox feeds the FIFO at ports 0x60/0x64) + **LPT1 printer** (port 0x378) + **robot** (port 0x12, 9×9 grid) peripherals updating live as you step. |
 | **CI** | Rust on Linux/macOS/Windows × fmt + clippy + tests + wasm32 build; web typecheck/build/test; markdownlint. All green at the time of writing. |
 | **Composite GitHub Action** | `.github/actions/grade/action.yml` — drop-in for GitHub Classroom assignments. |
 
@@ -200,7 +200,7 @@ Source-map and includes flow `cli` → `assembler`. The web IDE's per-step sourc
 for f in examples/*.asm; do
   case "$f" in *lib*) continue ;; esac
   echo "==== $f ===="
-  cargo run -p emu8086-cli --quiet -- run-asm "$f"
+  cargo run -p modern8086-cli --quiet -- run-asm "$f"
   echo
 done
 ```
@@ -208,7 +208,7 @@ done
 ### Run the autograder
 
 ```bash
-cargo run -p emu8086-cli -- grade \
+cargo run -p modern8086-cli -- grade \
   examples/assignments/sum10/spec.yml \
   examples/assignments/sum10/submission.asm \
   --junit /tmp/sum10.xml
@@ -220,20 +220,20 @@ cat /tmp/sum10.xml
 ```bash
 pnpm install
 wasm-pack build packages/wasm-api --target web --out-dir pkg --release
-pnpm --filter @emu8086/web dev
+pnpm --filter @modern8086/web dev
 ```
 
 Or, with no host toolchain at all, ship the production build through Docker:
 
 ```bash
-docker build -t emu8086-modern .
-docker run --rm -p 8080:80 emu8086-modern
+docker build -t modern8086 .
+docker run --rm -p 8080:80 modern8086
 # → http://localhost:8080
 ```
 
 The Dockerfile is multi-stage (rust → node → nginx) and final image lands ~74 MB.
 
-The dev server defaults to `http://localhost:5173`. To produce a static build for a server: `pnpm --filter @emu8086/web build` → `packages/web/dist/`.
+The dev server defaults to `http://localhost:5173`. To produce a static build for a server: `pnpm --filter @modern8086/web build` → `packages/web/dist/`.
 
 ### Run all tests
 
@@ -271,7 +271,7 @@ $EDITOR packages/web/src/App.tsx            # refreshDevices polls each one
 The repository is configured per-project to author commits as **Abu Sufian Sarkar <abu@cyberdude.com>** (no AI attribution in commit messages). On a fresh clone, set this explicitly:
 
 ```bash
-cd emu8086-modern
+cd modern8086
 git config user.name "Abu Sufian Sarkar"
 git config user.email "abu@cyberdude.com"
 ```

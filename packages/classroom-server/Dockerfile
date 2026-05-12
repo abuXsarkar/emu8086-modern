@@ -3,9 +3,9 @@
 # repo root) or on its own behind any reverse proxy.
 #
 # Local build:
-#   docker build -t emu8086-classroom-server -f packages/classroom-server/Dockerfile .
-#   docker run --rm -e EMU8086_CLASSROOM_HMAC_SECRET=$(openssl rand -base64 32) \
-#              -p 8787:8787 emu8086-classroom-server
+#   docker build -t modern8086-classroom-server -f packages/classroom-server/Dockerfile .
+#   docker run --rm -e M86_CLASSROOM_HMAC_SECRET=$(openssl rand -base64 32) \
+#              -p 8787:8787 modern8086-classroom-server
 
 # ---------- stage 1: build ----------
 FROM node:20-alpine AS build
@@ -24,10 +24,10 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY packages/classroom-protocol packages/classroom-protocol
 COPY packages/classroom-server   packages/classroom-server
 
-RUN pnpm --filter @emu8086/classroom-protocol build \
- && pnpm --filter @emu8086/classroom-server build \
- && pnpm --filter @emu8086/classroom-server prune --prod \
- && pnpm --filter @emu8086/classroom-protocol prune --prod
+RUN pnpm --filter @modern8086/classroom-protocol build \
+ && pnpm --filter @modern8086/classroom-server build \
+ && pnpm --filter @modern8086/classroom-server prune --prod \
+ && pnpm --filter @modern8086/classroom-protocol prune --prod
 
 # ---------- stage 2: runtime ----------
 FROM node:20-alpine AS runtime
@@ -46,12 +46,12 @@ COPY --from=build /src/packages/classroom-server/node_modules    packages/classr
 RUN addgroup -S app && adduser -S app -G app
 USER app
 
-ENV EMU8086_CLASSROOM_PORT=8787 \
-    EMU8086_CLASSROOM_HOST=0.0.0.0
+ENV M86_CLASSROOM_PORT=8787 \
+    M86_CLASSROOM_HOST=0.0.0.0
 EXPOSE 8787
 
 # Simple healthcheck against /healthz; the entry already serves it.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -q -O - "http://127.0.0.1:${EMU8086_CLASSROOM_PORT}/healthz" || exit 1
+  CMD wget -q -O - "http://127.0.0.1:${M86_CLASSROOM_PORT}/healthz" || exit 1
 
 CMD ["node", "packages/classroom-server/dist/src/node.js"]

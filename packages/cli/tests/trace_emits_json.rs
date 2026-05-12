@@ -1,4 +1,4 @@
-//! End-to-end: `emu8086 trace` emits a JSON array of step records.
+//! End-to-end: `m86 trace` emits a JSON array of step records.
 
 use std::process::Command;
 
@@ -6,11 +6,7 @@ fn cli_path() -> std::path::PathBuf {
     let mut p = std::env::current_exe().expect("current_exe");
     p.pop();
     p.pop();
-    p.push(if cfg!(windows) {
-        "emu8086.exe"
-    } else {
-        "emu8086"
-    });
+    p.push(if cfg!(windows) { "m86.exe" } else { "m86" });
     p
 }
 

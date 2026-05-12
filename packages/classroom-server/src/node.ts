@@ -28,7 +28,7 @@ import {
   type ClientMsg,
   type ErrorCode,
   type ServerMsg,
-} from "@emu8086/classroom-protocol";
+} from "@modern8086/classroom-protocol";
 import { Room, type Outbound, TEACHER_GRACE_MS } from "./room.js";
 import { generateSecret, signHostToken, verifyHostToken } from "./host-token.js";
 import { generateRoomCode, isPlausibleRoomCode } from "./wordlist.js";
@@ -45,20 +45,20 @@ interface ServerConfig {
 }
 
 function readConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
-  let primary = env.EMU8086_CLASSROOM_HMAC_SECRET;
+  let primary = env.M86_CLASSROOM_HMAC_SECRET;
   if (!primary) {
     primary = generateSecret();
     console.warn(
-      "[classroom-server] EMU8086_CLASSROOM_HMAC_SECRET not set; " +
+      "[classroom-server] M86_CLASSROOM_HMAC_SECRET not set; " +
         "generated an ephemeral one. Restarting will invalidate all live host tokens.",
     );
   }
   return {
-    port: Number(env.EMU8086_CLASSROOM_PORT ?? 8787),
-    host: env.EMU8086_CLASSROOM_HOST ?? "0.0.0.0",
+    port: Number(env.M86_CLASSROOM_PORT ?? 8787),
+    host: env.M86_CLASSROOM_HOST ?? "0.0.0.0",
     primarySecret: primary,
-    previousSecret: env.EMU8086_CLASSROOM_HMAC_SECRET_PREVIOUS,
-    graceMs: Number(env.EMU8086_CLASSROOM_GRACE_MS ?? TEACHER_GRACE_MS),
+    previousSecret: env.M86_CLASSROOM_HMAC_SECRET_PREVIOUS,
+    graceMs: Number(env.M86_CLASSROOM_GRACE_MS ?? TEACHER_GRACE_MS),
   };
 }
 

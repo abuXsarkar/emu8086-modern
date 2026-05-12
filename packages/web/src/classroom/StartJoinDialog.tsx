@@ -4,7 +4,7 @@
 // last-used localStorage values so reconnecting is one click.
 
 import { useEffect, useId, useState } from "react";
-import type { RoomMeta } from "@emu8086/classroom-protocol";
+import type { RoomMeta } from "@modern8086/classroom-protocol";
 import { useStrings } from "../i18n";
 import { joinClassroom, startClassroom } from "./actions";
 import { useClassroomStore } from "./store";

@@ -111,7 +111,7 @@ gh release create vX.Y.Z --title "X.Y.Z" --notes-file /tmp/release-notes-X.Y.Z.m
 
 These run automatically on tag push (see `.github/workflows/release.yml`):
 
-- `emu8086-cli` binary for `linux-x64`, `darwin-x64`, `darwin-arm64`, `windows-x64`.
+- `modern8086-cli` binary for `linux-x64`, `darwin-x64`, `darwin-arm64`, `windows-x64`.
 - Tauri desktop bundles: `.deb`, `.AppImage`, `.dmg`, `.app.tar.gz`, `.msi`, `.exe` setup.
 - The web bundle as a single tarball, for self-hosters.
 - SHA-256 checksums file.
@@ -136,9 +136,9 @@ package only ships JavaScript glue + checksums.
 ## 9. Docker images
 
 Built on tag push by `.github/workflows/release.yml` and pushed to
-`ghcr.io/abuXsarkar/emu8086-modern:X.Y.Z` and `:latest`. Same for
+`ghcr.io/abuXsarkar/modern8086:X.Y.Z` and `:latest`. Same for
 the classroom-server image at
-`ghcr.io/abuXsarkar/emu8086-modern-classroom:X.Y.Z`.
+`ghcr.io/abuXsarkar/modern8086-classroom:X.Y.Z`.
 
 Confirm the tags are visible at
 [`https://github.com/abuXsarkar?tab=packages`](https://github.com/abuXsarkar?tab=packages).

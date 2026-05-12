@@ -14,10 +14,10 @@ export function SelfHost() {
         classroom door.
       </p>
       <pre>
-        <code>{`git clone https://github.com/abuXsarkar/emu8086-modern
-cd emu8086-modern
+        <code>{`git clone https://github.com/abuXsarkar/modern8086
+cd modern8086
 pnpm install
-pnpm --filter @emu8086/web build
+pnpm --filter @modern8086/web build
 # served files land in packages/web/dist/`}</code>
       </pre>
 
@@ -27,9 +27,9 @@ pnpm --filter @emu8086/web build
       </p>
       <h4>Node</h4>
       <pre>
-        <code>{`pnpm --filter @emu8086/classroom-server build
-EMU8086_CLASSROOM_PORT=8787 \\
-  pnpm --filter @emu8086/classroom-server start`}</code>
+        <code>{`pnpm --filter @modern8086/classroom-server build
+M86_CLASSROOM_PORT=8787 \\
+  pnpm --filter @modern8086/classroom-server start`}</code>
       </pre>
       <p>
         Survives a reverse proxy (it speaks plain WebSocket). Run it under
@@ -37,7 +37,7 @@ EMU8086_CLASSROOM_PORT=8787 \\
       </p>
       <h4>Cloudflare Workers</h4>
       <pre>
-        <code>{`pnpm --filter @emu8086/classroom-server-worker cf-deploy`}</code>
+        <code>{`pnpm --filter @modern8086/classroom-server-worker cf-deploy`}</code>
       </pre>
       <p>
         Free plan is enough for most classrooms — Durable Objects use the

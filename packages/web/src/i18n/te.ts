@@ -9,7 +9,7 @@ export const te: Locale = {
   id: "te",
   name: "తెలుగు",
   strings: {
-    appTitle: "emu8086-modern",
+    appTitle: "modern8086",
     appLead:
       "విద్యార్థుల కోసం ఒక ఆధునిక, ఓపెన్-సోర్స్ 8086 ఎమ్యులేటర్ మరియు అసెంబ్లీ IDE. సవరించండి, క్లిక్ చేయండి ",
     appLeadRunVerb: "అమలు",

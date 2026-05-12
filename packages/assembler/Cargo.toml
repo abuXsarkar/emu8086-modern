@@ -1,5 +1,5 @@
 [package]
-name = "emu8086-assembler"
+name = "modern8086-assembler"
 description = "Assembler for 8086 with emu8086 and nasm dialects."
 version.workspace = true
 edition.workspace = true
@@ -18,4 +18,4 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
-emu8086-core = { path = "../core" }
+modern8086-core = { path = "../core" }

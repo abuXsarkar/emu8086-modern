@@ -79,11 +79,11 @@ export function FAQ() {
         <p>
           Open an issue at{" "}
           <a
-            href="https://github.com/abuXsarkar/emu8086-modern/issues"
+            href="https://github.com/abuXsarkar/modern8086/issues"
             target="_blank"
             rel="noopener"
           >
-            github.com/abuXsarkar/emu8086-modern/issues
+            github.com/abuXsarkar/modern8086/issues
           </a>
           . A minimal repro program helps a lot.
         </p>

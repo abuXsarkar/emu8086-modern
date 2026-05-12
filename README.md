@@ -1,4 +1,4 @@
-# emu8086-modern
+# modern8086
 
 > A modern, open-source, cross-platform 8086 emulator and assembly-language IDE — purpose-built for students and easy for institutes to adopt.
 
@@ -7,7 +7,7 @@
 ![Tests: 200+](https://img.shields.io/badge/tests-200%2B%20passing-brightgreen)
 ![Platforms: Web · Linux · macOS · Windows](https://img.shields.io/badge/platforms-web%20%7C%20linux%20%7C%20macos%20%7C%20windows-blue)
 
-`emu8086-modern` is a clean-room reimplementation of the classroom-favorite emu8086 IDE, built for the way courses are taught today: in browsers, on Chromebooks, in Linux labs, with Git, and with autograding. It keeps source compatibility with existing emu8086 course materials wherever practical, while fixing the legacy software's biggest pain points.
+`modern8086` is a clean-room reimplementation of the classroom-favorite emu8086 IDE, built for the way courses are taught today: in browsers, on Chromebooks, in Linux labs, with Git, and with autograding. It keeps source compatibility with existing emu8086 course materials wherever practical, while fixing the legacy software's biggest pain points.
 
 ---
 
@@ -32,7 +32,7 @@ A free, MIT-licensed 8086 emulator that runs in a browser tab (and as a native d
 
 ## Pain points we are explicitly solving
 
-| Legacy emu8086 pain point | What `emu8086-modern` does instead |
+| Legacy emu8086 pain point | What `modern8086` does instead |
 |---|---|
 | Windows-only; broken under Wine | Browser-first (works on Chromebooks, iPads); native builds for Windows / macOS / Linux via Tauri |
 | Closed-source shareware with nag screens | MIT-licensed, no paywall, no telemetry by default |
@@ -76,36 +76,36 @@ The same hello-world program can be run through any of these surfaces and produc
 
 ```bash
 # Build and run the CLI
-cargo build -p emu8086-cli --release
-cargo run  -p emu8086-cli -- run-asm examples/hello.asm
+cargo build -p modern8086-cli --release
+cargo run  -p modern8086-cli -- run-asm examples/hello.asm
 # → Hello, world!
 
-cargo run  -p emu8086-cli -- run-asm examples/sum.asm
+cargo run  -p modern8086-cli -- run-asm examples/sum.asm
 # → 55
 
-cargo run  -p emu8086-cli -- run-asm examples/array_sum.asm
+cargo run  -p modern8086-cli -- run-asm examples/array_sum.asm
 # → 55  (walks an array via LODSB and sums it)
 
-cargo run  -p emu8086-cli -- run-asm examples/streq.asm
+cargo run  -p modern8086-cli -- run-asm examples/streq.asm
 # → =   (REPE CMPSB compares two embedded strings)
 
 # Trace a program (JSON array of step records, one per instruction)
-cargo run  -p emu8086-cli -- trace examples/hello.asm | jq .[0]
+cargo run  -p modern8086-cli -- trace examples/hello.asm | jq .[0]
 
 # Autograde a student submission against a YAML spec
-cargo run -p emu8086-cli -- grade \
+cargo run -p modern8086-cli -- grade \
   examples/assignments/sum10/spec.yml \
   examples/assignments/sum10/submission.asm
 # → 1/1 passed
 
 # Or build artifacts separately
-cargo run -p emu8086-cli -- assemble examples/hello.asm -o hello.com
-cargo run -p emu8086-cli -- run hello.com
+cargo run -p modern8086-cli -- assemble examples/hello.asm -o hello.com
+cargo run -p modern8086-cli -- run hello.com
 
 # Run the web IDE locally
 pnpm install
 wasm-pack build packages/wasm-api --target web --out-dir pkg --release
-pnpm --filter @emu8086/web dev    # opens http://localhost:5173
+pnpm --filter @modern8086/web dev    # opens http://localhost:5173
 ```
 
 ### Deployment
@@ -135,7 +135,7 @@ the bundled compose file:
 ```bash
 # Mint a stable HMAC secret for host-token signing (change on each
 # rotation, see docs/classroom-mode.md §"HMAC secret rotation").
-export EMU8086_CLASSROOM_HMAC_SECRET=$(openssl rand -base64 32)
+export M86_CLASSROOM_HMAC_SECRET=$(openssl rand -base64 32)
 
 docker compose up --build
 # IDE:              http://localhost:8080
@@ -158,7 +158,7 @@ What is **not** built yet (planned, see [`ROADMAP.md`](ROADMAP.md)):
 ## Project layout
 
 ```
-emu8086-modern/
+modern8086/
 ├── packages/
 │   ├── core/         # Rust 8086 CPU core (compiles to wasm + native lib)
 │   ├── assembler/    # Rust assembler (emu8086 dialect, more soon)
@@ -218,7 +218,7 @@ Details and a step-by-step pilot plan live in [`docs/educator-guide.md`](docs/ed
 
 We welcome contributions from students, educators, and the open-source community. Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before opening an issue or PR.
 
-Good first issues are tagged [`good-first-issue`](https://github.com/abuXsarkar/emu8086-modern/labels/good-first-issue) once the bootstrap milestone (M0) is complete.
+Good first issues are tagged [`good-first-issue`](https://github.com/abuXsarkar/modern8086/labels/good-first-issue) once the bootstrap milestone (M0) is complete.
 
 ## License
 

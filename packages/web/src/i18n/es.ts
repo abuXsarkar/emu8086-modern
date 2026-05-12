@@ -9,7 +9,7 @@ export const es: Locale = {
   id: "es",
   name: "Español",
   strings: {
-    appTitle: "emu8086-modern",
+    appTitle: "modern8086",
     appLead:
       "Un emulador 8086 y entorno de ensamblador moderno y de código abierto para estudiantes. Edita, pulsa ",
     appLeadRunVerb: "Ejecutar",

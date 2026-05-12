@@ -1,6 +1,6 @@
 # Lab manual compatibility audit
 
-This document records what real 8086 microprocessor lab manuals expect of an emulator+assembler, what `emu8086-modern` provides today, and what is still missing. Each gap is cited back to the manual and the specific lab program that exposes it, so a future contributor can re-run the same audit (or extend it with more manuals) and reproduce the verdict.
+This document records what real 8086 microprocessor lab manuals expect of an emulator+assembler, what `modern8086` provides today, and what is still missing. Each gap is cited back to the manual and the specific lab program that exposes it, so a future contributor can re-run the same audit (or extend it with more manuals) and reproduce the verdict.
 
 The document was opened against commit `main@e6ef73c`, audited 2026-05-08. The "implemented" column reflects the code on that commit. As gaps close, this document is updated in the same PR that closes them — see the Tracker section.
 
@@ -128,7 +128,7 @@ Each gap has a stable ID (`GAP-NNN`) so PR commits can reference it.
 
 ### Hardware — I/O ports
 
-The four manuals assume 8255 PPI hardware-trainer port maps that do not match emu8086's port set or ours. The current `emu8086-modern` ports were chosen to match legacy emu8086 (e.g. port 4 = traffic light, port 199 = 7-seg) for our own examples; the manuals' programs will not drive our virtual peripherals as written.
+The four manuals assume 8255 PPI hardware-trainer port maps that do not match emu8086's port set or ours. The current `modern8086` ports were chosen to match legacy emu8086 (e.g. port 4 = traffic light, port 199 = 7-seg) for our own examples; the manuals' programs will not drive our virtual peripherals as written.
 
 | ID | Item | Sev | Cited in | Suggested PR |
 |---|---|---|---|---|
@@ -164,7 +164,7 @@ PR 0 is the foundation: until the lab-corpus tests exist, every "+N pts" number 
 
 ## Per-manual program inventories
 
-For traceability when a future maintainer wants to verify "did GAP-101 really come from M4 program 5?", here is the program-by-program scan. Programs marked ✅ run on `emu8086-modern@main` today; 🚧 mostly works but needs one named gap; ❌ blocked by multiple gaps.
+For traceability when a future maintainer wants to verify "did GAP-101 really come from M4 program 5?", here is the program-by-program scan. Programs marked ✅ run on `modern8086@main` today; 🚧 mostly works but needs one named gap; ❌ blocked by multiple gaps.
 
 ### M1 Hashemite (9 experiments)
 

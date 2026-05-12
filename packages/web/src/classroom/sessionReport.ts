@@ -13,7 +13,7 @@ import type {
   RoomMeta,
   StudentPublic,
   Submission,
-} from "@emu8086/classroom-protocol";
+} from "@modern8086/classroom-protocol";
 import type { Strings } from "../i18n/types";
 
 interface RowVM {

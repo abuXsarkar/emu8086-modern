@@ -90,7 +90,7 @@ export function Landing() {
           <span aria-hidden>·</span>
           <a
             className="landing-footer-link"
-            href="https://github.com/abuXsarkar/emu8086-modern"
+            href="https://github.com/abuXsarkar/modern8086"
             target="_blank"
             rel="noopener"
           >
@@ -109,12 +109,12 @@ function TopBar() {
     <header className="landing-topbar">
       <a href="./" className="landing-topbar-brand">
         <Mark size={28} />
-        <span className="landing-topbar-name">emu8086-modern</span>
+        <span className="landing-topbar-name">modern8086</span>
       </a>
       <nav className="landing-topbar-nav">
         <a href="./">Open the IDE</a>
         <a
-          href="https://github.com/abuXsarkar/emu8086-modern"
+          href="https://github.com/abuXsarkar/modern8086"
           target="_blank"
           rel="noopener"
         >

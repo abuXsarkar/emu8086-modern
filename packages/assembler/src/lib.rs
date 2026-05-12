@@ -1,4 +1,4 @@
-//! emu8086-assembler
+//! modern8086-assembler
 //!
 //! Two-pass assembler with `emu8086` and (later) `nasm` dialects.
 //!

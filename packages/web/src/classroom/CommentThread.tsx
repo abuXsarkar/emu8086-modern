@@ -3,7 +3,7 @@
 // the student sees a "mark as read" affordance for any unseen note.
 
 import { useState } from "react";
-import type { Comment } from "@emu8086/classroom-protocol";
+import type { Comment } from "@modern8086/classroom-protocol";
 import { useStrings } from "../i18n";
 import { addComment, markCommentSeen } from "./actions";
 

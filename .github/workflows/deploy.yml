@@ -67,9 +67,9 @@ jobs:
         # server" inline error when a teacher tries to start a session,
         # which is the correct degraded behavior for a static-only
         # deployment. Point it at a deployed
-        # `@emu8086/classroom-server-worker` URL (CF Workers, free) or
+        # `@modern8086/classroom-server-worker` URL (CF Workers, free) or
         # any self-hosted relay you control.
-        run: pnpm --filter @emu8086/web build
+        run: pnpm --filter @modern8086/web build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
           VITE_CLASSROOM_WS_URL: ${{ vars.VITE_CLASSROOM_WS_URL }}

@@ -7,7 +7,7 @@ import {
   subscribeMetrics,
 } from "./metrics";
 
-const STORAGE_KEY = "emu8086.tweaks";
+const STORAGE_KEY = "modern8086.tweaks";
 
 export type Density = "comfortable" | "compact";
 export type Layout = "wide" | "balanced" | "equal";

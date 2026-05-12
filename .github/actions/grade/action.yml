@@ -1,11 +1,11 @@
-name: emu8086 grade
+name: m86 grade
 description: Grade an 8086 assembly submission against a YAML spec.
 author: Abu Sufian Sarkar <abu@cyberdude.com>
 
 # Composite action that:
 #   1. installs Rust (stable),
-#   2. builds the emu8086 CLI from source,
-#   3. invokes `emu8086 grade <spec> <submission> --junit <path>`,
+#   2. builds the m86 CLI from source,
+#   3. invokes `m86 grade <spec> <submission> --junit <path>`,
 #   4. uploads the JUnit XML so dorothy.dorothy.io / GitHub Classroom
 #      / EnricoMi/publish-unit-test-result-action can ingest it.
 #
@@ -16,7 +16,7 @@ author: Abu Sufian Sarkar <abu@cyberdude.com>
 #       runs-on: ubuntu-latest
 #       steps:
 #         - uses: actions/checkout@v4
-#         - uses: abuXsarkar/emu8086-modern/.github/actions/grade@main
+#         - uses: abuXsarkar/modern8086/.github/actions/grade@main
 #           with:
 #             spec: spec.yml
 #             submission: submission.asm
@@ -31,9 +31,9 @@ inputs:
   junit:
     description: Path the JUnit XML report should be written to.
     required: false
-    default: emu8086-grade.xml
+    default: m86-grade.xml
   ref:
-    description: emu8086-modern git ref to checkout for the CLI source.
+    description: modern8086 git ref to checkout for the CLI source.
     required: false
     default: main
 
@@ -51,28 +51,28 @@ runs:
     - name: Cache cargo build
       uses: Swatinem/rust-cache@v2
 
-    - name: Checkout emu8086-modern (CLI source)
+    - name: Checkout modern8086 (CLI source)
       uses: actions/checkout@v4
       with:
-        repository: abuXsarkar/emu8086-modern
+        repository: abuXsarkar/modern8086
         ref: ${{ inputs.ref }}
-        path: ${{ runner.temp }}/emu8086-modern
+        path: ${{ runner.temp }}/modern8086
 
-    - name: Build emu8086 CLI
+    - name: Build m86 CLI
       shell: bash
       run: |
-        cargo install --path "${{ runner.temp }}/emu8086-modern/packages/cli" --locked
+        cargo install --path "${{ runner.temp }}/modern8086/packages/cli" --locked
 
     - name: Run grade
       shell: bash
       run: |
-        emu8086 grade "${{ inputs.spec }}" "${{ inputs.submission }}" \
+        m86 grade "${{ inputs.spec }}" "${{ inputs.submission }}" \
           --junit "${{ inputs.junit }}"
 
     - name: Upload JUnit report
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: emu8086-grade-junit
+        name: m86-grade-junit
         path: ${{ inputs.junit }}
         if-no-files-found: warn

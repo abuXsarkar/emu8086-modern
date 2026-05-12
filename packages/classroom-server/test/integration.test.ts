@@ -10,7 +10,7 @@ import {
   type ClientMsg,
   type RoomMeta,
   type ServerMsg,
-} from "@emu8086/classroom-protocol";
+} from "@modern8086/classroom-protocol";
 import { startServer } from "../src/node.js";
 import { generateSecret } from "../src/host-token.js";
 

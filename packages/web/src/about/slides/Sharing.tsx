@@ -36,7 +36,7 @@ export function Sharing() {
         </li>
         <li>
           <strong>Autograde from the CLI.</strong>
-          <code className="mono"> emu8086 grade spec.yml student.asm</code>{" "}
+          <code className="mono"> m86 grade spec.yml student.asm</code>{" "}
           runs the program against a test spec and emits a
           pass/fail report — or JUnit XML for your CI.
         </li>

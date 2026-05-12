@@ -58,8 +58,8 @@ export function Privacy() {
       <h3>The desktop build</h3>
       <p>
         Same as the web build, plus: settings are persisted in your OS user
-        directory (<code>~/.emu8086/</code> on Linux/macOS,{" "}
-        <code>%APPDATA%\\emu8086</code> on Windows). The app checks for
+        directory (<code>~/.modern8086/</code> on Linux/macOS,{" "}
+        <code>%APPDATA%\\modern8086</code> on Windows). The app checks for
         updates from GitHub Releases — that check sends GitHub your IP and
         the running version. Disable it from the <em>Updates</em> setting if
         you’d rather not.
@@ -85,7 +85,7 @@ export function Privacy() {
       <p>
         Privacy questions: open an issue at{" "}
         <a
-          href="https://github.com/abuXsarkar/emu8086-modern/issues"
+          href="https://github.com/abuXsarkar/modern8086/issues"
           target="_blank"
           rel="noopener"
         >

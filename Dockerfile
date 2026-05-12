@@ -1,4 +1,4 @@
-# Multi-stage build for the emu8086-modern web IDE.
+# Multi-stage build for the modern8086 web IDE.
 #
 # Stage 1 (rust): assembles the wasm-api package via wasm-pack, producing
 #                 packages/wasm-api/pkg/.
@@ -7,8 +7,8 @@
 # Stage 3 (web):  ships only packages/web/dist/ behind nginx.
 #
 # Local build:
-#   docker build -t emu8086-modern .
-#   docker run --rm -p 8080:80 emu8086-modern
+#   docker build -t modern8086 .
+#   docker run --rm -p 8080:80 modern8086
 # then open http://localhost:8080
 #
 # Final image lands around 74 MB (nginx:alpine base + the built web
@@ -54,7 +54,7 @@ COPY --from=wasm /src/packages/wasm-api/pkg packages/wasm-api/pkg
 COPY packages/web        packages/web
 COPY packages/devices/ts packages/devices/ts
 
-RUN pnpm --filter @emu8086/web build
+RUN pnpm --filter @modern8086/web build
 
 # ---------- stage 3: serve ----------
 FROM nginx:1.27-alpine AS serve

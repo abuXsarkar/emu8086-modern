@@ -3,7 +3,7 @@
 // when not connected so we don't have to gate every button on the
 // store's `status === "joined"`.
 
-import type { RoomMeta } from "@emu8086/classroom-protocol";
+import type { RoomMeta } from "@modern8086/classroom-protocol";
 import { classroomConnection } from "./connect";
 import { classroomStore } from "./store";
 

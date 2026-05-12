@@ -35,7 +35,7 @@ The design below is shaped by that audience.
 | Decision | Value |
 |---|---|
 | Transport | WebSocket relay (not WebRTC P2P) |
-| Hosting | Node + `ws` for self-host; **Cloudflare Worker + Durable Objects shipped** in `@emu8086/classroom-server-worker` for zero-cost hosted use |
+| Hosting | Node + `ws` for self-host; **Cloudflare Worker + Durable Objects shipped** in `@modern8086/classroom-server-worker` for zero-cost hosted use |
 | Identity | Room code + HMAC-signed host token; no accounts |
 | Room code format | `color-animal-NN`, e.g. `blue-fox-42` |
 | Live buffer share | Always-on for teacher view (no student-side toggle) |
@@ -485,8 +485,8 @@ resolved.
 Two environment variables on the server:
 
 ```
-EMU8086_CLASSROOM_HMAC_SECRET           # required; new tokens signed with this
-EMU8086_CLASSROOM_HMAC_SECRET_PREVIOUS  # optional; verify-only
+M86_CLASSROOM_HMAC_SECRET           # required; new tokens signed with this
+M86_CLASSROOM_HMAC_SECRET_PREVIOUS  # optional; verify-only
 ```
 
 - **Sign** new tokens with `_HMAC_SECRET`.
@@ -501,7 +501,7 @@ EMU8086_CLASSROOM_HMAC_SECRET_PREVIOUS  # optional; verify-only
   and logs a one-line warning. Restarting the server invalidates all
   live tokens — fine for self-hosters who rarely restart mid-class,
   and the warning makes the implication visible.
-- **Helper**: `pnpm --filter @emu8086/classroom-server gen-secret` prints
+- **Helper**: `pnpm --filter @modern8086/classroom-server gen-secret` prints
   a fresh 32-byte base64url value the operator can paste into their
   env. One command, hard to misuse.
 

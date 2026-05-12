@@ -1,5 +1,5 @@
 [package]
-name = "emu8086-cli"
+name = "modern8086-cli"
 description = "Headless 8086 runner and autograder."
 version.workspace = true
 edition.workspace = true
@@ -11,7 +11,7 @@ homepage.workspace = true
 readme = "README.md"
 
 [[bin]]
-name = "emu8086"
+name = "m86"
 path = "src/main.rs"
 
 [dependencies]
@@ -20,8 +20,8 @@ clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = "0.9"
-emu8086-core = { path = "../core" }
-emu8086-assembler = { path = "../assembler" }
+modern8086-core = { path = "../core" }
+modern8086-assembler = { path = "../assembler" }
 
 [lints.clippy]
 needless_pass_by_value = "allow"

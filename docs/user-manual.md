@@ -206,19 +206,19 @@ batch / autograder / CI use:
 
 ```bash
 # Assemble + run a single file
-emu8086 run-asm examples/hello.asm
+m86 run-asm examples/hello.asm
 
 # Just assemble (writes a flat .com-style binary to stdout)
-emu8086 assemble examples/hello.asm > hello.bin
+m86 assemble examples/hello.asm > hello.bin
 
 # Trace execution as JSON, one record per instruction
-emu8086 trace examples/sum.asm
+m86 trace examples/sum.asm
 
 # Run an autograder spec against a submission
-emu8086 grade spec.yml student-submission.asm
+m86 grade spec.yml student-submission.asm
 
 # Sweep a corpus and report which files assembled cleanly
-emu8086 compat-report examples/ --exclude lib/
+m86 compat-report examples/ --exclude lib/
 ```
 
 The `grade` subcommand is the heart of the autograder story.
@@ -279,7 +279,7 @@ classroom-mode WebSocket relay has its own image. Bring both up
 with the workspace-root `docker-compose.yml`:
 
 ```bash
-export EMU8086_CLASSROOM_HMAC_SECRET=$(openssl rand -base64 32)
+export M86_CLASSROOM_HMAC_SECRET=$(openssl rand -base64 32)
 docker compose up --build
 # IDE:    http://localhost:8080
 # Relay:  ws://localhost:8787  (also /healthz over HTTP)
@@ -297,17 +297,17 @@ classroom server to Cloudflare Workers + Durable Objects
 instead — free tier, zero ops, same protocol:
 
 ```bash
-pnpm --filter @emu8086/classroom-server-worker exec wrangler login
-openssl rand -base64 32 | pnpm --filter @emu8086/classroom-server-worker \
-  exec wrangler secret put EMU8086_CLASSROOM_HMAC_SECRET
-pnpm --filter @emu8086/classroom-server-worker cf-deploy
+pnpm --filter @modern8086/classroom-server-worker exec wrangler login
+openssl rand -base64 32 | pnpm --filter @modern8086/classroom-server-worker \
+  exec wrangler secret put M86_CLASSROOM_HMAC_SECRET
+pnpm --filter @modern8086/classroom-server-worker cf-deploy
 ```
 
 That gives you a URL like
-`https://emu8086-classroom.<your-name>.workers.dev`. Set
+`https://modern8086-classroom.<your-name>.workers.dev`. Set
 `VITE_CLASSROOM_WS_URL` as a GitHub Actions **repo variable** (no
 quoting — bare URL with the `wss://` scheme and `/ws` suffix:
-`wss://emu8086-classroom.<your-name>.workers.dev/ws`); the
+`wss://modern8086-classroom.<your-name>.workers.dev/ws`); the
 GitHub Pages deploy workflow picks it up automatically on the
 next push to `main`. Full details:
 [`packages/classroom-server-worker/README.md`](../packages/classroom-server-worker/README.md).

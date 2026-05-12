@@ -1,6 +1,6 @@
 # Legacy emu8086 — pain points and how we address them
 
-The legacy emu8086 (Emu8086 Inc., last meaningful release ~2010) has served two decades of computer-architecture courses. It is also the source of a long list of student and educator complaints. This document enumerates those complaints and states, for each, what `emu8086-modern` does about them.
+The legacy emu8086 (Emu8086 Inc., last meaningful release ~2010) has served two decades of computer-architecture courses. It is also the source of a long list of student and educator complaints. This document enumerates those complaints and states, for each, what `modern8086` does about them.
 
 This is the document we will be measured against. If a student or educator points to a pain on this list and our software does not address it, that is a bug.
 

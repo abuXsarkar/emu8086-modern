@@ -9,7 +9,7 @@ export const en: CompleteLocale = {
   id: "en",
   name: "English",
   strings: {
-    appTitle: "emu8086-modern",
+    appTitle: "modern8086",
     appLead:
       "A modern, open-source 8086 emulator and assembly IDE for students. Edit, click ",
     appLeadRunVerb: "Run",

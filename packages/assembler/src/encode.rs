@@ -2237,7 +2237,7 @@ mod tests {
             msg: db \"Hello, world!$\"\n\
         ";
         let bytes = asm(src);
-        let mut cpu = emu8086_core::Cpu::new();
+        let mut cpu = modern8086_core::Cpu::new();
         cpu.load_com(&bytes);
         cpu.run_until_halt(1024);
         assert!(cpu.halted);

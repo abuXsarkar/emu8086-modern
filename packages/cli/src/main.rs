@@ -1,4 +1,4 @@
-//! emu8086 — headless runner and autograder.
+//! m86 — headless runner and autograder.
 //!
 //! Subcommands grow with each milestone. See ROADMAP.md.
 
@@ -21,19 +21,15 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use emu8086_assembler::{assemble, AssembleError, Dialect};
-use emu8086_core::Cpu;
+use modern8086_assembler::{assemble, AssembleError, Dialect};
+use modern8086_core::Cpu;
 
 mod compat;
 mod grade;
 mod include;
 
 #[derive(Parser, Debug)]
-#[command(
-    name = "emu8086",
-    version,
-    about = "Headless 8086 runner and autograder"
-)]
+#[command(name = "m86", version, about = "Headless 8086 runner and autograder")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -111,7 +107,7 @@ fn run_image(image_bytes: &[u8], max_steps: usize) -> anyhow::Result<u8> {
 
     if !cpu.halted {
         eprintln!(
-            "emu8086: aborted after {steps} steps (limit reached). \
+            "m86: aborted after {steps} steps (limit reached). \
              Use --max-steps to raise the cap."
         );
         return Ok(1);
@@ -143,7 +139,7 @@ fn cmd_assemble(input: &Path, output: Option<&Path>) -> anyhow::Result<u8> {
     };
     fs::write(&out_path, &img.bytes)?;
     eprintln!(
-        "emu8086: wrote {} bytes to {} (origin={:#06X}, {} labels)",
+        "m86: wrote {} bytes to {} (origin={:#06X}, {} labels)",
         img.bytes.len(),
         out_path.display(),
         img.origin,
@@ -170,7 +166,7 @@ fn cmd_trace(input: &Path, max_steps: usize) -> anyhow::Result<u8> {
         n: usize,
         ip_before: u16,
         cs: u16,
-        rec: &'a emu8086_core::StepRecord,
+        rec: &'a modern8086_core::StepRecord,
         ax: u16,
         bx: u16,
         cx: u16,
@@ -234,7 +230,7 @@ fn cmd_run_asm(input: &Path, max_steps: usize) -> anyhow::Result<u8> {
 fn print_assemble_error(input: &Path, source: &str, err: &AssembleError) {
     let (span, message) = match err {
         AssembleError::Lex(e) => (
-            emu8086_assembler::Span::new(e.pos, e.pos + 1),
+            modern8086_assembler::Span::new(e.pos, e.pos + 1),
             e.msg.clone(),
         ),
         AssembleError::Preprocess(e) => (e.span, e.message.clone()),
@@ -278,7 +274,7 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let result: anyhow::Result<u8> = match cli.cmd {
         Cmd::Version => {
-            println!("emu8086-core {}", emu8086_core::version());
+            println!("modern8086-core {}", modern8086_core::version());
             Ok(0)
         }
         Cmd::Run { image, max_steps } => cmd_run(&image, max_steps),
@@ -295,7 +291,7 @@ fn main() -> ExitCode {
     match result {
         Ok(code) => ExitCode::from(code),
         Err(e) => {
-            eprintln!("emu8086: {e}");
+            eprintln!("m86: {e}");
             ExitCode::from(1)
         }
     }

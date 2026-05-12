@@ -1,9 +1,9 @@
-// Renders every plugin registered via @emu8086/plugin-sdk inside
+// Renders every plugin registered via @modern8086/plugin-sdk inside
 // a DeviceSlot, so they pop out / dock just like the built-in
 // devices. The host (App.tsx) provides the port reader + a step
 // counter that drives plugin re-renders.
 
-import { getRegisteredDevicePlugins } from "@emu8086/plugin-sdk";
+import { getRegisteredDevicePlugins } from "@modern8086/plugin-sdk";
 import { DeviceSlot } from "./DeviceSlot";
 
 interface PluginGalleryProps {

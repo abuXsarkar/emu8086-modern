@@ -6,7 +6,7 @@ export const gu: Locale = {
   id: "gu",
   name: "ગુજરાતી",
   strings: {
-    appTitle: "emu8086-modern",
+    appTitle: "modern8086",
     appLead:
       "વિદ્યાર્થીઓ માટે એક આધુનિક, ઓપન-સોર્સ 8086 એમ્યુલેટર અને એસેમ્બલી IDE. સંપાદિત કરો, ક્લિક કરો ",
     appLeadRunVerb: "ચલાવો",

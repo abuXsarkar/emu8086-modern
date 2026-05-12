@@ -1,10 +1,10 @@
 # Student experience principles
 
-This document captures the experience we are trying to deliver to a student opening `emu8086-modern` for the first time. It is the rubric we hold every UX decision against.
+This document captures the experience we are trying to deliver to a student opening `modern8086` for the first time. It is the rubric we hold every UX decision against.
 
 ## North star
 
-> A first-year student, who has never seen assembly before, opens `emu8086-modern.app` on a school Chromebook, types `mov ax, 5`, and within sixty seconds understands what just happened — without needing a teacher, a textbook, or a tutorial.
+> A first-year student, who has never seen assembly before, opens `modern8086.app` on a school Chromebook, types `mov ax, 5`, and within sixty seconds understands what just happened — without needing a teacher, a textbook, or a tutorial.
 
 If a feature, a panel, or an error message helps that scenario, it stays. If it doesn't, it has to justify itself.
 

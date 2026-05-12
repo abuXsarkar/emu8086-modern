@@ -963,71 +963,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ef6b89e5b37196644d8796de5268852ff179b44e96276cf4290264843743bb7"
 
 [[package]]
-name = "emu8086-assembler"
-version = "1.0.0"
-dependencies = [
- "emu8086-core",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "emu8086-cli"
-version = "1.0.0"
-dependencies = [
- "anyhow",
- "clap",
- "emu8086-assembler",
- "emu8086-core",
- "serde",
- "serde_json",
- "serde_yaml",
-]
-
-[[package]]
-name = "emu8086-core"
-version = "1.0.0"
-dependencies = [
- "proptest",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "emu8086-desktop"
-version = "1.0.0"
-dependencies = [
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "tauri-plugin-updater",
- "tauri-plugin-window-state",
-]
-
-[[package]]
-name = "emu8086-devices"
-version = "1.0.0"
-dependencies = [
- "emu8086-core",
- "serde",
-]
-
-[[package]]
-name = "emu8086-wasm-api"
-version = "1.0.0"
-dependencies = [
- "emu8086-assembler",
- "emu8086-core",
- "serde",
- "serde_json",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "endi"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2244,6 +2179,71 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "modern8086-assembler"
+version = "1.1.0"
+dependencies = [
+ "modern8086-core",
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "modern8086-cli"
+version = "1.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "modern8086-assembler",
+ "modern8086-core",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+]
+
+[[package]]
+name = "modern8086-core"
+version = "1.1.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "modern8086-desktop"
+version = "1.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "tauri-plugin-updater",
+ "tauri-plugin-window-state",
+]
+
+[[package]]
+name = "modern8086-devices"
+version = "1.1.0"
+dependencies = [
+ "modern8086-core",
+ "serde",
+]
+
+[[package]]
+name = "modern8086-wasm-api"
+version = "1.1.0"
+dependencies = [
+ "modern8086-assembler",
+ "modern8086-core",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
 ]
 
 [[package]]

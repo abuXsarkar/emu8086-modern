@@ -36,7 +36,7 @@ export function Credits() {
           <p>
             <em>emu8086</em>, the long-running shareware tool that
             sat on the curriculum at South Asian engineering
-            institutes for two decades. <em>emu8086-modern</em> is a
+            institutes for two decades. <em>modern8086</em> is a
             clean-room reimplementation — not a fork, not a port — of
             the experience it pioneered, rebuilt without the paywalls,
             the nag screens, or the closed-source constraints.
@@ -49,12 +49,12 @@ export function Credits() {
             services around. The only thing you can't do is take
             the name. The whole project lives at{" "}
             <a
-              href="https://github.com/abuXsarkar/emu8086-modern"
+              href="https://github.com/abuXsarkar/modern8086"
               target="_blank"
               rel="noopener"
               className="mono"
             >
-              github.com/abuXsarkar/emu8086-modern
+              github.com/abuXsarkar/modern8086
             </a>
             .
           </p>

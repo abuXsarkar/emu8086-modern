@@ -1,6 +1,6 @@
 # Educator guide
 
-A practical guide for instructors and institutes evaluating `emu8086-modern` as a replacement for legacy emu8086 in undergraduate computer-architecture courses.
+A practical guide for instructors and institutes evaluating `modern8086` as a replacement for legacy emu8086 in undergraduate computer-architecture courses.
 
 This document is written for the person who has to decide *whether* to adopt the tool, and for the person who has to *make it work* on the first day of class.
 
@@ -39,8 +39,8 @@ For institutes that can let students load `https://emu8086.app` (or the chosen h
 For institutes that must keep traffic inside the campus network.
 
 ```bash
-docker pull ghcr.io/abuxsarkar/emu8086-modern:latest
-docker run -p 8080:8080 ghcr.io/abuxsarkar/emu8086-modern:latest
+docker pull ghcr.io/abuxsarkar/modern8086:latest
+docker run -p 8080:8080 ghcr.io/abuxsarkar/modern8086:latest
 # Open http://localhost:8080 from any campus machine.
 ```
 
@@ -87,7 +87,7 @@ The three paths interoperate: a share-link generated on the hosted instance open
 Most existing emu8086 lab manuals will run unchanged. For the rare divergences (see [`emu8086-compatibility.md`](emu8086-compatibility.md)), we provide a "compat report" command:
 
 ```bash
-emu8086 compat-report ./labs/
+m86 compat-report ./labs/
 ```
 
 This walks a directory of `.asm` files and prints any lines that will trigger warnings or errors under our `emu8086` dialect, with suggested edits. It is fast (1000 files in <5 seconds on a laptop) and idempotent.
@@ -140,7 +140,7 @@ A spec is a portable artifact; instructors share specs across institutes the sam
 
 ## LMS integration
 
-- **GitHub Classroom**: drop the `abuXsarkar/emu8086-modern/.github/actions/grade` composite action into the assignment template — every push runs the autograder, the JUnit XML report uploads as an artifact, and a workflow can republish it as a test-result check (e.g. via `EnricoMi/publish-unit-test-result-action`). Example workflow:
+- **GitHub Classroom**: drop the `abuXsarkar/modern8086/.github/actions/grade` composite action into the assignment template — every push runs the autograder, the JUnit XML report uploads as an artifact, and a workflow can republish it as a test-result check (e.g. via `EnricoMi/publish-unit-test-result-action`). Example workflow:
 
   ```yaml
   jobs:
@@ -148,7 +148,7 @@ A spec is a portable artifact; instructors share specs across institutes the sam
       runs-on: ubuntu-latest
       steps:
         - uses: actions/checkout@v4
-        - uses: abuXsarkar/emu8086-modern/.github/actions/grade@main
+        - uses: abuXsarkar/modern8086/.github/actions/grade@main
           with:
             spec: spec.yml
             submission: submission.asm
@@ -172,7 +172,7 @@ Before the term begins:
 - [ ] One existing lab has been ported and verified end-to-end.
 - [ ] Autograder spec template exists for the course's first assignment.
 - [ ] Accessibility plan checked against your institute's standard (we target WCAG 2.1 AA).
-- [ ] Backup plan in case of platform issue (we recommend running one assignment under both legacy emu8086 and `emu8086-modern` in week 1 to build confidence).
+- [ ] Backup plan in case of platform issue (we recommend running one assignment under both legacy emu8086 and `modern8086` in week 1 to build confidence).
 
 ## Support and feedback
 

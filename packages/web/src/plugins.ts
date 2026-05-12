@@ -8,4 +8,4 @@
 //
 // To author your own plugin: see `docs/plugin-sdk.md`.
 
-import "@emu8086/plugin-example-buzzer";
+import "@modern8086/plugin-example-buzzer";

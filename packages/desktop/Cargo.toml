@@ -1,6 +1,6 @@
 [package]
-name = "emu8086-desktop"
-description = "Native desktop shell (Tauri) hosting the emu8086-modern web IDE."
+name = "modern8086-desktop"
+description = "Native desktop shell (Tauri) hosting the modern8086 web IDE."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,7 +13,7 @@ readme.workspace = true
 # triple used by the (future) mobile entry, and a `main.rs` binary
 # that the desktop bundler builds.
 [lib]
-name = "emu8086_desktop_lib"
+name = "modern8086_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

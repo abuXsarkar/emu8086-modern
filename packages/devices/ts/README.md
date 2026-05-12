@@ -1,4 +1,4 @@
-# @emu8086/devices
+# @modern8086/devices
 
 React components for the virtual peripherals. Paired with the Rust crate at `packages/devices/rust/`.
 

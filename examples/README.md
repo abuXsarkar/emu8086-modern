@@ -17,15 +17,15 @@ drifts from reality.
 Run any of them through the CLI:
 
 ```bash
-cargo run -p emu8086-cli -- run-asm examples/hello.asm
-cargo run -p emu8086-cli -- run-asm examples/array_sum.asm
-cargo run -p emu8086-cli -- run-asm examples/streq.asm
+cargo run -p modern8086-cli -- run-asm examples/hello.asm
+cargo run -p modern8086-cli -- run-asm examples/array_sum.asm
+cargo run -p modern8086-cli -- run-asm examples/streq.asm
 ```
 
 Or trace one to see every instruction's effect on the registers:
 
 ```bash
-cargo run -p emu8086-cli -- trace examples/hello.asm | jq .
+cargo run -p modern8086-cli -- trace examples/hello.asm | jq .
 ```
 
 ## Adding a new example

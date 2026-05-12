@@ -4,7 +4,7 @@ import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor as MonacoEditor } from "monaco-editor";
 import init, {
   Emulator,
-} from "../../wasm-api/pkg/emu8086_wasm_api.js";
+} from "../../wasm-api/pkg/modern8086_wasm_api.js";
 import { ASM_LANG_ID, registerAsm8086 } from "./asm8086";
 import { EXAMPLES } from "./examples";
 import { SevenSegment } from "./SevenSegment";
@@ -31,7 +31,7 @@ import type { RunRegisters } from "./registers";
 import { formatValue, evaluate } from "./debugExpr";
 import { recordEvent } from "./metrics";
 
-const STORAGE_KEY = "emu8086-modern.source";
+const STORAGE_KEY = "modern8086.source";
 
 type CoreState =
   | { kind: "loading" }
@@ -165,7 +165,7 @@ export function App() {
   const [localeId, setLocaleIdValue] = useLocaleId();
   const [editorTheme, setEditorTheme] = useState<"vs-dark" | "vs">(() => {
     try {
-      const v = localStorage.getItem("emu8086.editor-theme");
+      const v = localStorage.getItem("modern8086.editor-theme");
       return v === "vs" ? "vs" : "vs-dark";
     } catch {
       return "vs-dark";
@@ -204,7 +204,7 @@ export function App() {
   // they survive a page reload alongside the source buffer.
   const [watches, setWatches] = useState<string[]>(() => {
     try {
-      const raw = localStorage.getItem("emu8086.watches");
+      const raw = localStorage.getItem("modern8086.watches");
       const parsed = raw ? JSON.parse(raw) : [];
       return Array.isArray(parsed) ? parsed.filter((s) => typeof s === "string") : [];
     } catch {
@@ -213,7 +213,7 @@ export function App() {
   });
   const [breakpoints, setBreakpoints] = useState<string[]>(() => {
     try {
-      const raw = localStorage.getItem("emu8086.breakpoints");
+      const raw = localStorage.getItem("modern8086.breakpoints");
       const parsed = raw ? JSON.parse(raw) : [];
       return Array.isArray(parsed) ? parsed.filter((s) => typeof s === "string") : [];
     } catch {
@@ -223,14 +223,14 @@ export function App() {
   const [breakpointHit, setBreakpointHit] = useState<string>("");
   useEffect(() => {
     try {
-      localStorage.setItem("emu8086.watches", JSON.stringify(watches));
+      localStorage.setItem("modern8086.watches", JSON.stringify(watches));
     } catch {
       /* ignore */
     }
   }, [watches]);
   useEffect(() => {
     try {
-      localStorage.setItem("emu8086.breakpoints", JSON.stringify(breakpoints));
+      localStorage.setItem("modern8086.breakpoints", JSON.stringify(breakpoints));
     } catch {
       /* ignore */
     }
@@ -773,7 +773,7 @@ export function App() {
               recordEvent("theme_change");
               setEditorTheme(v);
               try {
-                localStorage.setItem("emu8086.editor-theme", v);
+                localStorage.setItem("modern8086.editor-theme", v);
               } catch {
                 /* ignore */
               }
@@ -1206,7 +1206,7 @@ export function App() {
         {t.footerSeparator}
         <a href="./docs/">docs</a>
         {t.footerSeparator}
-        <a href="https://github.com/abuXsarkar/emu8086-modern">{t.footerLink}</a>
+        <a href="https://github.com/abuXsarkar/modern8086">{t.footerLink}</a>
         {t.footerSeparator}
         {t.footerNote}
       </footer>

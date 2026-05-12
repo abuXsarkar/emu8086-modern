@@ -1,4 +1,4 @@
-; emu8086-modern stdlib macros — copy-paste at the top of your source.
+; modern8086 stdlib macros — copy-paste at the top of your source.
 ;
 ; This is the equivalent of the legacy emu8086.inc macro pack, written
 ; against this assembler's macro mechanism. Once we add `include`

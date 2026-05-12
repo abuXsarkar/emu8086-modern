@@ -3,7 +3,7 @@
 ; M2 ALP 8.2 use (8255-PPI port aliases at the top of the program).
 ;
 ; The point of this example: show how to retarget a lab-manual
-; program at emu8086-modern's native ports by replacing the
+; program at modern8086's native ports by replacing the
 ; manual's `PA EQU 0FF10H` block with `INCLUDE "lib/lab_ports.inc"`
 ; and renaming the PA/PB references. After the include the rest of
 ; the program is the same code the manual prints.

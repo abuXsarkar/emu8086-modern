@@ -1,6 +1,6 @@
 # emu8086 source compatibility
 
-Goal: existing emu8086 lab manuals, sample programs, and lecture slides should run on `emu8086-modern` **without source modification** under the default `emu8086` dialect.
+Goal: existing emu8086 lab manuals, sample programs, and lecture slides should run on `modern8086` **without source modification** under the default `emu8086` dialect.
 
 This document tracks what we accept and what we don't. The compatibility target is legacy emu8086 v4.08 (the most widely deployed version in courses).
 
@@ -134,9 +134,9 @@ emu8086 is forgiving where MASM/NASM are strict — `mov [bx], 1` is accepted as
 
 ### I/O ports
 
-`emu8086-modern` and legacy emu8086 both reserve a small set of ports for virtual peripherals. The two port maps overlap but are not identical. Lab manuals that use 8255 PPI hardware-trainer ports use a third, completely different set — documented in [GAP-400 to GAP-403](./lab-manual-audit.md#hardware--io-ports) (PR 8).
+`modern8086` and legacy emu8086 both reserve a small set of ports for virtual peripherals. The two port maps overlap but are not identical. Lab manuals that use 8255 PPI hardware-trainer ports use a third, completely different set — documented in [GAP-400 to GAP-403](./lab-manual-audit.md#hardware--io-ports) (PR 8).
 
-| Port | Device (legacy emu8086) | Device (emu8086-modern) | Status |
+| Port | Device (legacy emu8086) | Device (modern8086) | Status |
 |---|---|---|---|
 | 4 | Traffic light | Traffic light | ✅ matches |
 | 7 | Stepper motor | Stepper motor | ✅ matches |
@@ -211,8 +211,8 @@ The lab-manual compatibility corpus is the work of PR 0 in [`lab-manual-audit.md
 
 ## Reporting a compatibility bug
 
-If a program runs differently on legacy emu8086 and on `emu8086-modern`:
+If a program runs differently on legacy emu8086 and on `modern8086`:
 
 1. Check the [lab-manual audit](./lab-manual-audit.md) — the gap may already be filed under a `GAP-NNN` ID.
-2. If not, open an issue tagged `compat:emu8086` with: the program, any `.inc` files it depends on, the divergence (final register / memory / device state difference, or error message difference), and the legacy emu8086 version compared against.
+2. If not, open an issue tagged `compat:emu8086` with: the program, any `.inc` files it depends on, the divergence (final register / memory / device state difference, or error message difference), and the legacy m86 version compared against.
 3. We treat dialect compatibility as a first-class feature. A regression here blocks the next release.

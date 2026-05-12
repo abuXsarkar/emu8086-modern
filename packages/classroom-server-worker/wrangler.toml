@@ -1,4 +1,4 @@
-name = "emu8086-classroom"
+name = "modern8086-classroom"
 main = "src/worker.ts"
 compatibility_date = "2024-09-01"
 compatibility_flags = ["nodejs_compat"]
@@ -28,8 +28,8 @@ tag = "v1"
 new_sqlite_classes = ["ClassroomHubDO"]
 
 # The HMAC secret used to sign host tokens. Set with:
-#   wrangler secret put EMU8086_CLASSROOM_HMAC_SECRET
-# To rotate, additionally set EMU8086_CLASSROOM_HMAC_SECRET_PREVIOUS
+#   wrangler secret put M86_CLASSROOM_HMAC_SECRET
+# To rotate, additionally set M86_CLASSROOM_HMAC_SECRET_PREVIOUS
 # so live host tokens minted under the old secret keep validating
 # through the next session window.
 

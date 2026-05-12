@@ -6,7 +6,7 @@ export const ml: Locale = {
   id: "ml",
   name: "മലയാളം",
   strings: {
-    appTitle: "emu8086-modern",
+    appTitle: "modern8086",
     appLead:
       "വിദ്യാർത്ഥികൾക്കായി ഒരു ആധുനിക, ഓപ്പൺ-സോഴ്സ് 8086 എമുലേറ്റർ ആൻഡ് അസംബ്ലി IDE. എഡിറ്റ് ചെയ്യുക, ക്ലിക്ക് ചെയ്യുക ",
     appLeadRunVerb: "പ്രവർത്തിപ്പിക്കുക",

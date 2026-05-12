@@ -11,7 +11,7 @@ export const bn: Locale = {
   id: "bn",
   name: "বাংলা",
   strings: {
-    appTitle: "emu8086-modern",
+    appTitle: "modern8086",
     appLead:
       "শিক্ষার্থীদের জন্য একটি আধুনিক, ওপেন-সোর্স ৮০৮৬ এমুলেটর ও অ্যাসেম্বলি আইডিই। সম্পাদনা করুন, ক্লিক করুন ",
     appLeadRunVerb: "চালান",

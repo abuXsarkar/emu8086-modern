@@ -32,7 +32,7 @@ import type {
   ServerMsg,
   StudentPublic,
   Submission,
-} from "@emu8086/classroom-protocol";
+} from "@modern8086/classroom-protocol";
 
 /** Where a single ServerMsg should be sent. */
 export type OutboundTarget =

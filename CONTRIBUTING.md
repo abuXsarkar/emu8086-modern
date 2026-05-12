@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for considering a contribution to `emu8086-modern`. This project exists because legacy emu8086 stopped serving students well; that mission belongs to a community, not one person.
+Thank you for considering a contribution to `modern8086`. This project exists because legacy emu8086 stopped serving students well; that mission belongs to a community, not one person.
 
 ## Table of contents
 
@@ -33,7 +33,7 @@ Especially welcome at this stage of the project:
   - Designers: panel layouts, icon set, dark/light themes, accessibility.
 - **Translators**: UI strings (M6 onward, but you can pre-register interest).
 
-Issues tagged [`good-first-issue`](https://github.com/abuXsarkar/emu8086-modern/labels/good-first-issue) are scoped for first-time contributors.
+Issues tagged [`good-first-issue`](https://github.com/abuXsarkar/modern8086/labels/good-first-issue) are scoped for first-time contributors.
 
 ## Development setup
 
@@ -46,15 +46,15 @@ rustup target add wasm32-unknown-unknown
 corepack enable && corepack prepare pnpm@latest --activate
 
 # 2. Clone
-git clone https://github.com/abuXsarkar/emu8086-modern.git
-cd emu8086-modern
+git clone https://github.com/abuXsarkar/modern8086.git
+cd modern8086
 
 # 3. Install
 pnpm install
 cargo fetch
 
 # 4. Run the dev IDE
-pnpm --filter @emu8086/web dev
+pnpm --filter @modern8086/web dev
 # → http://localhost:5173
 
 # 5. Run all tests
@@ -167,7 +167,7 @@ If you spot a doc inconsistency, fixing it is welcome even without an issue.
 
 Use the bug-report issue template. Include:
 
-- Browser / OS / build of `emu8086-modern`.
+- Browser / OS / build of `modern8086`.
 - The shortest program that reproduces the bug.
 - Expected vs actual behavior.
 - Whether the bug also reproduces in legacy emu8086 (helps us classify dialect bugs vs core bugs).

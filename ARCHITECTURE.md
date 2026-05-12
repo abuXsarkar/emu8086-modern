@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the system design of `emu8086-modern`. It is a living document — significant changes are recorded as Architecture Decision Records (ADRs) under [`docs/adr/`](docs/adr/).
+This document describes the system design of `modern8086`. It is a living document — significant changes are recorded as Architecture Decision Records (ADRs) under [`docs/adr/`](docs/adr/).
 
 ---
 
@@ -62,7 +62,7 @@ This document describes the system design of `emu8086-modern`. It is a living do
    │                                                   │
    ▼                                                   ▼
 ┌──────────────────┐                         ┌─────────────────────┐
-│ emu8086-cli      │                         │ emu8086-assembler   │
+│ modern8086-cli      │                         │ emu8086-assembler   │
 │ headless runner, │                         │ src.asm → image     │
 │ autograder       │                         │ dialects: emu8086,  │
 │                  │                         │ nasm                │
@@ -158,10 +158,10 @@ We use **Tauri** (Rust + system webview) to ship the web IDE as a desktop app. T
 ### 3.6 CLI / autograder (`packages/cli`)
 
 ```
-emu8086 assemble src.asm -o prog.bin
-emu8086 run prog.bin
-emu8086 trace src.asm --max-steps 1_000_000 --json > trace.json
-emu8086 grade --spec assignment.yml --submission student.asm
+m86 assemble src.asm -o prog.bin
+m86 run prog.bin
+m86 trace src.asm --max-steps 1_000_000 --json > trace.json
+m86 grade --spec assignment.yml --submission student.asm
 ```
 
 The `grade` subcommand is the institute integration point. Spec example:

@@ -9,11 +9,11 @@ export function CLI() {
     >
       <h3>Install</h3>
       <pre>
-        <code>{`npm install -g @emu8086/cli
+        <code>{`npm install -g @modern8086/cli
 # or
-brew install emu8086         # macOS
-scoop install emu8086         # Windows
-sudo apt install ./emu8086_*.deb   # Debian/Ubuntu`}</code>
+brew install m86         # macOS
+scoop install m86         # Windows
+sudo apt install ./m86_*.deb   # Debian/Ubuntu`}</code>
       </pre>
 
       <h3>Commands</h3>
@@ -23,27 +23,27 @@ sudo apt install ./emu8086_*.deb   # Debian/Ubuntu`}</code>
         </thead>
         <tbody>
           <tr>
-            <td><code>emu8086 run FILE</code></td>
+            <td><code>m86 run FILE</code></td>
             <td>Assemble and run; print final state to stdout.</td>
           </tr>
           <tr>
-            <td><code>emu8086 debug FILE</code></td>
+            <td><code>m86 debug FILE</code></td>
             <td>Interactive terminal stepper. Same key bindings as the IDE.</td>
           </tr>
           <tr>
-            <td><code>emu8086 assemble FILE -o OUT.bin</code></td>
+            <td><code>m86 assemble FILE -o OUT.bin</code></td>
             <td>Emit a raw binary, no execution.</td>
           </tr>
           <tr>
-            <td><code>emu8086 disassemble OUT.bin</code></td>
+            <td><code>m86 disassemble OUT.bin</code></td>
             <td>Roundtrip — print the listing for a binary.</td>
           </tr>
           <tr>
-            <td><code>emu8086 grade DIR --rubric R</code></td>
+            <td><code>m86 grade DIR --rubric R</code></td>
             <td>Run every <code>.asm</code> in <code>DIR</code> against <code>R</code>; emit a CSV.</td>
           </tr>
           <tr>
-            <td><code>emu8086 lint FILE</code></td>
+            <td><code>m86 lint FILE</code></td>
             <td>Static checks only — no execution; exit code reflects diagnostics.</td>
           </tr>
         </tbody>

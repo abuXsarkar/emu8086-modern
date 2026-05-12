@@ -1,6 +1,6 @@
 {
-  "name": "@emu8086/classroom-server",
-  "version": "1.0.0",
+  "name": "@modern8086/classroom-server",
+  "version": "1.1.0",
   "private": true,
   "description": "Classroom-mode WebSocket relay (Node + ws). Runtime-agnostic Room state machine paired with a Node entry point.",
   "license": "MIT",
@@ -35,8 +35,8 @@
     }
   },
   "bin": {
-    "emu8086-classroom-server": "dist/src/node.js",
-    "emu8086-classroom-gen-secret": "dist/src/gen-secret.js"
+    "modern8086-classroom-server": "dist/src/node.js",
+    "modern8086-classroom-gen-secret": "dist/src/gen-secret.js"
   },
   "scripts": {
     "build": "tsc -b",
@@ -48,7 +48,7 @@
     "gen-secret": "pnpm build && node dist/src/gen-secret.js"
   },
   "dependencies": {
-    "@emu8086/classroom-protocol": "workspace:*",
+    "@modern8086/classroom-protocol": "workspace:*",
     "ws": "^8.18.0"
   },
   "devDependencies": {

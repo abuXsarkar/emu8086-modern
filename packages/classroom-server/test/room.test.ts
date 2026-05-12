@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RoomMeta, ServerMsg } from "@emu8086/classroom-protocol";
+import type { RoomMeta, ServerMsg } from "@modern8086/classroom-protocol";
 import { Room, type Outbound } from "../src/room.js";
 
 const META: RoomMeta = {

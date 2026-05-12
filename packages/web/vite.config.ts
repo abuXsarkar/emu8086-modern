@@ -5,7 +5,7 @@ import { VitePWA } from "vite-plugin-pwa";
 
 // Public path the bundle will be served from. Defaults to "/" for the
 // dev server and self-host setups; the GitHub Pages workflow sets it
-// to "/emu8086-modern/" so the wasm fetch + PWA scope land at the
+// to "/modern8086/" so the wasm fetch + PWA scope land at the
 // right URL when the site is served from a sub-path. Custom-domain
 // deployments leave it at "/".
 const BASE = process.env.VITE_BASE ?? "/";
@@ -55,8 +55,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
       manifest: {
-        name: "emu8086-modern",
-        short_name: "emu8086",
+        name: "modern8086",
+        short_name: "modern8086",
         description:
           "Modern, open-source 8086 emulator and assembly IDE for students.",
         // Ink-blue brand accent — matches the IDE's --accent token so
