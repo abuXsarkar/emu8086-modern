@@ -81,6 +81,25 @@ install from source:
 cargo install --git https://github.com/abuXsarkar/modern8086 modern8085-cli
 ```
 
+#### Maintainer: cutting an m85 release
+
+`release-8085.yml` is wired but dormant. To ship `npm install -g
+@modern8085/cli@X.Y.Z`:
+
+```bash
+# Cut a tag from main once you're happy with the state of
+# packages/cli-8085 and the npm wrapper at packages/cli-npm-8085.
+git tag -a m85-v0.1.0 -m "m85 release 0.1.0"
+git push origin m85-v0.1.0
+```
+
+The workflow builds the binary for four targets
+(linux-x86_64, macos-x86_64, macos-aarch64, windows-x86_64),
+packages, and creates the GitHub Release. From that point the
+`@modern8085/cli` npm wrapper's postinstall starts fetching the
+correct asset automatically. The tag pattern keeps this independent
+of the 8086 release pipeline (`v*.*.*`).
+
 ### Desktop app
 
 Native windows that wrap the same web IDE. Single source,
