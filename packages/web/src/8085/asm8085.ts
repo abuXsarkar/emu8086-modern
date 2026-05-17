@@ -112,4 +112,53 @@ export function registerAsm8085(monacoInstance: typeof monaco): void {
       };
     },
   });
+
+  // Completion provider — when a student types the first letter(s)
+  // of a mnemonic, suggest the matching one(s) with the inline doc
+  // as detail. Saves the "what was the spelling again" pause that's
+  // common for the conditional-jump family (JNZ vs JNC vs JPO …).
+  // We surface mnemonics + register names + directives.
+  monacoInstance.languages.registerCompletionItemProvider(ASM_LANG_ID, {
+    provideCompletionItems(model, position) {
+      const word = model.getWordUntilPosition(position);
+      const range = new monacoInstance.Range(
+        position.lineNumber,
+        word.startColumn,
+        position.lineNumber,
+        word.endColumn,
+      );
+      const suggestions: monaco.languages.CompletionItem[] = [];
+
+      // Mnemonics + directives: pull docs so each suggestion's detail
+      // line shows the summary.
+      for (const m of [...MNEMONICS, ...DIRECTIVES]) {
+        const upper = m.toUpperCase();
+        const doc = OPCODE_DOCS[upper];
+        suggestions.push({
+          label: upper,
+          kind: DIRECTIVES.includes(m)
+            ? monacoInstance.languages.CompletionItemKind.Keyword
+            : monacoInstance.languages.CompletionItemKind.Function,
+          insertText: upper,
+          detail: doc?.summary ?? "",
+          documentation: doc ? { value: doc.detail } : undefined,
+          range,
+        });
+      }
+
+      // Registers: lower priority, only useful in operand position.
+      for (const r of REGISTERS) {
+        suggestions.push({
+          label: r.toUpperCase(),
+          kind: monacoInstance.languages.CompletionItemKind.Variable,
+          insertText: r.toUpperCase(),
+          detail: "register",
+          range,
+          sortText: "z" + r, // float them below mnemonics in the list
+        });
+      }
+
+      return { suggestions };
+    },
+  });
 }
