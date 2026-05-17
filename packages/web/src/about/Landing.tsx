@@ -88,6 +88,10 @@ export function Landing() {
             Read the docs
           </a>
           <span aria-hidden>·</span>
+          <a className="landing-footer-link" href="/8085/" title="Sibling tool — Intel 8085 IDE">
+            8085 IDE
+          </a>
+          <span aria-hidden>·</span>
           <a
             className="landing-footer-link"
             href="https://github.com/abuXsarkar/modern8086"
@@ -113,6 +117,9 @@ function TopBar() {
       </a>
       <nav className="landing-topbar-nav">
         <a href="/">Open the IDE</a>
+        <a href="/8085/" title="Sibling tool — Intel 8085 IDE">
+          8085 ↗
+        </a>
         <a
           href="https://github.com/abuXsarkar/modern8086"
           target="_blank"

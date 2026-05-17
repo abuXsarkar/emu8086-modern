@@ -813,6 +813,13 @@ export function App() {
               </option>
             ))}
           </select>
+          <a
+            className="sibling-chip"
+            href="/8085/"
+            title="Sibling IDE — Intel 8085 (same chassis, different ISA)"
+          >
+            🧪 8085 →
+          </a>
           <ClassroomPill />
         </div>
       </header>
