@@ -21,9 +21,6 @@
     clippy::module_name_repetitions
 )]
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::wasm_bindgen;
-
 pub mod alu;
 pub mod cpu;
 pub mod exec;
@@ -33,11 +30,9 @@ pub use cpu::{Cpu, Flags, Reg8, RegPair, StepRecord, StopReason};
 pub use exec::{run, step};
 pub use mem::{Memory, MEM_SIZE};
 
-/// Bootstrap probe used by the M0 hello-wasm path.
-///
-/// The web IDE calls this once on startup to verify the wasm module loaded
-/// and the JS↔Rust boundary is wired correctly.
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+/// Bootstrap probe. **Not** wasm-bindgen-exposed — that's the wasm-api
+/// crate's job. Re-exposing here would produce a duplicate-symbol
+/// link error when both crates end up in the same wasm binary.
 #[must_use]
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
