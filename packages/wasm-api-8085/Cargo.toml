@@ -1,0 +1,28 @@
+[package]
+name = "modern8085-wasm-api"
+description = "wasm-bindgen surface for the modern8085 web IDE — assemble, step, run, state."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false
+
+[dependencies]
+modern8085-core = { path = "../core-8085" }
+modern8085-assembler = { path = "../assembler-8085" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { workspace = true }

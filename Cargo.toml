@@ -9,6 +9,7 @@ members = [
     "packages/desktop",
     "packages/core-8085",
     "packages/assembler-8085",
+    "packages/wasm-api-8085",
 ]
 
 [workspace.package]
