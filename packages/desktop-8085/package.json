@@ -1,0 +1,17 @@
+{
+  "name": "@modern8086/desktop-8085",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Native desktop shell (Tauri 2) for the modern8085 web IDE.",
+  "license": "MIT",
+  "author": "Abu Sufian Sarkar <abu@cyberdude.com>",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "bundle": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}
