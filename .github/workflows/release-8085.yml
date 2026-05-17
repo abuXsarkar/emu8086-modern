@@ -1,0 +1,134 @@
+name: Release (m85)
+
+# Runs on `m85-v*.*.*` tags. Builds the modern8085-cli native binary
+# for four platforms, attaches them + a checksums.txt to a GitHub
+# Release.
+#
+# The trailing `-m85` infix in the tag pattern keeps this workflow
+# independent of the existing 8086 release pipeline (`release.yml`,
+# triggered by bare `v*.*.*` tags). The two never fight for runners.
+#
+# Tag flow:
+#   git tag -a m85-v0.1.0 -m "m85 release 0.1.0"
+#   git push origin m85-v0.1.0
+# The workflow creates / updates the GitHub Release automatically.
+#
+# Once a release exists, `@modern8085/cli`'s postinstall (the npm
+# wrapper at packages/cli-npm-8085) flips from "inert / log + exit 0"
+# to "download the asset for this platform" — the asset names below
+# match what scripts/install.js looks for.
+
+on:
+  push:
+    tags:
+      - "m85-v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build m85 (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            asset: m85-linux-x86_64.tar.gz
+            exe: m85
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            asset: m85-macos-x86_64.tar.gz
+            exe: m85
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            asset: m85-macos-aarch64.tar.gz
+            exe: m85
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            asset: m85-windows-x86_64.zip
+            exe: m85.exe
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: m85-${{ matrix.target }}
+      - name: Build
+        run: cargo build --release -p modern8085-cli --target ${{ matrix.target }}
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/${{ matrix.exe }} dist/${{ matrix.exe }}
+          cd dist
+          if [[ "${{ matrix.asset }}" == *.zip ]]; then
+            7z a "${{ matrix.asset }}" "${{ matrix.exe }}"
+          else
+            tar -czf "${{ matrix.asset }}" "${{ matrix.exe }}"
+          fi
+          rm "${{ matrix.exe }}"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          retention-days: 7
+
+  release:
+    name: Publish GitHub Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten + checksum
+        run: |
+          mkdir -p out
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} out/ \;
+          cd out
+          sha256sum * > checksums.txt
+          cat checksums.txt
+      - name: Read tag version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#m85-v}" >> "$GITHUB_OUTPUT"
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: m85 v${{ steps.ver.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          body: |
+            modern8085 CLI (`m85`) v${{ steps.ver.outputs.version }}.
+
+            Sibling release to modern8086 — separate tag scheme (`m85-v*`)
+            so the two release pipelines stay independent.
+
+            ### Install
+
+            ```bash
+            # Cross-platform via npm (Node 18+):
+            npm install -g @modern8085/cli@${{ steps.ver.outputs.version }}
+
+            # Or grab the platform-specific archive below and put the
+            # binary on your PATH.
+            ```
+
+            ### What this is
+
+            Headless 8085 assembler + executor. The same Rust core and
+            assembler that powers the web IDE at
+            https://modern8086.com/8085. Useful for autograding, CI
+            tests, and any scripted lab workflow.
+
+            See `packages/cli-8085/README.md` in the source tree for
+            full usage.
+          files: |
+            out/*
+          fail_on_unmatched_files: true
