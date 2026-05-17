@@ -304,6 +304,30 @@ HLT";
 }
 
 #[test]
+fn printer_hello_io_log() {
+    // Asserts that the printer "Hello!" example actually deposits the
+    // right bytes in cpu.io_log in the right order — the contract
+    // the JS-side Printer device depends on.
+    let src = "ORG 2000H
+LXI H, MSG
+LOOP: MOV A, M
+CPI 00H
+JZ DONE
+OUT 05H
+INX H
+JMP LOOP
+DONE: HLT
+MSG: DB 'Hello!'
+DB 0AH
+DB 00H";
+    let (_, cpu) = run(src, &[]);
+    let bytes: Vec<u8> = cpu.io_log.iter().map(|(_p, b)| *b).collect();
+    let ports: Vec<u8> = cpu.io_log.iter().map(|(p, _b)| *p).collect();
+    assert_eq!(bytes, b"Hello!\n", "printer should see 'Hello!\\n'");
+    assert!(ports.iter().all(|&p| p == 5), "all writes go to port 5");
+}
+
+#[test]
 fn factorial_of_five() {
     let src = "ORG 2000H
 LDA 2050H

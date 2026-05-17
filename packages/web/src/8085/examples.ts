@@ -654,6 +654,66 @@ DIGITS: DB 3FH               ; 0
 `,
     sourceUrl: "modern8085 — original example for the IO-port device demo",
   },
+
+  {
+    name: "Device: print \"Hello\" on the printer (port 05H)",
+    description:
+      "Walks a DB string and writes each byte to port 05H. The printer device captures every OUT via the io_log so successive identical bytes (the two 'l's) aren't lost. Try Slow run to watch the tape grow one character at a time.",
+    source: `; Print "Hello!" to the printer device on port 05H.
+        ORG  2000H
+        LXI  H, MSG
+LOOP:   MOV  A, M
+        CPI  00H            ; null terminator?
+        JZ   DONE
+        OUT  05H            ; printer port
+        INX  H
+        JMP  LOOP
+DONE:   HLT
+
+MSG:    DB 'Hello!'
+        DB 0AH               ; newline
+        DB 00H               ; null terminator
+`,
+    sourceUrl: "modern8085 — original example for the printer device",
+  },
+
+  {
+    name: "Device: stepper motor full-step CW (port 04H)",
+    description:
+      "Cycles the standard 1-2 phase pattern 03H, 06H, 0CH, 09H, … on port 04H. The Stepper device shows the rotor pointing through eight angles as it walks. Crawl + auto-run is the best speed to follow.",
+    source: `; Stepper motor full-step CW on port 04H.
+; Pattern 03, 06, 0C, 09 → repeat. Delay between steps keeps the
+; rotor visible on the Slow / Crawl run speeds.
+
+        ORG  2000H
+        LXI  H, STEPS
+        MVI  C, 14H          ; 20 steps total (5 full revolutions)
+LOOP:   MOV  A, M
+        OUT  04H             ; stepper port
+        CALL DELAY
+        INX  H
+        DCR  C
+        JNZ  CHECK
+        JMP  DONE
+CHECK:  MOV  A, L
+        CPI  STEPS_END
+        JNZ  LOOP
+        LXI  H, STEPS         ; wrap
+        JMP  LOOP
+DONE:   HLT
+
+DELAY:  LXI  D, 0FFFFH
+DLOOP:  DCX  D
+        MOV  A, D
+        ORA  E
+        JNZ  DLOOP
+        RET
+
+STEPS:  DB 03H, 06H, 0CH, 09H
+STEPS_END EQU 04H            ; low byte of the next address (rough wrap)
+`,
+    sourceUrl: "modern8085 — original example for the stepper device",
+  },
 ];
 
 /// Default source the IDE shows when nothing is stored in localStorage.

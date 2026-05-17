@@ -14,6 +14,8 @@ import { SevenSegment } from "./devices/SevenSegment";
 import { TrafficLight } from "./devices/TrafficLight";
 import { LedBar } from "./devices/LedBar";
 import { HexKeypad } from "./devices/HexKeypad";
+import { Stepper } from "./devices/Stepper";
+import { Printer } from "./devices/Printer";
 
 const STORAGE_KEY = "modern8085.source";
 const THEME_KEY = "modern8085.editor-theme";
@@ -133,6 +135,35 @@ export function App() {
   /// Hex keypad writes to port 03H by default. Students read with
   /// `IN 03H` to get the last pressed key.
   const [keypadPort, setKeypadPort] = useState<number>(0x03);
+  /// Stepper motor watches port 04H.
+  const [stepperPort, setStepperPort] = useState<number>(0x04);
+  /// Printer port 05H — captures every OUT byte to its port via the
+  /// io_log drain (no lost repeats). Buffer persists across Step
+  /// ticks; Reset / clear button wipes it.
+  const [printerPort, setPrinterPort] = useState<number>(0x05);
+  const [printerBuffer, setPrinterBuffer] = useState<string>("");
+
+  /// Drain the wasm io_log and append printer-port bytes to the
+  /// printer buffer. Called from every place that updates emu state
+  /// (step, run loop, slow tick) so the printer keeps up with the
+  /// program in any speed.
+  const drainIo = useCallback(() => {
+    const emu = emuRef.current;
+    if (!emu) return;
+    const log = emu.drain_io_log();
+    if (log.length === 0) return;
+    let appended = "";
+    for (let i = 0; i + 3 < log.length; i += 4) {
+      const port = parseInt(log.slice(i, i + 2), 16);
+      const byte = parseInt(log.slice(i + 2, i + 4), 16);
+      if (port === printerPort) {
+        appended += byte >= 0x20 && byte < 0x7F ? String.fromCharCode(byte) : ".";
+      }
+    }
+    if (appended.length > 0) {
+      setPrinterBuffer((b) => (b + appended).slice(-4096));
+    }
+  }, [printerPort]);
 
   const portValueAt = useCallback(
     (port: number) => parseInt(portsHex.slice(port * 2, port * 2 + 2), 16) || 0,
@@ -253,6 +284,7 @@ export function App() {
       if (emu) {
         setMemHex(emu.mem(memBase, 64));
         setPortsHex(emu.ports(0, 256));
+        drainIo();
       }
     } catch (err) {
       setDiag(`internal: failed to parse state — ${String(err)}`);
@@ -394,6 +426,7 @@ export function App() {
         highlightCurrentLine();
         setMemHex(emu.mem(memBase, 64));
         setPortsHex(emu.ports(0, 256));
+        drainIo();
         if (state.halted || (state.last_stop && state.last_stop !== "BudgetExhausted")) {
           break;
         }
@@ -474,6 +507,8 @@ export function App() {
     setMemHex("");
     setReg(null);
     setStepCount(0);
+    setPortsHex("00".repeat(256));
+    setPrinterBuffer("");
     decorationsRef.current = editorRef.current?.deltaDecorations(decorationsRef.current, []) ?? [];
   }, []);
 
@@ -921,16 +956,24 @@ export function App() {
               <SevenSegment value={portValueAt(sevenSegPort)} port={sevenSegPort} />
               <TrafficLight value={portValueAt(trafficPort)} port={trafficPort} />
               <LedBar value={portValueAt(ledBarPort)} port={ledBarPort} />
+              <Stepper value={portValueAt(stepperPort)} port={stepperPort} />
               <HexKeypad
                 port={keypadPort}
                 onPress={(v) => {
                   const emu = emuRef.current;
                   if (!emu) return;
                   emu.poke_port(keypadPort, v);
-                  // Refresh the ports snapshot so any device pointed at the
-                  // same port reflects the new value immediately.
+                  // Refresh the ports snapshot so any device pointed
+                  // at the same port reflects the new value
+                  // immediately. (keypad writes don't produce an io
+                  // log entry — only OUT does — so no drain needed.)
                   setPortsHex(emu.ports(0, 256));
                 }}
+              />
+              <Printer
+                port={printerPort}
+                buffer={printerBuffer}
+                onClear={() => setPrinterBuffer("")}
               />
             </div>
             <details className="devices-config">
@@ -938,7 +981,9 @@ export function App() {
               <PortInput label="7-seg" value={sevenSegPort} onChange={setSevenSegPort} />
               <PortInput label="traffic" value={trafficPort} onChange={setTrafficPort} />
               <PortInput label="LED bar" value={ledBarPort} onChange={setLedBarPort} />
+              <PortInput label="stepper" value={stepperPort} onChange={setStepperPort} />
               <PortInput label="keypad" value={keypadPort} onChange={setKeypadPort} />
+              <PortInput label="printer" value={printerPort} onChange={setPrinterPort} />
             </details>
           </div>
 

@@ -373,6 +373,20 @@ impl Emulator {
         self.cpu.ports[(addr & 0xFF) as usize] = (value & 0xFF) as u8;
     }
 
+    /// Drain the IO log and return every `(port, byte)` pair the
+    /// program OUT'd since the previous drain. Encoded as a flat hex
+    /// string of `PPVV` pairs — JS slices in pairs of 4 chars.
+    /// Empties the log on the Rust side.
+    #[must_use]
+    pub fn drain_io_log(&mut self) -> String {
+        let mut s = String::with_capacity(self.cpu.io_log.len() * 4);
+        for (port, byte) in self.cpu.io_log.drain(..) {
+            use std::fmt::Write;
+            let _ = write!(&mut s, "{port:02X}{byte:02X}");
+        }
+        s
+    }
+
     /// Override PC (rarely needed; the IDE uses this only when the
     /// student manually moves the run cursor).
     pub fn set_pc(&mut self, value: u32) {

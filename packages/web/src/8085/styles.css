@@ -495,6 +495,41 @@ body.dark .keypad-key-active {
   border-color: #93c5fd;
 }
 
+.stepper-svg {
+  background: rgba(0,0,0,0.04);
+  border-radius: 6px;
+}
+body.dark .stepper-svg { background: rgba(255,255,255,0.04); }
+
+.printer-tape {
+  width: 100%;
+  min-height: 40px;
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: 11px;
+  background: #fffef7;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+body.dark .printer-tape { background: #1a2538; border-color: #2a3a55; }
+.printer-empty { color: #9ca3af; font-style: italic; }
+.printer-clear {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid #c5beae;
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 10px;
+  cursor: pointer;
+  color: inherit;
+}
+body.dark .printer-clear { border-color: #2a3a55; }
+.device-label { display: flex; align-items: center; gap: 6px; width: 100%; }
+
 .sym-list { font-size: 11px; }
 .sym-row {
   display: flex;

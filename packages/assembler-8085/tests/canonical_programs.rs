@@ -479,6 +479,25 @@ HLT",
 }
 
 #[test]
+fn printer_hello() {
+    assert_ok(
+        "printer hello",
+        "ORG 2000H
+LXI H, MSG
+LOOP: MOV A, M
+CPI 00H
+JZ DONE
+OUT 05H
+INX H
+JMP LOOP
+DONE: HLT
+MSG: DB 'Hello!'
+DB 0AH
+DB 00H",
+    );
+}
+
+#[test]
 fn seven_segment_count_up() {
     // The Device example from src/8085/examples.ts — drives a
     // seven-segment display on port 00H with digits 0..9.
