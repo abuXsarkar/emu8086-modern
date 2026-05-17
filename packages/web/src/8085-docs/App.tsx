@@ -200,7 +200,12 @@ export function App() {
                       <tr key={m}>
                         <td className="docs-mnem-name mono">{m}</td>
                         <td>
-                          <div className="docs-mnem-sum">{d.summary}</div>
+                          <div className="docs-mnem-sum">
+                            {d.summary}
+                            {d.cycles && (
+                              <span className="docs-mnem-cycles mono"> · {d.cycles} T-states</span>
+                            )}
+                          </div>
                           <div className="docs-mnem-det">{d.detail}</div>
                         </td>
                       </tr>
