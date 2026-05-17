@@ -6,6 +6,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added — `/8051/` sibling tool
+
+A third IDE for the Intel 8051, deployed at
+[modern8086.com/8051](https://modern8086.com/8051) as a sibling under
+the same chassis. Same Monaco shell, design system, classroom relay,
+i18n, and deploy pipeline; distinct ISA core since the 8051 is a
+3-space microcontroller (256-byte IDATA + 64 KiB XDATA + 64 KiB CODE,
+8 PSW bits, register banks, bit-addressable space).
+
+Shipped across PRs #138–#149:
+
+- **Rust core** — Cpu / Psw / Memory data model + 256-opcode decoder
+  + executor. Bank-aware R0–R7 access via PSW.RS1:RS0. SFR mirror for
+  direct addressing of `ACC` / `B` / `DPTR` / `SP` / `PSW`. P0..P3
+  writes logged into `io_log` to drive the IDE's device pane.
+- **Assembler** — Keil A51 / ASEM-51 canonical dialect with a 5-rule
+  tolerance preprocessor (Keil ⇄ SDCC asx8051 ⇄ AS31 ⇄ TASM ⇄ lab-
+  manual PDFs all assemble first try). Two-pass encoder with full ISA
+  including bit ops, MOVC look-up tables, AJMP / ACALL paging.
+  `MOV DPTR, #LABEL` resolves at encode time so the canonical look-up
+  table idiom works.
+- **WASM API** — `Emulator` class with the same `load` / `step` / `run`
+  / `state` / mem / `poke` / `drain_io_log` shape as the 8085 wasm.
+  `state()` exposes A, B, DPTR, SP, PC + all 8 PSW bits + the active
+  bank R[0..7] (so the IDE doesn't have to do bank math). 3-space
+  memory accessors: `idata`, `xdata`, `code`.
+- **Web IDE** (`/8051/`) — Monaco with 8051 Monarch language + hover
+  docs (cycle counts), full register pane, PSW chips, 3-space memory
+  inspector with toggle, examples dropdown with auto-IDATA / XDATA
+  preload, I/O activity log, share-via-URL, breakpoints by PC,
+  active-line highlight, diff-flash on changed cells.
+- **Devices panel** — Same 8 trainer-kit primitives the 8085 ships
+  (7-seg, traffic light, LED bar, hex keypad, stepper, printer,
+  screen, robot), rebound to P0..P3 SFRs via per-device PortSelect.
+- **Tutorials** — 4 progressive walkthroughs (Hello, Add two, DJNZ
+  loop, Drive a port). Progress saves per-lesson in localStorage.
+- **Landing** (`/8051/about/`) — 8 marketing slides: Hero / For
+  students / 8 live devices / Pedagogy / Classroom / Share + save /
+  Family / Credits.
+- **Docs** (`/8051/docs/`) — full mnemonic reference + example list
+  + CLI walkthrough sourced from `asm8051_docs.ts` and `examples.ts`.
+- **CLI** — `m51` binary with `version`, `assemble`, and `run`
+  subcommands. `--poke` and `--mem-dump` understand the 3 memory
+  spaces (`idata:30=AA`, `xdata:2000,16`, `code:0,32`). Exit codes
+  match the m85 pipeline so autograders work unchanged.
+- **npm wrapper** — `@modern8086/cli-8051` (under the existing scope;
+  `@modern8051` is taken on npm). Pre-tag inert; postinstall flips on
+  once `m51-v*` is tagged.
+- **Release pipeline** — `release-8051.yml` on `m51-v*.*.*` tags
+  (independent of 8086 / 8085 pipelines). Four-target matrix +
+  GitHub Release attach.
+- **Distribution templates** — Homebrew formula, Scoop manifest,
+  Chocolatey nuspec, all filled by `generate-m51-manifests.sh` from
+  the live `checksums.txt` of any tagged release.
+- **i18n** — 13 locales (en + 12 Indian + es) via the shared
+  `LOCALES` registry; preference persists in localStorage.
+- **Classroom mode** — Same Cloudflare Worker relay the 8086 and
+  8085 IDEs use. Pill in the header; layer mounts on top of the IDE.
+
 ### Added — `/8085/` sibling tool
 
 A second IDE for the Intel 8085, deployed at
