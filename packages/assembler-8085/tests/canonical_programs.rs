@@ -477,3 +477,38 @@ STORE: STA 3050H
 HLT",
     );
 }
+
+#[test]
+fn seven_segment_count_up() {
+    // The Device example from src/8085/examples.ts — drives a
+    // seven-segment display on port 00H with digits 0..9.
+    assert_ok(
+        "7-seg count-up",
+        "ORG 2000H
+LXI H, DIGITS
+MVI B, 0AH
+NEXT: MOV A, M
+OUT 00H
+CALL DELAY
+INX H
+DCR B
+JNZ NEXT
+HLT
+DELAY: LXI D, 0FFFFH
+DLOOP: DCX D
+MOV A, D
+ORA E
+JNZ DLOOP
+RET
+DIGITS: DB 3FH
+DB 06H
+DB 5BH
+DB 4FH
+DB 66H
+DB 6DH
+DB 7DH
+DB 07H
+DB 7FH
+DB 6FH",
+    );
+}

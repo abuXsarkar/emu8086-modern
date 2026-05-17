@@ -611,6 +611,49 @@ COPY:   POP  D
     sourceUrl:
       "https://www.geeksforgeeks.org/8085-program-to-copy-a-source-block-to-destination-block-with-overlapping-memory-address/",
   },
+
+  {
+    name: "Device: count 0–9 on seven-segment (port 00H)",
+    description:
+      "Walks a digit pattern table and writes it to port 00H with a delay between each. Watch the Devices panel — the seven-segment cycles 0,1,2,…,9 then halts. Switch the Run speed to Slow to see the digits change one at a time.",
+    source: `; Drive the seven-segment display on port 00H with digits 0..9.
+; The DIGITS table holds the standard a..g bit patterns; the
+; delay loop is short enough to be watchable on the Crawl run
+; speed and short enough not to bore on Fast.
+
+        ORG  2000H
+        LXI  H, DIGITS
+        MVI  B, 0AH         ; ten digits
+NEXT:   MOV  A, M
+        OUT  00H            ; drive seven-seg on port 00
+        CALL DELAY
+        INX  H
+        DCR  B
+        JNZ  NEXT
+        HLT
+
+; Small delay subroutine — DCX D until DE wraps to 0
+DELAY:  LXI  D, 0FFFFH
+DLOOP:  DCX  D
+        MOV  A, D
+        ORA  E
+        JNZ  DLOOP
+        RET
+
+; Bit→segment: bit0=a bit1=b bit2=c bit3=d bit4=e bit5=f bit6=g bit7=dp
+DIGITS: DB 3FH               ; 0
+        DB 06H               ; 1
+        DB 5BH               ; 2
+        DB 4FH               ; 3
+        DB 66H               ; 4
+        DB 6DH               ; 5
+        DB 7DH               ; 6
+        DB 07H               ; 7
+        DB 7FH               ; 8
+        DB 6FH               ; 9
+`,
+    sourceUrl: "modern8085 — original example for the IO-port device demo",
+  },
 ];
 
 /// Default source the IDE shows when nothing is stored in localStorage.

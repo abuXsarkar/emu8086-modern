@@ -11,6 +11,8 @@ import { ClassroomLayer, ClassroomPill } from "../classroom/ClassroomPanel";
 import { useClassroomEditor } from "../classroom/useClassroomEditor";
 import { LOCALES, useLocaleId, useStrings } from "../i18n";
 import { SevenSegment } from "./devices/SevenSegment";
+import { TrafficLight } from "./devices/TrafficLight";
+import { LedBar } from "./devices/LedBar";
 
 const STORAGE_KEY = "modern8085.source";
 const THEME_KEY = "modern8085.editor-theme";
@@ -123,6 +125,15 @@ export function App() {
   /// Which port the seven-segment listens on. Default 00H matches
   /// the textbook lab exercise "drive a 7-seg from OUT 00H".
   const [sevenSegPort, setSevenSegPort] = useState<number>(0x00);
+  /// Traffic-light listens on port 01H by default.
+  const [trafficPort, setTrafficPort] = useState<number>(0x01);
+  /// LED bar listens on port 02H by default.
+  const [ledBarPort, setLedBarPort] = useState<number>(0x02);
+
+  const portValueAt = useCallback(
+    (port: number) => parseInt(portsHex.slice(port * 2, port * 2 + 2), 16) || 0,
+    [portsHex],
+  );
   const [memRadix, setMemRadix] = useState<"hex" | "dec" | "ascii">("hex");
   /// Count of explicit Step clicks since the last Reset / Run / Load /
   /// Example pick. Powers the ↶ Back button — replaying N-1 steps from
@@ -901,38 +912,18 @@ export function App() {
           </div>
 
           <div className="ide-panel">
-            <h2 className="ide-panel-h">
-              Devices
-              <span className="ide-panel-controls">
-                <span className="ide-tiny mono" style={{ opacity: 0.7 }}>
-                  port&nbsp;
-                </span>
-                <input
-                  type="text"
-                  className="mono"
-                  value={sevenSegPort.toString(16).toUpperCase().padStart(2, "0") + "H"}
-                  onChange={(e) => {
-                    const cleaned = e.target.value.replace(/[^0-9A-Fa-f]/g, "");
-                    const v = parseInt(cleaned, 16);
-                    if (!isNaN(v)) setSevenSegPort(v & 0xFF);
-                  }}
-                  style={{
-                    fontSize: 11,
-                    width: 42,
-                    padding: "1px 4px",
-                    border: "1px solid #c5beae",
-                    borderRadius: 3,
-                  }}
-                />
-              </span>
-            </h2>
-            <SevenSegment
-              value={parseInt(portsHex.slice(sevenSegPort * 2, sevenSegPort * 2 + 2), 16) || 0}
-              port={sevenSegPort}
-            />
-            <p className="ide-tiny mono">
-              <code>OUT {sevenSegPort.toString(16).toUpperCase().padStart(2, "0")}H</code> to drive
-            </p>
+            <h2 className="ide-panel-h">Devices</h2>
+            <div className="devices-stack">
+              <SevenSegment value={portValueAt(sevenSegPort)} port={sevenSegPort} />
+              <TrafficLight value={portValueAt(trafficPort)} port={trafficPort} />
+              <LedBar value={portValueAt(ledBarPort)} port={ledBarPort} />
+            </div>
+            <details className="devices-config">
+              <summary className="ide-tiny">configure ports ▾</summary>
+              <PortInput label="7-seg" value={sevenSegPort} onChange={setSevenSegPort} />
+              <PortInput label="traffic" value={trafficPort} onChange={setTrafficPort} />
+              <PortInput label="LED bar" value={ledBarPort} onChange={setLedBarPort} />
+            </details>
           </div>
 
           {symbols.length > 0 && (
@@ -1075,5 +1066,31 @@ export function App() {
 
       <ClassroomLayer currentSource={source} />
     </div>
+  );
+}
+
+function PortInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="port-input-row">
+      <span className="ide-tiny">{label}</span>
+      <input
+        type="text"
+        className="mono"
+        value={value.toString(16).toUpperCase().padStart(2, "0") + "H"}
+        onChange={(e) => {
+          const cleaned = e.target.value.replace(/[^0-9A-Fa-f]/g, "");
+          const v = parseInt(cleaned, 16);
+          if (!isNaN(v)) onChange(v & 0xFF);
+        }}
+      />
+    </label>
   );
 }
