@@ -48,6 +48,18 @@ body.dark .brand-strong { color: #93c5fd; }
   cursor: pointer;
   font-size: 13px;
 }
+
+.ide-locale {
+  font: inherit;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 6px;
+  background: transparent;
+  padding: 4px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  color: inherit;
+}
+body.dark .ide-locale { border-color: #2a3a55; }
 body.dark .ide-theme-toggle { border-color: #2a3a55; color: inherit; }
 
 .ide-main {

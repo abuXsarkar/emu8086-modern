@@ -7,6 +7,9 @@ import init, { Emulator } from "../../../wasm-api-8085/pkg/modern8085_wasm_api.j
 import { ASM_LANG_ID, registerAsm8085 } from "./asm8085";
 import { OPCODE_DOCS } from "./asm8085_docs";
 import { DEFAULT_SOURCE, EXAMPLES, type Example } from "./examples";
+import { ClassroomLayer, ClassroomPill } from "../classroom/ClassroomPanel";
+import { useClassroomEditor } from "../classroom/useClassroomEditor";
+import { LOCALES, useLocaleId, useStrings } from "../i18n";
 
 const STORAGE_KEY = "modern8085.source";
 const THEME_KEY = "modern8085.editor-theme";
@@ -89,7 +92,15 @@ const REGS_8 = ["a", "b", "c", "d", "e", "h", "l"] as const;
 const FLAGS = ["s", "z", "ac", "p", "cy"] as const;
 
 export function App() {
+  const t = useStrings();
+  const [localeId, setLocaleIdValue] = useLocaleId();
   const [source, setSource] = useState<string>(initialSource);
+  // Classroom hook syncs `source` to/from the shared session when a
+  // teacher is broadcasting. readOnly goes true on a student whose
+  // editor the teacher has handed control to (or that hasn't been
+  // granted control yet). Same chassis as the 8086 IDE — the
+  // protocol doesn't care about the ISA, it just relays text.
+  const { readOnly: classroomReadOnly } = useClassroomEditor(source, setSource);
   const [coreState, setCoreState] = useState<CoreState>({ kind: "loading" });
   const [reg, setReg] = useState<RegState | null>(null);
   /// The previous register snapshot — used to compute which cells
@@ -593,6 +604,18 @@ export function App() {
           >
             source
           </a>
+          <select
+            className="ide-locale"
+            aria-label={t.languageLabel}
+            value={localeId}
+            onChange={(e) => setLocaleIdValue(e.target.value as typeof localeId)}
+            title={t.languageLabel}
+          >
+            {LOCALES.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+          <ClassroomPill />
           <button
             type="button"
             className="ide-theme-toggle"
@@ -605,7 +628,7 @@ export function App() {
           <button
             type="button"
             className="ide-theme-toggle"
-            onClick={() => setTheme((t) => (t === "vs" ? "vs-dark" : "vs"))}
+            onClick={() => setTheme((th) => (th === "vs" ? "vs-dark" : "vs"))}
             aria-label="Toggle dark mode"
           >
             {theme === "vs" ? "🌙" : "☀️"}
@@ -639,7 +662,7 @@ export function App() {
               title="Ctrl/Cmd+Enter"
               disabled={coreState.kind !== "ready" || running}
             >
-              {running ? "Running…" : "▶ Run"}
+              {running ? t.running : `▶ ${t.run}`}
             </button>
             {running && (
               <button type="button" className="ide-btn ide-btn-warning" onClick={doAbort}>
@@ -653,7 +676,7 @@ export function App() {
               title="Ctrl/Cmd+."
               disabled={coreState.kind !== "ready" || running}
             >
-              ⤵ Step
+              ⤵ {t.step}
             </button>
             <button
               type="button"
@@ -670,7 +693,7 @@ export function App() {
               onClick={doReset}
               disabled={coreState.kind !== "ready" || running}
             >
-              ⟲ Reset
+              ⟲ {t.reset}
             </button>
             <button
               type="button"
@@ -755,6 +778,7 @@ export function App() {
                 scrollBeyondLastLine: false,
                 wordWrap: "off",
                 automaticLayout: true,
+                readOnly: classroomReadOnly,
               }}
             />
           </div>
@@ -781,7 +805,7 @@ export function App() {
                 </div>
               </div>
             ) : (
-              <p className="ide-muted">Load a program to see registers.</p>
+              <p className="ide-muted">{t.noRegistersYet}</p>
             )}
           </div>
 
@@ -913,7 +937,7 @@ export function App() {
 
           {coreState.kind === "loading" && (
             <div className="ide-panel">
-              <p className="ide-muted">Loading 8085 core…</p>
+              <p className="ide-muted">{t.loadingWasm}</p>
             </div>
           )}
           {coreState.kind === "error" && (
@@ -998,6 +1022,8 @@ export function App() {
           </div>
         </div>
       )}
+
+      <ClassroomLayer currentSource={source} />
     </div>
   );
 }
