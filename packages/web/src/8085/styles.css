@@ -371,19 +371,53 @@ body.dark .ide-mem-base input { background: #1a2538; border-color: #2a3a55; colo
 .mem-cell { padding: 2px; text-align: center; background: rgba(0,0,0,0.04); border-radius: 3px; }
 body.dark .mem-cell { background: rgba(255,255,255,0.05); }
 
-.sevenseg-wrap {
+.devices-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  padding: 4px 0 10px;
+}
+.devices-config {
+  border-top: 1px dashed rgba(0,0,0,0.08);
+  padding-top: 8px;
+}
+body.dark .devices-config { border-top-color: rgba(255,255,255,0.08); }
+.devices-config summary { cursor: pointer; color: #6b7280; }
+body.dark .devices-config summary { color: #94a3b8; }
+.port-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 4px;
+}
+.port-input-row input {
+  font-size: 11px;
+  width: 48px;
+  padding: 1px 4px;
+  border: 1px solid #c5beae;
+  border-radius: 3px;
+  font-family: "Geist Mono", monospace;
+}
+body.dark .port-input-row input {
+  background: #1a2538;
+  border-color: #2a3a55;
+  color: inherit;
+}
+
+.device-wrap, .sevenseg-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 6px 0;
 }
-.sevenseg-label {
+.device-label, .sevenseg-label {
   font-size: 10px;
   color: #6b7280;
   letter-spacing: 0.04em;
 }
-body.dark .sevenseg-label { color: #94a3b8; }
+body.dark .device-label, body.dark .sevenseg-label { color: #94a3b8; }
 .sevenseg-svg {
   background: #f5f0e6;
   border: 1px solid #d1d5db;
@@ -393,6 +427,38 @@ body.dark .sevenseg-label { color: #94a3b8; }
 body.dark .sevenseg-svg {
   background: #1a2538;
   border-color: #2a3a55;
+}
+
+.traffic-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #1f2937;
+  padding: 6px;
+  border-radius: 6px;
+}
+.traffic-bulb {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  transition: background 80ms ease;
+}
+
+.ledbar-row {
+  display: flex;
+  gap: 3px;
+  background: rgba(0,0,0,0.06);
+  padding: 5px 6px;
+  border-radius: 4px;
+}
+body.dark .ledbar-row { background: rgba(255,255,255,0.05); }
+.ledbar-led {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  transition: background 80ms ease;
 }
 
 .sym-list { font-size: 11px; }
