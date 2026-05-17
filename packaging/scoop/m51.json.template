@@ -1,0 +1,28 @@
+{
+  "$comment": "Scoop manifest for the modern8051 CLI on Windows. Lives in the maintainer's Scoop bucket repo (abuXsarkar/scoop-modern8086, file `bucket/m51.json`). This in-repo file is a template — packaging/scripts/generate-distribution-manifests.sh fills VERSION_M51 + SHA256_M51_WINDOWS_X86_64 from the just-built release zip.",
+  "version": "{{VERSION_M51}}",
+  "description": "Headless Intel 8051 runner — assembler + executor for autograding.",
+  "homepage": "https://modern8086.com/8051",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/abuXsarkar/modern8086/releases/download/m51-v{{VERSION_M51}}/m51-windows-x86_64.zip",
+      "hash": "{{SHA256_M51_WINDOWS_X86_64}}"
+    }
+  },
+  "bin": "m51.exe",
+  "checkver": {
+    "github": "https://github.com/abuXsarkar/modern8086",
+    "regex": "m51-v([\\d.]+)"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/abuXsarkar/modern8086/releases/download/m51-v$version/m51-windows-x86_64.zip"
+      }
+    },
+    "hash": {
+      "url": "$baseurl/checksums.txt"
+    }
+  }
+}

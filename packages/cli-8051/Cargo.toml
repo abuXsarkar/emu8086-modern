@@ -1,0 +1,27 @@
+[package]
+name = "modern8051-cli"
+description = "Headless Intel 8051 runner — assemble and execute 8051 programs from the command line."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+
+[[bin]]
+name = "m51"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+modern8051-core = { path = "../core-8051" }
+modern8051-assembler = { path = "../assembler-8051" }
+
+[lints.clippy]
+needless_pass_by_value = "allow"
+ptr_arg = "allow"

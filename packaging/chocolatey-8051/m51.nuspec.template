@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chocolatey nuspec for the modern8051 CLI.
+
+  After packaging/scripts/generate-distribution-manifests.sh fills
+  VERSION_M51, the package is built with:
+
+    cd target/packaging/chocolatey-8051
+    choco pack
+    choco push m51.<version>.nupkg --source https://push.chocolatey.org/ \
+      --api-key $env:CHOCO_API_KEY
+
+  First push triggers Chocolatey's moderation review (1–3 days for
+  new maintainers; instant once trusted). Update tools/chocolateyinstall.ps1
+  if the release artifact name changes.
+-->
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>m51</id>
+    <version>{{VERSION_M51}}</version>
+    <title>modern8051 CLI</title>
+    <authors>Abu Sufian Sarkar</authors>
+    <owners>abuXsarkar</owners>
+    <projectUrl>https://modern8086.com/8051</projectUrl>
+    <licenseUrl>https://github.com/abuXsarkar/modern8086/blob/main/LICENSE</licenseUrl>
+    <packageSourceUrl>https://github.com/abuXsarkar/modern8086/tree/main/packaging/chocolatey-8051</packageSourceUrl>
+    <bugTrackerUrl>https://github.com/abuXsarkar/modern8086/issues</bugTrackerUrl>
+    <docsUrl>https://modern8086.com/8051/docs/</docsUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Headless Intel 8051 runner — assembles, runs, and traces 8051 assembly programs from the command line. The native CLI from the modern8051 emulator and assembly IDE. Useful for autograding, CI, and lab-submission scripts.</description>
+    <summary>Headless Intel 8051 runner for modern8051.</summary>
+    <releaseNotes>https://github.com/abuXsarkar/modern8086/releases/tag/m51-v{{VERSION_M51}}</releaseNotes>
+    <copyright>© Abu Sufian Sarkar. MIT-licensed.</copyright>
+    <tags>8051 intel-8051 assembly emulator cli autograder education</tags>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

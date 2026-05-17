@@ -1,0 +1,48 @@
+# Homebrew formula for the modern8051 CLI (`m51`).
+#
+# Lives in the maintainer's Homebrew tap repo
+# (`abuXsarkar/homebrew-modern8086`, file path `Formula/m51.rb`).
+# This in-repo copy is a template — `packaging/scripts/generate-distribution-manifests.sh`
+# fills in the version and per-platform SHA-256 sums from the just-built
+# release artifacts and emits a copy-pasteable `m51.rb` in
+# `target/packaging/`.
+#
+# After the script runs, drop the generated file into the tap repo's
+# `Formula/` directory, commit, push. Users then install with:
+#
+#   brew tap abuxsarkar/modern8086
+#   brew install m51
+#
+# Subsequent versions: re-run the generator after each `m51-v*` release tag.
+class M51 < Formula
+  desc "Headless 8051 runner — Intel 8051 assembler + executor for autograding"
+  homepage "https://modern8086.com/8051"
+  version "{{VERSION_M51}}"
+  license "MIT"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/abuXsarkar/modern8086/releases/download/m51-v#{version}/m51-macos-aarch64.tar.gz"
+      sha256 "{{SHA256_M51_MACOS_AARCH64}}"
+    end
+    on_intel do
+      url "https://github.com/abuXsarkar/modern8086/releases/download/m51-v#{version}/m51-macos-x86_64.tar.gz"
+      sha256 "{{SHA256_M51_MACOS_X86_64}}"
+    end
+  end
+
+  on_linux do
+    on_intel do
+      url "https://github.com/abuXsarkar/modern8086/releases/download/m51-v#{version}/m51-linux-x86_64.tar.gz"
+      sha256 "{{SHA256_M51_LINUX_X86_64}}"
+    end
+  end
+
+  def install
+    bin.install "m51"
+  end
+
+  test do
+    assert_match(/m51/, shell_output("#{bin}/m51 version"))
+  end
+end
