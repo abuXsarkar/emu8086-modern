@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1E3A8A" />
+    <meta name="description" content="modern8051 docs — quick-start, dialect notes, full 8051 mnemonic reference, CLI usage." />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
+    <title>modern8051 — Docs</title>
+    <script>
+      (function () {
+        try {
+          var v = localStorage.getItem("modern8051.editor-theme")
+            || localStorage.getItem("modern8086.editor-theme");
+          if (v === "vs-dark") document.body && document.body.classList.add("dark");
+          if (!document.body) {
+            document.addEventListener("DOMContentLoaded", function () {
+              var v2 = localStorage.getItem("modern8051.editor-theme")
+                || localStorage.getItem("modern8086.editor-theme");
+              if (v2 === "vs-dark") document.body.classList.add("dark");
+            });
+          }
+        } catch (e) { /* */ }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/8051-docs/main.tsx"></script>
+  </body>
+</html>

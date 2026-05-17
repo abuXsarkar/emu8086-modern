@@ -33,8 +33,10 @@ const LABS: Lab[] = [
   {
     name: "modern8051",
     family: "Microcontroller · Intel 8051",
-    blurb: "8-bit MCU staple — ports, timers, serial. Same IDE shell, scope mostly mapped.",
-    status: "coming-soon",
+    blurb: "8-bit MCU staple — 3-space memory, 256 opcodes, P0–P3 ports bound to 8 live devices.",
+    href: "/8051/about/",
+    status: "live",
+    badge: "New",
   },
   {
     name: "modernARM",
