@@ -493,6 +493,9 @@ export function App() {
           <span className="brand-tag">— Intel 8085 IDE</span>
         </div>
         <nav className="ide-nav">
+          <a href="/8085/docs/" className="ide-nav-link" title="Reference + dialect + mnemonic table">
+            docs
+          </a>
           <a href="/labs/" className="ide-nav-link" title="All lab tools in the family">
             🧪 Labs
           </a>
