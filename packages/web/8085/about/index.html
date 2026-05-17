@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1E3A8A" />
+    <meta name="description" content="modern8085 — a modern, open-source Intel 8085 emulator and assembly IDE for students. Web-first PWA with classroom mode, live devices, time-travel debug, and inline mnemonic docs." />
+
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <meta property="og:title" content="modern8085 — Intel 8085 IDE in the browser" />
+    <meta property="og:description" content="Web-first, offline-capable. 8 live devices. Time-travel debug. Classroom mode. 13 locales. Free, MIT, no install." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <title>modern8085 — Intel 8085 IDE</title>
+    <script>
+      (function () {
+        try {
+          var v = localStorage.getItem("modern8085.editor-theme")
+            || localStorage.getItem("modern8086.editor-theme");
+          if (v === "vs-dark") document.body && document.body.classList.add("dark");
+          if (!document.body) {
+            document.addEventListener("DOMContentLoaded", function () {
+              var v2 = localStorage.getItem("modern8085.editor-theme")
+                || localStorage.getItem("modern8086.editor-theme");
+              if (v2 === "vs-dark") document.body.classList.add("dark");
+            });
+          }
+        } catch (e) { /* */ }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/8085-landing/main.tsx"></script>
+  </body>
+</html>
