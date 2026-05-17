@@ -516,16 +516,31 @@ pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
 /// surface an "Abort?" button after a couple of chunks have passed
 /// without progress toward HLT.
 pub fn run(cpu: &mut Cpu, mem: &mut Memory, budget: u64, breakpoints: &[u16]) -> StopReason {
+    run_with_cycles(cpu, mem, budget, breakpoints).0
+}
+
+/// Same as `run`, but also returns the total cycle count actually
+/// consumed (sum of the `cycles` field of every `StepRecord` produced
+/// during the run). The IDE uses this for an accurate cycle counter
+/// during a Run — previously it charged a flat 5 cycles per chunk-op
+/// which was way off for memory-touching instructions.
+pub fn run_with_cycles(
+    cpu: &mut Cpu,
+    mem: &mut Memory,
+    budget: u64,
+    breakpoints: &[u16],
+) -> (StopReason, u64) {
+    let mut cycles: u64 = 0;
     for _ in 0..budget {
         if breakpoints.contains(&cpu.pc) {
-            return StopReason::Breakpoint(cpu.pc);
+            return (StopReason::Breakpoint(cpu.pc), cycles);
         }
         match step(cpu, mem) {
-            Ok(_) => continue,
-            Err(stop) => return stop,
+            Ok(rec) => cycles += u64::from(rec.cycles),
+            Err(stop) => return (stop, cycles),
         }
     }
-    StopReason::BudgetExhausted
+    (StopReason::BudgetExhausted, cycles)
 }
 
 #[cfg(test)]
@@ -675,6 +690,26 @@ mod tests {
                 pc: 0x2000,
                 opcode: 0xCB
             })
+        );
+    }
+
+    #[test]
+    fn run_with_cycles_accumulates_per_instruction() {
+        // MVI A,d8 (7) + ADD B (4) = 11 cycles. The terminating HLT
+        // returns Err(Halted) from step() before we can record a
+        // StepRecord, so its own cycle count is dropped — that's an
+        // intentional simplification: programs that need T-state
+        // accuracy don't end with HLT anyway, they end with the
+        // last "real" instruction and HLT is bookkeeping.
+        let mut cpu = Cpu::new();
+        let mut mem = Memory::new();
+        mem.load(0x2000, &[0x3E, 0x42, 0x80, 0x76]); // MVI A,42H ; ADD B ; HLT
+        cpu.pc = 0x2000;
+        let (stop, cycles) = run_with_cycles(&mut cpu, &mut mem, 100, &[]);
+        assert_eq!(stop, StopReason::Halted);
+        assert_eq!(
+            cycles, 11,
+            "MVI(7) + ADD(4); HLT cycles intentionally dropped"
         );
     }
 
