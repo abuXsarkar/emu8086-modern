@@ -530,6 +530,72 @@ body.dark .printer-tape { background: #1a2538; border-color: #2a3a55; }
 body.dark .printer-clear { border-color: #2a3a55; }
 .device-label { display: flex; align-items: center; gap: 6px; width: 100%; }
 
+/* Tutorials — picker (list of cards) and step-view */
+.tut-picker { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.tut-picker-item { margin: 0; }
+.tut-picker-btn {
+  width: 100%;
+  text-align: left;
+  background: rgba(0,0,0,0.03);
+  border: 1px solid var(--border, #e6dfd2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  transition: border-color 100ms ease, background 100ms ease;
+}
+body.dark .tut-picker-btn { background: rgba(255,255,255,0.04); border-color: #2a3a55; }
+.tut-picker-btn:hover { border-color: #1E3A8A; background: rgba(30, 58, 138, 0.06); }
+body.dark .tut-picker-btn:hover { border-color: #93c5fd; background: rgba(147, 197, 253, 0.08); }
+.tut-picker-title { font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.tut-picker-blurb { font-size: 12px; color: #4b5563; margin-top: 2px; }
+body.dark .tut-picker-blurb { color: #cbd5e1; }
+.tut-picker-meta { font-size: 10px; color: #6b7280; margin-top: 4px; }
+body.dark .tut-picker-meta { color: #94a3b8; }
+.tut-done-badge {
+  font-size: 9px;
+  background: #16a34a;
+  color: white;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tut-back {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: inherit;
+  font-size: 14px;
+  opacity: 0.6;
+}
+.tut-back:hover { opacity: 1; }
+.tut-progress { font-size: 11px; color: #6b7280; margin-bottom: 8px; }
+body.dark .tut-progress { color: #94a3b8; }
+.tut-progress-bar {
+  height: 3px;
+  background: rgba(0,0,0,0.08);
+  border-radius: 2px;
+  margin-top: 3px;
+  overflow: hidden;
+}
+body.dark .tut-progress-bar { background: rgba(255,255,255,0.08); }
+.tut-progress-fill {
+  height: 100%;
+  background: #1E3A8A;
+  transition: width 200ms ease;
+}
+body.dark .tut-progress-fill { background: #93c5fd; }
+.tut-step-title { font-size: 13px; font-weight: 600; margin: 8px 0 4px; }
+.tut-body p { font-size: 13px; line-height: 1.55; margin: 0 0 6px; }
+.tut-body code { font-family: "Geist Mono", monospace; font-size: 12px; background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 3px; }
+body.dark .tut-body code { background: rgba(255,255,255,0.08); }
+.tut-body em { font-style: italic; color: #1E3A8A; }
+body.dark .tut-body em { color: #93c5fd; }
+.tut-nav { display: flex; justify-content: space-between; gap: 6px; margin-top: 10px; }
+
 .sym-list { font-size: 11px; }
 .sym-row {
   display: flex;
