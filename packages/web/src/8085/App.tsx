@@ -134,6 +134,22 @@ export function App() {
   });
   const [running, setRunning] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  /// Per-step delay (ms). 0 means "as fast as the budget loop runs"
+  /// — keeps the existing chunked-run path. Slow / Crawl drive a
+  /// step-by-step path so students can watch each instruction
+  /// execute. Educational visualization is what every existing 8085
+  /// simulator I could find is missing.
+  const [speed, setSpeed] = useState<"fast" | "slow" | "crawl">(() => {
+    try {
+      const v = localStorage.getItem("modern8085.speed");
+      return v === "slow" || v === "crawl" ? v : "fast";
+    } catch {
+      return "fast";
+    }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("modern8085.speed", speed); } catch { /* */ }
+  }, [speed]);
 
   const emuRef = useRef<Emulator | null>(null);
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
@@ -287,11 +303,33 @@ export function App() {
     setRunning(true);
     abortRef.current = false;
     setStepCount(0); // Run resets the time-travel anchor
-    // Chunked execution loop. Each chunk runs up to N instructions,
-    // then we yield to the event loop so the UI stays responsive and
-    // the Abort button is clickable even with an infinite loop in
-    // the student's program. This is the fix for GNUSim8085 #21 /
-    // sim8085 #67.
+
+    // Slow / Crawl take a step-by-step path so students can watch
+    // each instruction. The per-step delay drives both the visible
+    // pace and how often we refresh the register pane + memory view
+    // + line highlight — once per step, just like single-step.
+    if (speed !== "fast") {
+      const delayMs = speed === "crawl" ? 800 : 180;
+      const MAX_STEPS = 100_000; // safety cap; very generous for a slow run
+      for (let i = 0; i < MAX_STEPS && !abortRef.current; i++) {
+        const state = JSON.parse(emu.step()) as RegState;
+        setReg(state);
+        highlightCurrentLine();
+        setMemHex(emu.mem(memBase, 64));
+        if (state.halted || (state.last_stop && state.last_stop !== "BudgetExhausted")) {
+          break;
+        }
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+      setRunning(false);
+      return;
+    }
+
+    // Fast path: chunked execution. Each chunk runs up to N
+    // instructions, then we yield to the event loop so the UI stays
+    // responsive and the Abort button is clickable even with an
+    // infinite loop. Fix for GNUSim8085 #21 / sim8085 #67.
     const CHUNK = 50_000;
     const MAX_CHUNKS = 200; // total ~10M ops cap before forced abort
     let chunks = 0;
@@ -308,7 +346,7 @@ export function App() {
     setMemHex(emu.mem(memBase, 64));
     highlightCurrentLine();
     setRunning(false);
-  }, [doLoadIfFreshSource, highlightCurrentLine, memBase]);
+  }, [doLoadIfFreshSource, highlightCurrentLine, memBase, speed]);
 
   const doAbort = useCallback(() => {
     abortRef.current = true;
@@ -616,6 +654,16 @@ export function App() {
             >
               ⬇ Save
             </button>
+            <select
+              className="ide-select"
+              value={speed}
+              title="Run speed — Slow + Crawl step one instruction at a time so you can watch each register change"
+              onChange={(e) => setSpeed(e.target.value as "fast" | "slow" | "crawl")}
+            >
+              <option value="fast">Fast</option>
+              <option value="slow">Slow (180ms)</option>
+              <option value="crawl">Crawl (800ms)</option>
+            </select>
             <select
               className="ide-select"
               onChange={(e) => {
