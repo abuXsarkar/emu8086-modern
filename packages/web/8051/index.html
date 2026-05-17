@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1E3A8A" />
+    <meta name="description" content="Modern, open-source Intel 8051 microcontroller emulator and assembly IDE for students." />
+
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <meta property="og:title" content="modern8051 — Intel 8051 IDE" />
+    <meta property="og:description" content="A modern, open-source 8051 emulator + IDE for students. Sibling to modern8086 and modern8085." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <title>modern8051</title>
+    <script>
+      // Pre-paint theme — mirrors /8085/ so the family reads identically.
+      (function () {
+        try {
+          var v = localStorage.getItem("modern8051.editor-theme");
+          if (v === "vs-dark") document.body && document.body.classList.add("dark");
+          if (!document.body) {
+            document.addEventListener("DOMContentLoaded", function () {
+              var v2 = localStorage.getItem("modern8051.editor-theme");
+              if (v2 === "vs-dark") document.body.classList.add("dark");
+            });
+          }
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/8051/main.tsx"></script>
+  </body>
+</html>
