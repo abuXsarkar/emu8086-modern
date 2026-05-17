@@ -58,7 +58,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn lower_bit_region_maps_to_bytes_20_2F() {
+    fn lower_bit_region_maps_to_bytes_20_2f() {
         // Bit 0x00 = bit 0 of byte 0x20.
         assert_eq!(bit_to_byte(0x00), (0x20, 0));
         // Bit 0x07 = bit 7 of byte 0x20.

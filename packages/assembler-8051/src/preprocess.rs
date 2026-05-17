@@ -120,7 +120,7 @@ fn rewrite_hex_literals(line: &str) -> (String, bool) {
                 if end > i
                     && end < bytes.len()
                     && (bytes[end] == b'H' || bytes[end] == b'h')
-                    && bytes.get(end + 1).map_or(true, |&n| {
+                    && bytes.get(end + 1).is_none_or(|&n| {
                         let nc = n as char;
                         !(nc.is_ascii_alphanumeric() || nc == '_' || nc == '?' || nc == '@')
                     })

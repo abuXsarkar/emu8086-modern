@@ -139,10 +139,12 @@ The 8086 Android pipeline took 4 fix passes (#82–#87) to stabilise; do not sta
 
 1. ~~Wire `release-8085.yml` (CLI-only matrix).~~ ✅ done in PR #113.
 2. **Tag `m85-v0.1.0`** from current main. The release workflow fires automatically and produces the four CLI artifacts. This is the gate that activates the `@modern8086/cli-8085` npm wrapper's download path.
+
    ```bash
    git tag -a m85-v0.1.0 -m "m85 release 0.1.0"
    git push origin m85-v0.1.0
    ```
+
 3. (Optional) `npm publish` from `packages/cli-npm-8085/` once Step 2 lands — installs now have a real binary to fetch.
 4. Scaffold `packages/desktop-8085/` per this doc. Tauri's CLI can generate the bones from a template.
 5. Local `pnpm desktop-8085:dev` smoke test — does the window open, does the IDE load, does wasm initialise?

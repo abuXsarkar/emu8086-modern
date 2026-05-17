@@ -148,7 +148,7 @@ fn emit(program: &Program, symbols: &HashMap<String, i64>) -> Result<Output, Err
             } => {
                 let pc_after_instr = origin.unwrap_or(DEFAULT_ORG) as u32
                     + bytes.len() as u32
-                    + instr_size(mnem, operands, *line)? as u32;
+                    + instr_size(mnem, operands, *line)?;
                 emit_instr(
                     mnem,
                     operands,
@@ -200,7 +200,9 @@ fn word_val(v: i64, line: u32) -> Result<u16, Error> {
 
 /// Compute the instruction size in bytes (1, 2, or 3).
 fn instr_size(mnem: &str, operands: &[Operand], line: u32) -> Result<u32, Error> {
-    use Operand::*;
+    use Operand::{
+        Acc, AtAplusDptr, AtAplusPc, AtDptr, AtRi, Bit, Carry, Direct, Dptr, Imm, Label, Rn,
+    };
     Ok(match (mnem, operands) {
         ("NOP" | "RET" | "RETI", _) => 1,
         ("RR" | "RL" | "RRC" | "RLC" | "SWAP" | "DA" | "CPL", _)
@@ -223,8 +225,8 @@ fn instr_size(mnem: &str, operands: &[Operand], line: u32) -> Result<u32, Error>
         ("ORL" | "ANL" | "XRL", [Direct(_) | Label(_), Imm(_)]) => 3,
         ("ORL" | "ANL", [Carry, Bit(_) | Label(_)]) => 2,
         ("MUL" | "DIV", _) => 1,
-        ("MOV", [Acc, Rn(_)]) | ("MOV", [Rn(_), Acc]) => 1,
-        ("MOV", [Acc, AtRi(_)]) | ("MOV", [AtRi(_), Acc]) => 1,
+        ("MOV", [Acc, Rn(_)] | [Rn(_), Acc]) => 1,
+        ("MOV", [Acc, AtRi(_)] | [AtRi(_), Acc]) => 1,
         ("MOV", [Acc, Direct(_) | Label(_)]) => 2,
         ("MOV", [Direct(_) | Label(_), Acc]) => 2,
         ("MOV", [Acc, Imm(_)]) => 2,
@@ -237,13 +239,13 @@ fn instr_size(mnem: &str, operands: &[Operand], line: u32) -> Result<u32, Error>
         ("MOV", [Direct(_) | Label(_), Direct(_) | Label(_)]) => 3,
         ("MOV", [Direct(_) | Label(_), Imm(_)]) => 3,
         ("MOV", [Dptr, Imm(_) | Label(_)]) => 3,
-        ("MOV", [Carry, Bit(_) | Label(_)]) | ("MOV", [Bit(_) | Label(_), Carry]) => 2,
+        ("MOV", [Carry, Bit(_) | Label(_)] | [Bit(_) | Label(_), Carry]) => 2,
         ("CLR" | "SETB" | "CPL", [Bit(_) | Label(_)]) => 2,
         ("MOVC", [Acc, AtAplusDptr | AtAplusPc]) => 1,
-        ("MOVX", [Acc, AtDptr]) | ("MOVX", [AtDptr, Acc]) => 1,
-        ("MOVX", [Acc, AtRi(_)]) | ("MOVX", [AtRi(_), Acc]) => 1,
+        ("MOVX", [Acc, AtDptr] | [AtDptr, Acc]) => 1,
+        ("MOVX", [Acc, AtRi(_)] | [AtRi(_), Acc]) => 1,
         ("PUSH" | "POP", _) => 2,
-        ("XCH", [Acc, Rn(_)]) | ("XCH", [Acc, AtRi(_)]) => 1,
+        ("XCH", [Acc, Rn(_) | AtRi(_)]) => 1,
         ("XCH", [Acc, Direct(_) | Label(_)]) => 2,
         ("XCHD", [Acc, AtRi(_)]) => 1,
         ("LJMP" | "LCALL", _) => 3,
@@ -278,7 +280,9 @@ fn emit_instr(
     bytes: &mut Vec<u8>,
     source_map: &mut Vec<u32>,
 ) -> Result<(), Error> {
-    use Operand::*;
+    use Operand::{
+        Acc, AtAplusDptr, AtAplusPc, AtDptr, AtRi, Bit, Carry, Direct, Dptr, Imm, Label, Rn,
+    };
     let emit = |buf: &mut Vec<u8>, smap: &mut Vec<u32>, b: u8| {
         buf.push(b);
         smap.push(line);
@@ -734,7 +738,6 @@ fn emit_instr(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::assemble;
 
     fn asm(src: &str) -> Vec<u8> {
