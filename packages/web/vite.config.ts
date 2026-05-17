@@ -40,6 +40,10 @@ export default defineConfig({
         // from ../../wasm-api-8085/pkg, built by wasm-pack before the
         // Vite build (see the build:wasm-8085 script in package.json).
         eight5: resolve(__dirname, "8085/index.html"),
+        // /labs/ is the family-of-tools catalogue — lists 8086, 8085,
+        // and the planned siblings (8051, RISC-V, K-map, etc.). A
+        // static React app with no wasm dependencies.
+        labs: resolve(__dirname, "labs/index.html"),
       },
     },
   },
