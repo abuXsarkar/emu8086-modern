@@ -461,6 +461,40 @@ body.dark .ledbar-row { background: rgba(255,255,255,0.05); }
   transition: background 80ms ease;
 }
 
+.keypad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  background: rgba(0,0,0,0.06);
+  padding: 6px;
+  border-radius: 6px;
+}
+body.dark .keypad-grid { background: rgba(255,255,255,0.05); }
+.keypad-key {
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--paper, #fff);
+  border: 1px solid #c5beae;
+  border-radius: 4px;
+  padding: 8px 0;
+  cursor: pointer;
+  color: inherit;
+  transition: background 120ms ease, color 120ms ease;
+}
+body.dark .keypad-key { background: #1a2538; border-color: #2a3a55; }
+.keypad-key:hover { background: rgba(30, 58, 138, 0.08); }
+body.dark .keypad-key:hover { background: rgba(147, 197, 253, 0.12); }
+.keypad-key-active {
+  background: #1E3A8A !important;
+  color: white !important;
+  border-color: #1E3A8A;
+}
+body.dark .keypad-key-active {
+  background: #93c5fd !important;
+  color: #0e1726 !important;
+  border-color: #93c5fd;
+}
+
 .sym-list { font-size: 11px; }
 .sym-row {
   display: flex;
