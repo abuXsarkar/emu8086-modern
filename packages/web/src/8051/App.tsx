@@ -7,6 +7,9 @@ import init, { Emulator } from "../../../wasm-api-8051/pkg/modern8051_wasm_api.j
 import { ASM_LANG_ID, registerAsm8051 } from "./asm8051";
 import { DEFAULT_SOURCE, EXAMPLES, type Example } from "./examples";
 import { Mark51 } from "./Mark51";
+import { LOCALES, useLocaleId, useStrings } from "../i18n";
+import { ClassroomLayer, ClassroomPill } from "../classroom/ClassroomPanel";
+import { useClassroomEditor } from "../classroom/useClassroomEditor";
 
 const STORAGE_KEY = "modern8051.source";
 const THEME_KEY = "modern8051.editor-theme";
@@ -96,6 +99,12 @@ const INITIAL_SOURCE = (() => {
 
 export function App() {
   const [source, setSource] = useState(INITIAL_SOURCE);
+  // Classroom relay — read-only flag drives the editor's `readOnly`
+  // option so a student session can't type while the teacher holds
+  // control. Source-broadcast plumbing lives inside the hook.
+  const { readOnly: classroomReadOnly } = useClassroomEditor(source, setSource);
+  const strings = useStrings();
+  const [localeId, setLocaleId] = useLocaleId();
   const [core, setCore] = useState<CoreState>({ kind: "loading" });
   const [reg, setReg] = useState<RegState | null>(null);
   const [load, setLoad] = useState<LoadResult | null>(null);
@@ -386,14 +395,13 @@ export function App() {
   }, []);
 
   if (core.kind === "loading") {
-    return <div className="ide-root"><div className="ide-panel">Loading wasm core…</div></div>;
+    return <div className="ide-root"><div className="ide-panel">{strings.loadingWasm}</div></div>;
   }
   if (core.kind === "error") {
     return (
       <div className="ide-root">
         <div className="ide-panel ide-panel-error">
-          <h3>Failed to load core</h3>
-          <pre className="ide-diag">{core.message}</pre>
+          <h3>{strings.loadWasmFailed(core.message)}</h3>
         </div>
       </div>
     );
@@ -417,6 +425,19 @@ export function App() {
           <a className="ide-nav-link" href="/labs/">labs</a>
           <a className="ide-nav-link" href="/">8086</a>
           <a className="ide-nav-link" href="/8085/">8085</a>
+          <ClassroomPill />
+          <select
+            className="ide-locale"
+            value={localeId}
+            onChange={(e) => setLocaleId(e.target.value as typeof localeId)}
+            aria-label="Language"
+          >
+            {LOCALES.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
           <button
             className="ide-theme-toggle"
             onClick={() => setTheme(theme === "vs" ? "vs-dark" : "vs")}
@@ -426,6 +447,7 @@ export function App() {
           </button>
         </nav>
       </header>
+      <ClassroomLayer currentSource={source} />
 
       <main className="ide-main">
         <section className="ide-editor-pane">
@@ -435,19 +457,19 @@ export function App() {
               onClick={running ? handleStop : handleRun}
               disabled={!load?.ok || reg?.halted}
             >
-              {running ? "Stop" : "Run"}
+              {running ? strings.running : strings.run}
             </button>
             <button className="ide-btn" onClick={handleStep} disabled={!load?.ok || reg?.halted}>
-              Step
+              {strings.step}
             </button>
             <button className="ide-btn" onClick={handleReset}>
-              Reset
+              {strings.reset}
             </button>
             <button className="ide-btn" onClick={promptBreakpoint}>
               + Breakpoint
             </button>
             <button className="ide-btn" onClick={handleShare}>
-              Share
+              {strings.share}
             </button>
             <select
               className="ide-select"
@@ -483,6 +505,7 @@ export function App() {
                 glyphMargin: true,
                 tabSize: 8,
                 insertSpaces: true,
+                readOnly: classroomReadOnly,
               }}
             />
           </div>
@@ -497,7 +520,7 @@ export function App() {
           )}
 
           <div className="ide-panel">
-            <div className="ide-panel-h">Registers</div>
+            <div className="ide-panel-h">{strings.registers}</div>
             {reg && (
               <>
                 <div className="reg-grid">
@@ -537,7 +560,7 @@ export function App() {
           </div>
 
           <div className="ide-panel">
-            <div className="ide-panel-h">PSW flags</div>
+            <div className="ide-panel-h">{strings.flags}</div>
             {reg && (
               <div className="flag-row">
                 <span className={flagClass("cy", reg.cy)}>CY</span>
@@ -554,7 +577,7 @@ export function App() {
 
           <div className="ide-panel">
             <div className="ide-panel-h">
-              Memory
+              {strings.memory}
               <span className="ide-panel-controls">
                 {(["idata", "xdata", "code"] as MemSpace[]).map((s) => (
                   <button
