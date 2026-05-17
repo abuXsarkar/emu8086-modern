@@ -53,6 +53,11 @@ export default defineConfig({
         // "modern 8085 IDE" land on something more substantial than
         // the bare IDE.
         eight5About: resolve(__dirname, "8085/about/index.html"),
+        // /8051/ sibling IDE. Wasm at ../../wasm-api-8051/pkg, built
+        // by wasm-pack before the Vite build (build:wasm-8051).
+        // Landing + docs come in a follow-up; only the IDE entry for
+        // the scaffold pass.
+        eight1: resolve(__dirname, "8051/index.html"),
       },
     },
   },
