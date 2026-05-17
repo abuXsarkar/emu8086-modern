@@ -139,6 +139,8 @@ body.dark .docs-table th { color: #94a3b8; }
 .docs-mnem-name { width: 60px; font-weight: 600; padding-top: 8px; }
 .docs-mnem-sum { font-size: 14px; }
 .docs-mnem-det { font-size: 13px; color: #4b5563; margin-top: 2px; }
+.docs-mnem-cycles { font-size: 11px; color: #1E3A8A; opacity: 0.7; }
+body.dark .docs-mnem-cycles { color: #93c5fd; opacity: 0.7; }
 body.dark .docs-mnem-det { color: #94a3b8; }
 
 .docs-group { margin-bottom: 22px; }
