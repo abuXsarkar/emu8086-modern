@@ -278,15 +278,16 @@ impl Emulator {
             .collect();
 
         if !self.halted {
-            let stop = exec::run(&mut self.cpu, &mut self.mem, u64::from(budget), &bps);
+            // run_with_cycles sums each StepRecord's cycles internally
+            // so the counter we surface to the IDE matches what a
+            // T-state-accurate datasheet calculation would say.
+            let (stop, cycles) =
+                exec::run_with_cycles(&mut self.cpu, &mut self.mem, u64::from(budget), &bps);
             if matches!(stop, StopReason::Halted) {
                 self.halted = true;
             }
             self.last_stop = Some(stop);
-            // We don't know per-instruction cycles in bulk-run; charge
-            // an even 5 cycles/instruction as a coarse approximation.
-            // The Metrics chip in the IDE labels this "approximate".
-            self.cycles += u64::from(budget);
+            self.cycles += cycles;
         }
         self.state()
     }
