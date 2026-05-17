@@ -8,3 +8,4 @@ packages:
   - "packages/plugin-sdk"
   - "packages/plugins/*"
   - "packages/cli-npm"
+  - "packages/cli-npm-8085"

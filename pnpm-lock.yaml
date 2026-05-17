@@ -67,6 +67,8 @@ importers:
 
   packages/cli-npm: {}
 
+  packages/cli-npm-8085: {}
+
   packages/desktop:
     devDependencies:
       '@tauri-apps/cli':
@@ -125,15 +127,6 @@ importers:
 
   packages/web:
     dependencies:
-      '@modern8086/classroom-protocol':
-        specifier: workspace:*
-        version: link:../classroom-protocol
-      '@modern8086/plugin-example-buzzer':
-        specifier: workspace:*
-        version: link:../plugins/example-buzzer
-      '@modern8086/plugin-sdk':
-        specifier: workspace:*
-        version: link:../plugin-sdk
       '@fontsource-variable/geist':
         specifier: ^5.2.8
         version: 5.2.8
@@ -143,6 +136,15 @@ importers:
       '@fontsource/instrument-serif':
         specifier: ^5.2.8
         version: 5.2.8
+      '@modern8086/classroom-protocol':
+        specifier: workspace:*
+        version: link:../classroom-protocol
+      '@modern8086/plugin-example-buzzer':
+        specifier: workspace:*
+        version: link:../plugins/example-buzzer
+      '@modern8086/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
       '@monaco-editor/react':
         specifier: ^4.6.0
         version: 4.7.0(monaco-editor@0.52.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
