@@ -286,6 +286,28 @@ body.dark .ide-chip.on { background: #93c5fd; color: #0e1726; border-color: #93c
 }
 body.dark .reg-cell { background: rgba(255,255,255,0.05); }
 .reg-cell.wide { grid-column: span 2; }
+
+/* Brief pulse on cells whose value changed since the previous Step
+ * or slow-Run tick. Pedagogical signal: where did the last
+ * instruction touch? Matches the timeout in App.tsx (700 ms). */
+@keyframes regFlash {
+  0%   { background: rgba(30, 58, 138, 0.32); }
+  100% { background: rgba(0,0,0,0.04); }
+}
+@keyframes regFlashDark {
+  0%   { background: rgba(147, 197, 253, 0.35); }
+  100% { background: rgba(255,255,255,0.05); }
+}
+.reg-flash { animation: regFlash 700ms ease-out; }
+body.dark .reg-flash { animation: regFlashDark 700ms ease-out; }
+.flag-flash {
+  animation: regFlash 700ms ease-out;
+  border-color: #1E3A8A !important;
+}
+body.dark .flag-flash {
+  animation: regFlashDark 700ms ease-out;
+  border-color: #93c5fd !important;
+}
 .reg-name { font-size: 10px; color: #6b7280; letter-spacing: 0.04em; }
 .reg-value { font-family: "Geist Mono", monospace; font-size: 14px; font-weight: 500; }
 

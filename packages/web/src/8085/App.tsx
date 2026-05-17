@@ -92,6 +92,11 @@ export function App() {
   const [source, setSource] = useState<string>(initialSource);
   const [coreState, setCoreState] = useState<CoreState>({ kind: "loading" });
   const [reg, setReg] = useState<RegState | null>(null);
+  /// The previous register snapshot — used to compute which cells
+  /// changed in the latest update so the UI can flash them. Cleared
+  /// on Reset / Run-Fast (where per-instruction diffs would be too
+  /// noisy to be useful).
+  const prevRegRef = useRef<RegState | null>(null);
   const [diag, setDiag] = useState<string | null>(null);
   const [hints, setHints] = useState<Array<[number, string]>>([]);
   const [symbols, setSymbols] = useState<Array<[string, number]>>([]);
@@ -204,6 +209,29 @@ export function App() {
       setDiag(`internal: failed to parse state — ${String(err)}`);
     }
   }, [memBase]);
+
+  /// Names of registers whose value just changed; cells flash for a
+  /// brief moment after a Step or a Slow/Crawl tick. Cleared after a
+  /// timeout matching the typical step cadence.
+  const [changedRegs, setChangedRegs] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!reg) {
+      prevRegRef.current = null;
+      return;
+    }
+    const prev = prevRegRef.current;
+    prevRegRef.current = reg;
+    if (!prev) return;
+    const diff = new Set<string>();
+    for (const k of REGS_8) if (prev[k] !== reg[k]) diff.add(k);
+    if (prev.sp !== reg.sp) diff.add("sp");
+    if (prev.pc !== reg.pc) diff.add("pc");
+    for (const f of FLAGS) if (prev[f] !== reg[f]) diff.add(f);
+    if (diff.size === 0) return;
+    setChangedRegs(diff);
+    const t = setTimeout(() => setChangedRegs(new Set()), 700);
+    return () => clearTimeout(t);
+  }, [reg]);
 
   // ───── editor / monaco wiring ─────────────────────────────────
   const onEditorMount: OnMount = useCallback((editor, monaco) => {
@@ -713,16 +741,16 @@ export function App() {
             {reg ? (
               <div className="reg-grid">
                 {REGS_8.map((k) => (
-                  <div key={k} className="reg-cell">
+                  <div key={k} className={`reg-cell ${changedRegs.has(k) ? "reg-flash" : ""}`}>
                     <span className="reg-name">{k.toUpperCase()}</span>
                     <span className="reg-value mono">{hex(reg[k], 2)}</span>
                   </div>
                 ))}
-                <div className="reg-cell wide">
+                <div className={`reg-cell wide ${changedRegs.has("sp") ? "reg-flash" : ""}`}>
                   <span className="reg-name">SP</span>
                   <span className="reg-value mono">{hex(reg.sp, 4)}</span>
                 </div>
-                <div className="reg-cell wide">
+                <div className={`reg-cell wide ${changedRegs.has("pc") ? "reg-flash" : ""}`}>
                   <span className="reg-name">PC</span>
                   <span className="reg-value mono">{hex(reg.pc, 4)}</span>
                 </div>
@@ -737,8 +765,13 @@ export function App() {
             <div className="flag-row">
               {FLAGS.map((f) => {
                 const on = reg ? Boolean(reg[f]) : false;
+                const flashed = changedRegs.has(f);
                 return (
-                  <span key={f} className={`flag-chip ${on ? "flag-on" : ""}`} title={f.toUpperCase()}>
+                  <span
+                    key={f}
+                    className={`flag-chip ${on ? "flag-on" : ""} ${flashed ? "flag-flash" : ""}`}
+                    title={f.toUpperCase()}
+                  >
                     {f.toUpperCase()} {on ? "1" : "0"}
                   </span>
                 );
