@@ -1,0 +1,174 @@
+/* /8085/about/ — long-form landing. Tokens match the labs page + the
+ * 8086 about/Landing aesthetic. Serif-italic on H1 emphasis. */
+
+.m85land-root {
+  font-family: "Geist", system-ui, sans-serif;
+  background: var(--bg, #F8F4EE);
+  color: var(--fg, #1f2937);
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+body.dark .m85land-root { background: #0e1726; color: #e9edf3; }
+
+.m85land-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--border, #e6dfd2);
+  position: sticky;
+  top: 0;
+  background: var(--bg, #F8F4EE);
+  z-index: 5;
+}
+body.dark .m85land-header { border-color: #1f2a3a; background: #0e1726; }
+
+.m85land-brand { font-size: 16px; text-decoration: none; color: inherit; display: flex; gap: 4px; align-items: baseline; }
+.m85land-brand-strong { font-weight: 700; color: #1E3A8A; }
+body.dark .m85land-brand-strong { color: #93c5fd; }
+
+.m85land-nav { display: flex; align-items: center; gap: 16px; font-size: 14px; }
+.m85land-nav a { color: inherit; text-decoration: none; opacity: 0.75; }
+.m85land-nav a:hover { opacity: 1; text-decoration: underline; }
+.m85land-theme {
+  background: transparent;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+body.dark .m85land-theme { border-color: #2a3a55; color: inherit; }
+
+.m85land-slide {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 64px 28px;
+}
+.m85land-slide-tinted { background: rgba(30, 58, 138, 0.04); max-width: none; }
+body.dark .m85land-slide-tinted { background: rgba(147, 197, 253, 0.04); }
+.m85land-slide-tinted > * { max-width: 900px; margin-left: auto; margin-right: auto; }
+
+.m85land-hero { text-align: left; padding-top: 96px; padding-bottom: 80px; }
+
+.m85land-h1 {
+  font-size: 56px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0 0 24px;
+  line-height: 1.05;
+}
+.m85land-h1 em {
+  font-family: "Instrument Serif", serif;
+  font-style: italic;
+  font-weight: 400;
+  color: #1E3A8A;
+}
+body.dark .m85land-h1 em { color: #93c5fd; }
+
+.m85land-slide h2 {
+  font-size: 28px;
+  font-weight: 500;
+  margin: 0 0 18px;
+  letter-spacing: -0.01em;
+}
+.m85land-sub { font-size: 19px; line-height: 1.55; color: #4b5563; margin: 0 0 28px; max-width: 720px; }
+body.dark .m85land-sub { color: #cbd5e1; }
+.m85land-slide p { font-size: 16px; line-height: 1.6; color: #374151; margin: 0 0 12px; }
+body.dark .m85land-slide p { color: #cbd5e1; }
+.m85land-slide a { color: #1E3A8A; }
+body.dark .m85land-slide a { color: #93c5fd; }
+
+.m85land-meta { font-size: 13px; color: #6b7280; }
+body.dark .m85land-meta { color: #94a3b8; }
+
+.m85land-cta-row { display: flex; gap: 12px; margin: 24px 0 18px; flex-wrap: wrap; }
+.m85land-cta {
+  display: inline-block;
+  padding: 12px 22px;
+  border-radius: 8px;
+  border: 1px solid #1E3A8A;
+  color: #1E3A8A;
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  transition: background 100ms ease, color 100ms ease;
+}
+.m85land-cta:hover { background: rgba(30,58,138,0.08); }
+.m85land-cta-primary { background: #1E3A8A; color: white; }
+.m85land-cta-primary:hover { background: #1e40af; color: white; }
+body.dark .m85land-cta { border-color: #93c5fd; color: #93c5fd; }
+body.dark .m85land-cta-primary { background: #93c5fd; color: #0e1726; border-color: #93c5fd; }
+
+.m85land-checklist { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.m85land-checklist li {
+  font-size: 16px;
+  line-height: 1.55;
+  color: #374151;
+  padding-left: 22px;
+  position: relative;
+}
+body.dark .m85land-checklist li { color: #cbd5e1; }
+.m85land-checklist li::before {
+  content: "✓";
+  color: #16a34a;
+  position: absolute;
+  left: 0;
+  font-weight: 600;
+}
+.m85land-checklist strong { color: inherit; }
+
+.m85land-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+.m85land-card {
+  background: var(--paper, #ffffff);
+  border: 1px solid var(--border, #e6dfd2);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+body.dark .m85land-card { background: #16213a; border-color: #1f2a3a; }
+.m85land-card-title { font-weight: 600; font-size: 14px; }
+.m85land-card-port { font-size: 11px; color: #6b7280; margin: 2px 0 8px; }
+body.dark .m85land-card-port { color: #94a3b8; }
+.m85land-card p { font-size: 13px; margin: 0; line-height: 1.5; }
+
+.m85land-install code {
+  font-family: "Geist Mono", monospace;
+  font-size: 13px;
+  background: rgba(0,0,0,0.06);
+  padding: 8px 12px;
+  border-radius: 6px;
+  display: inline-block;
+}
+body.dark .m85land-install code { background: rgba(255,255,255,0.06); }
+.m85land-slide code {
+  font-family: "Geist Mono", monospace;
+  font-size: 13px;
+  background: rgba(0,0,0,0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+body.dark .m85land-slide code { background: rgba(255,255,255,0.08); }
+
+.m85land-foot {
+  padding: 18px 28px;
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+  border-top: 1px solid var(--border, #e6dfd2);
+}
+body.dark .m85land-foot { border-color: #1f2a3a; color: #94a3b8; }
+.m85land-foot a { color: inherit; }
+.mono { font-family: "Geist Mono", monospace; }
+
+@media (max-width: 600px) {
+  .m85land-h1 { font-size: 38px; }
+  .m85land-sub { font-size: 16px; }
+  .m85land-slide { padding: 48px 20px; }
+  .m85land-hero { padding-top: 60px; padding-bottom: 48px; }
+}

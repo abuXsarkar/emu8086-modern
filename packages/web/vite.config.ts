@@ -48,6 +48,11 @@ export default defineConfig({
         // dialect notes, full mnemonic table, CLI. Pulls the docs
         // content from src/8085/asm8085_docs.ts so it stays in sync.
         eight5Docs: resolve(__dirname, "8085/docs/index.html"),
+        // /8085/about/ landing — marketing surface, 8-slide pitch.
+        // Mirrors the 8086 /about/ shape so visitors searching for
+        // "modern 8085 IDE" land on something more substantial than
+        // the bare IDE.
+        eight5About: resolve(__dirname, "8085/about/index.html"),
       },
     },
   },
