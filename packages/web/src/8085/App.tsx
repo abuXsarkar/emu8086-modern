@@ -154,6 +154,12 @@ export function App() {
   /// command (see Robot.tsx).
   const [robotPort, setRobotPort] = useState<number>(0x07);
   const [robot, setRobot] = useState<RobotState>(initialRobotState);
+  /// Ring buffer of recent OUT writes — surfaces every port-write
+  /// (regardless of whether any device watches that port) so a
+  /// student debugging a "why isn't my LED lighting?" can see
+  /// whether the program is writing to the port they expect. Caps
+  /// at 200 entries.
+  const [ioActivity, setIoActivity] = useState<Array<{ port: number; byte: number }>>([]);
 
   /// Drain the wasm io_log and append printer-port bytes to the
   /// printer buffer. Called from every place that updates emu state
@@ -168,9 +174,11 @@ export function App() {
     let screenAppend = "";
     let screenClear = false;
     let robotState: RobotState | null = null;
+    const activityBatch: Array<{ port: number; byte: number }> = [];
     for (let i = 0; i + 3 < log.length; i += 4) {
       const port = parseInt(log.slice(i, i + 2), 16);
       const byte = parseInt(log.slice(i + 2, i + 4), 16);
+      activityBatch.push({ port, byte });
       if (port === printerPort) {
         printerAppend += byte >= 0x20 && byte < 0x7F ? String.fromCharCode(byte) : ".";
       }
@@ -203,6 +211,9 @@ export function App() {
     }
     if (robotState !== null) {
       setRobot(robotState);
+    }
+    if (activityBatch.length > 0) {
+      setIoActivity((a) => [...a, ...activityBatch].slice(-200));
     }
   }, [printerPort, screenPort, robotPort, robot]);
 
@@ -552,6 +563,7 @@ export function App() {
     setPrinterBuffer("");
     setScreenBuffer("");
     setRobot(initialRobotState);
+    setIoActivity([]);
     decorationsRef.current = editorRef.current?.deltaDecorations(decorationsRef.current, []) ?? [];
   }, []);
 
@@ -1056,6 +1068,45 @@ export function App() {
               <PortInput label="robot" value={robotPort} onChange={setRobotPort} />
             </details>
           </div>
+
+          {ioActivity.length > 0 && (
+            <div className="ide-panel">
+              <h2 className="ide-panel-h">
+                I/O activity
+                <span className="ide-panel-controls">
+                  <button
+                    type="button"
+                    className="ide-chip"
+                    onClick={() => setIoActivity([])}
+                    title="Clear the log"
+                  >
+                    clear
+                  </button>
+                </span>
+              </h2>
+              <div className="ioact-list mono">
+                {ioActivity.slice(-40).map((e, i) => {
+                  const ch = e.byte >= 0x20 && e.byte < 0x7F ? String.fromCharCode(e.byte) : "·";
+                  return (
+                    <div key={ioActivity.length - 40 + i} className="ioact-row">
+                      <span className="ioact-port">
+                        {e.port.toString(16).toUpperCase().padStart(2, "0")}H
+                      </span>
+                      <span className="ioact-byte">
+                        {e.byte.toString(16).toUpperCase().padStart(2, "0")}H
+                      </span>
+                      <span className="ioact-ascii">'{ch}'</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {ioActivity.length > 40 && (
+                <p className="ide-tiny mono">
+                  showing last 40 of {ioActivity.length}
+                </p>
+              )}
+            </div>
+          )}
 
           {symbols.length > 0 && (
             <div className="ide-panel">
