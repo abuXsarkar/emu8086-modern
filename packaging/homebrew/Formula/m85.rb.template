@@ -1,0 +1,48 @@
+# Homebrew formula for the modern8085 CLI (`m85`).
+#
+# Lives in the maintainer's Homebrew tap repo
+# (`abuXsarkar/homebrew-modern8086`, file path `Formula/m85.rb`).
+# This in-repo copy is a template — `packaging/scripts/generate-distribution-manifests.sh`
+# fills in the version and per-platform SHA-256 sums from the just-built
+# release artifacts and emits a copy-pasteable `m85.rb` in
+# `target/packaging/`.
+#
+# After the script runs, drop the generated file into the tap repo's
+# `Formula/` directory, commit, push. Users then install with:
+#
+#   brew tap abuxsarkar/modern8086
+#   brew install m85
+#
+# Subsequent versions: re-run the generator after each `m85-v*` release tag.
+class M85 < Formula
+  desc "Headless 8085 runner — Intel 8085 assembler + executor for autograding"
+  homepage "https://modern8086.com/8085"
+  version "{{VERSION_M85}}"
+  license "MIT"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/abuXsarkar/modern8086/releases/download/m85-v#{version}/m85-macos-aarch64.tar.gz"
+      sha256 "{{SHA256_M85_MACOS_AARCH64}}"
+    end
+    on_intel do
+      url "https://github.com/abuXsarkar/modern8086/releases/download/m85-v#{version}/m85-macos-x86_64.tar.gz"
+      sha256 "{{SHA256_M85_MACOS_X86_64}}"
+    end
+  end
+
+  on_linux do
+    on_intel do
+      url "https://github.com/abuXsarkar/modern8086/releases/download/m85-v#{version}/m85-linux-x86_64.tar.gz"
+      sha256 "{{SHA256_M85_LINUX_X86_64}}"
+    end
+  end
+
+  def install
+    bin.install "m85"
+  end
+
+  test do
+    assert_match(/m85/, shell_output("#{bin}/m85 version"))
+  end
+end

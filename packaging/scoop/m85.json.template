@@ -1,0 +1,28 @@
+{
+  "$comment": "Scoop manifest for the modern8085 CLI on Windows. Lives in the maintainer's Scoop bucket repo (abuXsarkar/scoop-modern8086, file `bucket/m85.json`). This in-repo file is a template — packaging/scripts/generate-distribution-manifests.sh fills VERSION_M85 + SHA256_M85_WINDOWS_X86_64 from the just-built release zip.",
+  "version": "{{VERSION_M85}}",
+  "description": "Headless Intel 8085 runner — assembler + executor for autograding.",
+  "homepage": "https://modern8086.com/8085",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/abuXsarkar/modern8086/releases/download/m85-v{{VERSION_M85}}/m85-windows-x86_64.zip",
+      "hash": "{{SHA256_M85_WINDOWS_X86_64}}"
+    }
+  },
+  "bin": "m85.exe",
+  "checkver": {
+    "github": "https://github.com/abuXsarkar/modern8086",
+    "regex": "m85-v([\\d.]+)"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/abuXsarkar/modern8086/releases/download/m85-v$version/m85-windows-x86_64.zip"
+      }
+    },
+    "hash": {
+      "url": "$baseurl/checksums.txt"
+    }
+  }
+}
