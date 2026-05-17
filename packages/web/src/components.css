@@ -157,6 +157,25 @@
   cursor: pointer;
 }
 
+/* Cross-link chip pointing at the /8085/ sibling IDE. Visual weight
+   matches `.select-tokenized` so the header row reads as one band. */
+.sibling-chip {
+  font-family: "Geist Mono", monospace;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--hair-w) solid var(--rule);
+  padding: 5px 10px;
+  border-radius: var(--rad);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sibling-chip:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
 /* App header — paper-band with a hairline bottom rule. Sits inside the
    existing `.app-root` padding for now; the shell-grid restructure
    (Phase 2) will lift it to full-bleed. */

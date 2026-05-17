@@ -24,6 +24,14 @@ no install, no data leaves your device.
 > browser. The wasm core fits in ~370 KB and the IDE is fully
 > offline-capable once loaded (PWA).
 
+### Sibling: 8085 IDE
+
+If your course also covers the Intel 8085, the sibling IDE lives at
+[**modern8086.com/8085**](https://modern8086.com/8085). Same chassis
+(Monaco, design system, PWA), distinct ISA core, 20 canonical lab
+programs from the standard VTU / AKTU / Anna University syllabi, hover
+docs on every mnemonic. The repo is the same; the route is `/8085/`.
+
 ---
 
 ## Install
