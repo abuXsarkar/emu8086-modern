@@ -2182,6 +2182,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "modern8085-assembler"
+version = "1.1.4"
+dependencies = [
+ "modern8085-core",
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "modern8085-core"
 version = "1.1.4"
 dependencies = [
