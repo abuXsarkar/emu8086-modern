@@ -68,6 +68,12 @@ fn write_direct(cpu: &mut Cpu, mem: &mut Memory, addr: u8, value: u8) {
         a if a == sfr::PSW.0 => cpu.psw = Psw::from_byte(value),
         _ => {}
     }
+    // Log port writes (P0..P3) for the IDE's device pane. Using the
+    // raw SFR addresses as the "port" id keeps the channel shape the
+    // same as the 8085 (port, byte) io_log entries.
+    if matches!(addr, 0x80 | 0x90 | 0xA0 | 0xB0) {
+        cpu.io_log.push((addr, value));
+    }
 }
 
 /// Read a bit. Returns true if set.

@@ -10,6 +10,7 @@ import { Mark51 } from "./Mark51";
 import { LOCALES, useLocaleId, useStrings } from "../i18n";
 import { ClassroomLayer, ClassroomPill } from "../classroom/ClassroomPanel";
 import { useClassroomEditor } from "../classroom/useClassroomEditor";
+import { Devices8051, type PortEvent } from "./devices/Devices";
 
 const STORAGE_KEY = "modern8051.source";
 const THEME_KEY = "modern8051.editor-theme";
@@ -112,6 +113,11 @@ export function App() {
   const [memSpace, setMemSpace] = useState<MemSpace>("idata");
   const [memBase, setMemBase] = useState(0x00);
   const [ioLog, setIoLog] = useState<Array<[number, number]>>([]);
+  // `deviceEvents` is a per-render batch passed to the devices panel.
+  // It's reset every time we hand off a batch — devices consume each
+  // batch exactly once and accumulate their own derived state.
+  const [deviceEvents, setDeviceEvents] = useState<PortEvent[]>([]);
+  const [deviceResetKey, setDeviceResetKey] = useState(0);
   const [running, setRunning] = useState(false);
   const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set());
   const [theme, setTheme] = useState<"vs" | "vs-dark">(() => {
@@ -228,7 +234,7 @@ export function App() {
     if (!emu) return;
     const hexStr = emu.drain_io_log();
     if (!hexStr) return;
-    const events: Array<[number, number]> = [];
+    const events: PortEvent[] = [];
     for (let i = 0; i < hexStr.length; i += 4) {
       const port = parseInt(hexStr.slice(i, i + 2), 16);
       const byte = parseInt(hexStr.slice(i + 2, i + 4), 16);
@@ -236,6 +242,7 @@ export function App() {
     }
     if (events.length > 0) {
       setIoLog((prev) => [...prev, ...events].slice(-64));
+      setDeviceEvents(events);
     }
   }, []);
 
@@ -283,7 +290,30 @@ export function App() {
     if (!emu) return;
     emu.reset();
     reloadFromSource();
+    setDeviceResetKey((k) => k + 1);
   }, [handleStop, reloadFromSource]);
+
+  // Latest snapshot of P0..P3 — devices use this for state-driven
+  // displays (7-seg, LED bar, traffic light) so they reflect the
+  // current port byte even when no new write happened. Read directly
+  // from IDATA at the SFR addresses.
+  const portValues = useMemo(() => {
+    const emu = emuRef.current;
+    if (!emu || !reg) return { p0: 0, p1: 0, p2: 0, p3: 0 };
+    const idata = emu.idata(0x80, 0x40);
+    const at = (addr: number) => parseInt(idata.slice((addr - 0x80) * 2, (addr - 0x80) * 2 + 2), 16);
+    return { p0: at(0x80), p1: at(0x90), p2: at(0xa0), p3: at(0xb0) };
+  }, [reg]);
+
+  // Keypad input — write directly to the port SFR. Wired to the
+  // Devices8051's `poke` callback.
+  const pokePort = useCallback((addr: number, value: number) => {
+    const emu = emuRef.current;
+    if (!emu) return;
+    emu.poke_idata(addr, value);
+    // Refresh the register snapshot so the UI shows the new port value.
+    setReg(JSON.parse(emu.state()) as RegState);
+  }, []);
 
   // Cancel any in-flight run on unmount.
   useEffect(
@@ -518,6 +548,16 @@ export function App() {
               <p className="ide-tiny">{activeExample.description}</p>
             </div>
           )}
+
+          <div className="ide-panel">
+            <div className="ide-panel-h">{strings.devices}</div>
+            <Devices8051
+              events={deviceEvents}
+              portValues={portValues}
+              poke={pokePort}
+              resetKey={deviceResetKey}
+            />
+          </div>
 
           <div className="ide-panel">
             <div className="ide-panel-h">{strings.registers}</div>
