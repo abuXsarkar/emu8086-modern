@@ -36,6 +36,10 @@ export default defineConfig({
         main: resolve(__dirname, "index.html"),
         about: resolve(__dirname, "about/index.html"),
         docs: resolve(__dirname, "docs/index.html"),
+        // The 8085 sibling IDE lives at /8085/. It imports its wasm
+        // from ../../wasm-api-8085/pkg, built by wasm-pack before the
+        // Vite build (see the build:wasm-8085 script in package.json).
+        eight5: resolve(__dirname, "8085/index.html"),
       },
     },
   },

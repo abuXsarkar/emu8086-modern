@@ -8,7 +8,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build:wasm": "wasm-pack build ../wasm-api --target web",
+    "build:wasm-8085": "wasm-pack build ../wasm-api-8085 --target web",
+    "build": "pnpm run build:wasm && pnpm run build:wasm-8085 && tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
