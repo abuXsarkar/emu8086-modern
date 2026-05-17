@@ -1,0 +1,47 @@
+{
+  "name": "@modern8085/cli",
+  "version": "0.1.0",
+  "description": "Node-shim distribution of m85, the Intel 8085 headless runner from modern8085.",
+  "license": "MIT",
+  "author": "Abu Sufian Sarkar <abu@cyberdude.com>",
+  "homepage": "https://modern8086.com/8085",
+  "bugs": "https://github.com/abuXsarkar/modern8086/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abuXsarkar/modern8086.git",
+    "directory": "packages/cli-npm-8085"
+  },
+  "keywords": [
+    "8085",
+    "intel-8085",
+    "emulator",
+    "assembler",
+    "cli",
+    "modern8086"
+  ],
+  "type": "module",
+  "main": "bin/m85.js",
+  "bin": {
+    "m85": "bin/m85.js"
+  },
+  "files": [
+    "bin",
+    "scripts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}
