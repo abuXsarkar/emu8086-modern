@@ -158,7 +158,33 @@ Plus the maintainer actions taken in the same window:
   windows-x86_64) attached to the matching GitHub Release.
 - npm publish of `@modern8086/cli-8085@0.1.0` — pending OTP.
 
-Final 8085 test count: **131** (49 + 22 + 13 + 38 + 9).
+### Added — `/8085/` finishing touches (PRs #132–#135)
+
+- **CHANGELOG parity catch-up** (#132).
+- **Distribution manifest templates + generator** (#133) —
+  `packaging/homebrew/Formula/m85.rb.template`,
+  `packaging/scoop/m85.json.template`, `packaging/chocolatey-8085/`,
+  and `packaging/scripts/generate-m85-manifests.sh`. Verified
+  against the live m85-v0.1.0 release: real SHA-256s land in the
+  right slots. Maintainer copies the filled files into the tap /
+  bucket / chocolatey-push repos to activate each channel.
+- **Tauri desktop scaffold** (#134) — `packages/desktop-8085/`
+  mirrors `packages/desktop` with name + URL swaps. Cargo
+  workspace + pnpm-workspace wired. `frontendDist:
+  ../web/dist/8085` points the bundled app straight at the 8085
+  IDE. Not built in any workflow yet; extending release-8085.yml
+  with a desktop matrix is the next step per
+  docs/plans/8085-desktop.md.
+- **Brand mark SVG** (#135) — `Mark85` clones the modern8086 DIP-
+  package mark with the centred text swapped to `0x85`. Wired into
+  both /8085/ and /8085/about/ so every public surface reads as
+  the same product family.
+
+Final 8085 test count: **131** (49 + 22 + 13 + 38 + 9). Web
+surfaces: `/8085/`, `/8085/about/`, `/8085/docs/`, `/labs/`. CLI
+surfaces: `m85` binary, GitHub Release artifacts, npm wrapper
+(awaiting OTP for first publish), Brew/Scoop/Choco templates.
+Native: Tauri desktop scaffold ready, build pipeline pending.
 
 ## [1.1.4] — 2026-05-13
 
