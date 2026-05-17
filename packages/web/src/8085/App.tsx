@@ -98,6 +98,17 @@ export function App() {
   const [memBase, setMemBase] = useState<number>(0x2050);
   const [memHex, setMemHex] = useState<string>("");
   const [memRadix, setMemRadix] = useState<"hex" | "dec" | "ascii">("hex");
+  /// Count of explicit Step clicks since the last Reset / Run / Load /
+  /// Example pick. Powers the ↶ Back button — replaying N-1 steps from
+  /// a fresh emulator is O(N) but N is tiny (≤ a few hundred) for any
+  /// reasonable lab program, so the simple approach is faster to
+  /// implement and easier to reason about than carrying a snapshot
+  /// stack across the wasm boundary.
+  const [stepCount, setStepCount] = useState(0);
+  /// Last example object (with its input pokes) for accurate replay
+  /// when the source came from the Examples menu.
+  const lastExampleRef = useRef<Example | null>(null);
+
   const [showQuickstart, setShowQuickstart] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try {
@@ -251,6 +262,7 @@ export function App() {
     if (!doLoadIfFreshSource()) return;
     updateState(emu.step());
     highlightCurrentLine();
+    setStepCount((c) => c + 1);
   }, [updateState, highlightCurrentLine]);
 
   /// Tracks whether the editor source has changed since the last
@@ -273,6 +285,7 @@ export function App() {
     if (!doLoadIfFreshSource()) return;
     setRunning(true);
     abortRef.current = false;
+    setStepCount(0); // Run resets the time-travel anchor
     // Chunked execution loop. Each chunk runs up to N instructions,
     // then we yield to the event loop so the UI stays responsive and
     // the Abort button is clickable even with an infinite loop in
@@ -336,13 +349,44 @@ export function App() {
     if (!emu) return;
     emu.reset();
     lastLoadedSrcRef.current = null;
+    lastExampleRef.current = null;
     setDiag(null);
     setHints([]);
     setSymbols([]);
     setMemHex("");
     setReg(null);
+    setStepCount(0);
     decorationsRef.current = editorRef.current?.deltaDecorations(decorationsRef.current, []) ?? [];
   }, []);
+
+  /// Replay the program from a clean emulator state up to `n` Step
+  /// executions, re-applying the input pokes from the last loaded
+  /// Example if there was one. Used by the ↶ Back button.
+  const doReplay = useCallback(
+    (n: number) => {
+      const emu = emuRef.current;
+      if (!emu) return;
+      emu.reset();
+      const load = JSON.parse(emu.load(source)) as LoadResult;
+      if (!load.ok) return;
+      setMemBase(load.origin);
+      const ex = lastExampleRef.current;
+      if (ex?.inputs) {
+        for (const i of ex.inputs) emu.poke(i.addr, i.value);
+      }
+      for (let i = 0; i < n; i++) emu.step();
+      updateState(emu.state());
+      highlightCurrentLine();
+    },
+    [source, updateState, highlightCurrentLine],
+  );
+
+  const doBack = useCallback(() => {
+    if (stepCount === 0) return;
+    const target = stepCount - 1;
+    setStepCount(target);
+    doReplay(target);
+  }, [stepCount, doReplay]);
 
   /// Reset + Run in one click. The common "I edited the source,
   /// what does the new version do from scratch?" loop.
@@ -385,6 +429,8 @@ export function App() {
     (ex: Example) => {
       setSource(ex.source);
       lastLoadedSrcRef.current = null;
+      lastExampleRef.current = ex;
+      setStepCount(0);
       setDiag(null);
       dismissQuickstart();
       // Pre-load inputs into memory after the source is loaded.
@@ -493,6 +539,15 @@ export function App() {
               disabled={coreState.kind !== "ready" || running}
             >
               ⤵ Step
+            </button>
+            <button
+              type="button"
+              className="ide-btn"
+              onClick={doBack}
+              title="Step back one instruction (replays from start)"
+              disabled={coreState.kind !== "ready" || running || stepCount === 0}
+            >
+              ↶ Back
             </button>
             <button
               type="button"
