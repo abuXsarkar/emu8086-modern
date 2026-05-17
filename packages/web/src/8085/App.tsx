@@ -16,6 +16,8 @@ import { LedBar } from "./devices/LedBar";
 import { HexKeypad } from "./devices/HexKeypad";
 import { Stepper } from "./devices/Stepper";
 import { Printer } from "./devices/Printer";
+import { Screen } from "./devices/Screen";
+import { Robot, applyRobotCommand, initialRobotState, type RobotState } from "./devices/Robot";
 import { Tutorials } from "./tutorials/TutorialPanel";
 
 const STORAGE_KEY = "modern8085.source";
@@ -143,6 +145,14 @@ export function App() {
   /// ticks; Reset / clear button wipes it.
   const [printerPort, setPrinterPort] = useState<number>(0x05);
   const [printerBuffer, setPrinterBuffer] = useState<string>("");
+  /// Screen device on port 06H — interprets control bytes (LF, CR,
+  /// BS, FF) the way a tty would.
+  const [screenPort, setScreenPort] = useState<number>(0x06);
+  const [screenBuffer, setScreenBuffer] = useState<string>("");
+  /// Robot turtle on port 07H — each OUT byte is a movement
+  /// command (see Robot.tsx).
+  const [robotPort, setRobotPort] = useState<number>(0x07);
+  const [robot, setRobot] = useState<RobotState>(initialRobotState);
 
   /// Drain the wasm io_log and append printer-port bytes to the
   /// printer buffer. Called from every place that updates emu state
@@ -153,18 +163,47 @@ export function App() {
     if (!emu) return;
     const log = emu.drain_io_log();
     if (log.length === 0) return;
-    let appended = "";
+    let printerAppend = "";
+    let screenAppend = "";
+    let screenClear = false;
+    let robotState: RobotState | null = null;
     for (let i = 0; i + 3 < log.length; i += 4) {
       const port = parseInt(log.slice(i, i + 2), 16);
       const byte = parseInt(log.slice(i + 2, i + 4), 16);
       if (port === printerPort) {
-        appended += byte >= 0x20 && byte < 0x7F ? String.fromCharCode(byte) : ".";
+        printerAppend += byte >= 0x20 && byte < 0x7F ? String.fromCharCode(byte) : ".";
+      }
+      if (port === screenPort) {
+        // Screen handles a few control bytes like a tty.
+        if (byte === 0x0A) screenAppend += "\n";
+        else if (byte === 0x0D) screenAppend += "\r";
+        else if (byte === 0x08) screenAppend += "\b";
+        else if (byte === 0x0C) { screenAppend = ""; screenClear = true; }
+        else if (byte >= 0x20 && byte < 0x7F) screenAppend += String.fromCharCode(byte);
+      }
+      if (port === robotPort) {
+        robotState = applyRobotCommand(robotState ?? robot, byte);
       }
     }
-    if (appended.length > 0) {
-      setPrinterBuffer((b) => (b + appended).slice(-4096));
+    if (printerAppend.length > 0) {
+      setPrinterBuffer((b) => (b + printerAppend).slice(-4096));
     }
-  }, [printerPort]);
+    if (screenClear || screenAppend.length > 0) {
+      setScreenBuffer((b) => {
+        const base = screenClear ? "" : b;
+        // Apply backspaces inline so the displayed buffer stays small.
+        let next = base;
+        for (const ch of screenAppend) {
+          if (ch === "\b") next = next.slice(0, -1);
+          else next += ch;
+        }
+        return next.slice(-4096);
+      });
+    }
+    if (robotState !== null) {
+      setRobot(robotState);
+    }
+  }, [printerPort, screenPort, robotPort, robot]);
 
   const portValueAt = useCallback(
     (port: number) => parseInt(portsHex.slice(port * 2, port * 2 + 2), 16) || 0,
@@ -510,6 +549,8 @@ export function App() {
     setStepCount(0);
     setPortsHex("00".repeat(256));
     setPrinterBuffer("");
+    setScreenBuffer("");
+    setRobot(initialRobotState);
     decorationsRef.current = editorRef.current?.deltaDecorations(decorationsRef.current, []) ?? [];
   }, []);
 
@@ -987,6 +1028,16 @@ export function App() {
                 buffer={printerBuffer}
                 onClear={() => setPrinterBuffer("")}
               />
+              <Screen
+                port={screenPort}
+                buffer={screenBuffer}
+                onClear={() => setScreenBuffer("")}
+              />
+              <Robot
+                port={robotPort}
+                state={robot}
+                onClear={() => setRobot(initialRobotState)}
+              />
             </div>
             <details className="devices-config">
               <summary className="ide-tiny">configure ports ▾</summary>
@@ -996,6 +1047,8 @@ export function App() {
               <PortInput label="stepper" value={stepperPort} onChange={setStepperPort} />
               <PortInput label="keypad" value={keypadPort} onChange={setKeypadPort} />
               <PortInput label="printer" value={printerPort} onChange={setPrinterPort} />
+              <PortInput label="screen" value={screenPort} onChange={setScreenPort} />
+              <PortInput label="robot" value={robotPort} onChange={setRobotPort} />
             </details>
           </div>
 

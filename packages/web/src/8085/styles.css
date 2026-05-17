@@ -517,6 +517,27 @@ body.dark .stepper-svg { background: rgba(255,255,255,0.04); }
 }
 body.dark .printer-tape { background: #1a2538; border-color: #2a3a55; }
 .printer-empty { color: #9ca3af; font-style: italic; }
+.screen-display {
+  width: 100%;
+  min-height: 60px;
+  max-height: 140px;
+  overflow-y: auto;
+  font-size: 11px;
+  background: #0a0a0a;
+  color: #4ade80;
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border: 1px solid #2a3a55;
+}
+.robot-svg {
+  background: #fffef7;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+}
+body.dark .robot-svg { background: #16213a; border-color: #2a3a55; }
 .printer-clear {
   margin-left: auto;
   background: transparent;
