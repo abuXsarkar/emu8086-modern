@@ -1,0 +1,48 @@
+{
+  "name": "@modern8086/cli-8051",
+  "version": "0.1.0",
+  "description": "Node-shim distribution of m51, the Intel 8051 headless runner from modern8051.",
+  "license": "MIT",
+  "author": "Abu Sufian Sarkar <abu@cyberdude.com>",
+  "homepage": "https://modern8086.com/8051",
+  "bugs": "https://github.com/abuXsarkar/modern8086/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abuXsarkar/modern8086.git",
+    "directory": "packages/cli-npm-8051"
+  },
+  "keywords": [
+    "8051",
+    "intel-8051",
+    "mcs-51",
+    "emulator",
+    "assembler",
+    "cli",
+    "modern8086"
+  ],
+  "type": "module",
+  "main": "bin/m51.js",
+  "bin": {
+    "m51": "bin/m51.js"
+  },
+  "files": [
+    "bin",
+    "scripts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}

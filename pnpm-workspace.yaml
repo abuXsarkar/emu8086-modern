@@ -10,3 +10,4 @@ packages:
   - "packages/cli-npm"
   - "packages/cli-npm-8085"
   - "packages/desktop-8085"
+  - "packages/cli-npm-8051"
