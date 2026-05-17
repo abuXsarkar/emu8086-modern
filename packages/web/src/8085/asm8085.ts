@@ -101,6 +101,9 @@ export function registerAsm8085(monacoInstance: typeof monaco): void {
       const key = word.word.toUpperCase();
       const doc = OPCODE_DOCS[key];
       if (!doc) return null;
+      const header = doc.cycles
+        ? `**${key}** — ${doc.summary}  ·  *${doc.cycles} T-states*`
+        : `**${key}** — ${doc.summary}`;
       return {
         range: new monacoInstance.Range(
           position.lineNumber,
@@ -108,7 +111,7 @@ export function registerAsm8085(monacoInstance: typeof monaco): void {
           position.lineNumber,
           word.endColumn,
         ),
-        contents: [{ value: `**${key}** — ${doc.summary}` }, { value: doc.detail }],
+        contents: [{ value: header }, { value: doc.detail }],
       };
     },
   });
