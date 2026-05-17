@@ -13,7 +13,7 @@ name: Release (m85)
 #   git push origin m85-v0.1.0
 # The workflow creates / updates the GitHub Release automatically.
 #
-# Once a release exists, `@modern8085/cli`'s postinstall (the npm
+# Once a release exists, `@modern8086/cli-8085`'s postinstall (the npm
 # wrapper at packages/cli-npm-8085) flips from "inert / log + exit 0"
 # to "download the asset for this platform" — the asset names below
 # match what scripts/install.js looks for.
@@ -114,7 +114,7 @@ jobs:
 
             ```bash
             # Cross-platform via npm (Node 18+):
-            npm install -g @modern8085/cli@${{ steps.ver.outputs.version }}
+            npm install -g @modern8086/cli-8085@${{ steps.ver.outputs.version }}
 
             # Or grab the platform-specific archive below and put the
             # binary on your PATH.

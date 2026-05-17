@@ -1,5 +1,5 @@
 {
-  "name": "@modern8085/cli",
+  "name": "@modern8086/cli-8085",
   "version": "0.1.0",
   "description": "Node-shim distribution of m85, the Intel 8085 headless runner from modern8085.",
   "license": "MIT",

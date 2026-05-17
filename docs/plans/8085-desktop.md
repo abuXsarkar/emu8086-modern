@@ -127,7 +127,7 @@ Note: `devUrl` has the `/8085/` suffix so `pnpm desktop-8085:dev` opens the righ
 | Build wasm-api-8085 (web target) | served by `deploy.yml` continuously, doesn't need to be on the release tag |
 | Build Tauri bundles (Win / Mac / Linux) | **TODO** — extend the matrix here when `packages/desktop-8085/` exists (see "File layout" above) |
 | Build Android AAB + APK | defer to v0.2 |
-| Publish `@modern8085/cli` to npm with the binaries embedded | the wrapper's postinstall (PR #99) auto-fetches once the Release exists; manual `npm publish` is the maintainer's call |
+| Publish `@modern8086/cli-8085` to npm with the binaries embedded | the wrapper's postinstall (PR #99) auto-fetches once the Release exists; manual `npm publish` is the maintainer's call |
 
 Tag scheme: `m85-vX.Y.Z` (distinct from `vX.Y.Z` used by 8086 so the two release pipelines never fight for runners).
 
@@ -138,7 +138,7 @@ The 8086 Android pipeline took 4 fix passes (#82–#87) to stabilise; do not sta
 ## Order of execution
 
 1. ~~Wire `release-8085.yml` (CLI-only matrix).~~ ✅ done in PR #113.
-2. **Tag `m85-v0.1.0`** from current main. The release workflow fires automatically and produces the four CLI artifacts. This is the gate that activates the `@modern8085/cli` npm wrapper's download path.
+2. **Tag `m85-v0.1.0`** from current main. The release workflow fires automatically and produces the four CLI artifacts. This is the gate that activates the `@modern8086/cli-8085` npm wrapper's download path.
    ```bash
    git tag -a m85-v0.1.0 -m "m85 release 0.1.0"
    git push origin m85-v0.1.0
