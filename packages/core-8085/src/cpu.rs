@@ -96,7 +96,7 @@ pub enum StopReason {
 
 /// One step of the CPU — what changed, for the web IDE's step-record
 /// timeline.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StepRecord {
     pub pc_before: u16,
     pub pc_after: u16,

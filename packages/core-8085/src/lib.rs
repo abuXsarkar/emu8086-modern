@@ -26,9 +26,11 @@ use wasm_bindgen::prelude::wasm_bindgen;
 
 pub mod alu;
 pub mod cpu;
+pub mod exec;
 pub mod mem;
 
-pub use cpu::{Cpu, Flags, Reg8, RegPair, StopReason};
+pub use cpu::{Cpu, Flags, Reg8, RegPair, StepRecord, StopReason};
+pub use exec::{run, step};
 pub use mem::{Memory, MEM_SIZE};
 
 /// Bootstrap probe used by the M0 hello-wasm path.
