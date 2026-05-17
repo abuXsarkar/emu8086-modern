@@ -621,6 +621,29 @@ body.dark .tut-body code { background: rgba(255,255,255,0.08); }
 body.dark .tut-body em { color: #93c5fd; }
 .tut-nav { display: flex; justify-content: space-between; gap: 6px; margin-top: 10px; }
 
+.ioact-list {
+  font-size: 11px;
+  max-height: 160px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ioact-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+.ioact-row:nth-child(even) { background: rgba(0,0,0,0.03); }
+body.dark .ioact-row:nth-child(even) { background: rgba(255,255,255,0.03); }
+.ioact-port { color: #1E3A8A; font-weight: 500; }
+body.dark .ioact-port { color: #93c5fd; }
+.ioact-byte { text-align: center; }
+.ioact-ascii { color: #6b7280; text-align: right; }
+body.dark .ioact-ascii { color: #94a3b8; }
+
 .sym-list { font-size: 11px; }
 .sym-row {
   display: flex;
