@@ -19,6 +19,7 @@ import { Printer } from "./devices/Printer";
 import { Screen } from "./devices/Screen";
 import { Robot, applyRobotCommand, initialRobotState, type RobotState } from "./devices/Robot";
 import { Tutorials } from "./tutorials/TutorialPanel";
+import { Mark85 } from "./Mark85";
 
 const STORAGE_KEY = "modern8085.source";
 const THEME_KEY = "modern8085.editor-theme";
@@ -689,6 +690,7 @@ export function App() {
     <div className="ide-root">
       <header className="ide-header">
         <div className="ide-brand">
+          <Mark85 size={26} />
           <span className="brand-mark">modern</span>
           <span className="brand-mark brand-strong">8085</span>
           <span className="brand-tag">— Intel 8085 IDE</span>

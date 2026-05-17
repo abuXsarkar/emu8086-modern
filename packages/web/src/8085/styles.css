@@ -27,10 +27,14 @@ body.dark .ide-header { border-color: #1f2a3a; }
 
 .ide-brand {
   display: flex;
-  align-items: baseline;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
   font-size: 16px;
+  --accent: #1E3A8A;
+  --paper: #F8F4EE;
 }
+body.dark .ide-brand { --accent: #93c5fd; --paper: #0e1726; }
+.ide-brand .brand-mark { line-height: 1; letter-spacing: -0.01em; }
 .brand-mark { letter-spacing: -0.01em; }
 .brand-strong { font-weight: 700; color: #1E3A8A; }
 body.dark .brand-strong { color: #93c5fd; }

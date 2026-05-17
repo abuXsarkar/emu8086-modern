@@ -24,7 +24,17 @@ body.dark .m85land-root { background: #0e1726; color: #e9edf3; }
 }
 body.dark .m85land-header { border-color: #1f2a3a; background: #0e1726; }
 
-.m85land-brand { font-size: 16px; text-decoration: none; color: inherit; display: flex; gap: 4px; align-items: baseline; }
+.m85land-brand {
+  font-size: 16px;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  --accent: #1E3A8A;
+  --paper: #F8F4EE;
+}
+body.dark .m85land-brand { --accent: #93c5fd; --paper: #0e1726; }
 .m85land-brand-strong { font-weight: 700; color: #1E3A8A; }
 body.dark .m85land-brand-strong { color: #93c5fd; }
 
