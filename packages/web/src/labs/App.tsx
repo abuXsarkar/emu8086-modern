@@ -25,7 +25,7 @@ const LABS: Lab[] = [
     name: "modern8085",
     family: "Microprocessor · Intel 8085",
     blurb:
-      "8-bit sibling with the same chassis. Full 246-opcode ISA, 20 canonical lab programs, hover docs, share-link.",
+      "8-bit sibling with the same chassis. Full 246-opcode ISA, 20 canonical lab programs, hover docs, share-link, time-travel debug, slow/crawl run, classroom-friendly register flash. Headless m85 CLI for autograding.",
     href: "/8085/",
     status: "live",
     badge: "New",
