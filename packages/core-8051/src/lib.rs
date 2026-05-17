@@ -16,12 +16,18 @@
     clippy::cast_sign_loss,
     clippy::many_single_char_names,
     clippy::doc_overindented_list_items,
+    clippy::doc_lazy_continuation,
     clippy::similar_names,
     clippy::doc_markdown,
     clippy::module_name_repetitions,
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
-    clippy::trivially_copy_pass_by_ref
+    clippy::trivially_copy_pass_by_ref,
+    // The PSW genuinely is 8 single-bit fields. A bitflags wrapper
+    // would obscure the executor more than help it.
+    clippy::struct_excessive_bools,
+    clippy::match_same_arms,
+    clippy::needless_continue
 )]
 
 pub mod cpu;
