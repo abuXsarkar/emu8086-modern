@@ -61,10 +61,43 @@ body.dark .ide-main { background: #1f2a3a; }
 
 .ide-editor-pane {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   background: var(--bg, #F8F4EE);
   min-height: 0;
 }
+
+.ide-quickstart {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  font-size: 13px;
+  background: #fef3c7;
+  border-bottom: 1px solid #fcd34d;
+  color: #78350f;
+}
+body.dark .ide-quickstart { background: #2a2010; border-bottom-color: #78350f; color: #fde68a; }
+.ide-quickstart strong { font-weight: 600; }
+.ide-quickstart em { font-style: italic; }
+.ide-quickstart kbd {
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  padding: 1px 5px;
+  background: rgba(0,0,0,0.08);
+  border-radius: 3px;
+}
+body.dark .ide-quickstart kbd { background: rgba(255,255,255,0.1); }
+.ide-quickstart-x {
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+}
+.ide-quickstart-x:hover { opacity: 1; }
 body.dark .ide-editor-pane { background: #0e1726; }
 
 .ide-toolbar {
