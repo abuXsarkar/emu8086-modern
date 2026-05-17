@@ -10,6 +10,7 @@ import { DEFAULT_SOURCE, EXAMPLES, type Example } from "./examples";
 import { ClassroomLayer, ClassroomPill } from "../classroom/ClassroomPanel";
 import { useClassroomEditor } from "../classroom/useClassroomEditor";
 import { LOCALES, useLocaleId, useStrings } from "../i18n";
+import { SevenSegment } from "./devices/SevenSegment";
 
 const STORAGE_KEY = "modern8085.source";
 const THEME_KEY = "modern8085.editor-theme";
@@ -113,6 +114,15 @@ export function App() {
   const [symbols, setSymbols] = useState<Array<[string, number]>>([]);
   const [memBase, setMemBase] = useState<number>(0x2050);
   const [memHex, setMemHex] = useState<string>("");
+  /// Snapshot of all 256 IO ports — refreshed after every step or
+  /// chunked-run tick. JS-side devices (the seven-segment shipping
+  /// in this PR, plus the LED matrix / traffic light / hex keypad
+  /// that follow) read from this string the same way the memory
+  /// inspector reads from `memHex`.
+  const [portsHex, setPortsHex] = useState<string>("00".repeat(256));
+  /// Which port the seven-segment listens on. Default 00H matches
+  /// the textbook lab exercise "drive a 7-seg from OUT 00H".
+  const [sevenSegPort, setSevenSegPort] = useState<number>(0x00);
   const [memRadix, setMemRadix] = useState<"hex" | "dec" | "ascii">("hex");
   /// Count of explicit Step clicks since the last Reset / Run / Load /
   /// Example pick. Powers the ↶ Back button — replaying N-1 steps from
@@ -225,7 +235,10 @@ export function App() {
       setReg(s);
       // Refresh memory inspector at the current base.
       const emu = emuRef.current;
-      if (emu) setMemHex(emu.mem(memBase, 64));
+      if (emu) {
+        setMemHex(emu.mem(memBase, 64));
+        setPortsHex(emu.ports(0, 256));
+      }
     } catch (err) {
       setDiag(`internal: failed to parse state — ${String(err)}`);
     }
@@ -365,6 +378,7 @@ export function App() {
         setReg(state);
         highlightCurrentLine();
         setMemHex(emu.mem(memBase, 64));
+        setPortsHex(emu.ports(0, 256));
         if (state.halted || (state.last_stop && state.last_stop !== "BudgetExhausted")) {
           break;
         }
@@ -393,6 +407,7 @@ export function App() {
       await new Promise((r) => setTimeout(r, 0));
     }
     setMemHex(emu.mem(memBase, 64));
+    setPortsHex(emu.ports(0, 256));
     highlightCurrentLine();
     setRunning(false);
   }, [doLoadIfFreshSource, highlightCurrentLine, memBase, speed]);
@@ -883,6 +898,41 @@ export function App() {
                 </span>
               ))}
             </div>
+          </div>
+
+          <div className="ide-panel">
+            <h2 className="ide-panel-h">
+              Devices
+              <span className="ide-panel-controls">
+                <span className="ide-tiny mono" style={{ opacity: 0.7 }}>
+                  port&nbsp;
+                </span>
+                <input
+                  type="text"
+                  className="mono"
+                  value={sevenSegPort.toString(16).toUpperCase().padStart(2, "0") + "H"}
+                  onChange={(e) => {
+                    const cleaned = e.target.value.replace(/[^0-9A-Fa-f]/g, "");
+                    const v = parseInt(cleaned, 16);
+                    if (!isNaN(v)) setSevenSegPort(v & 0xFF);
+                  }}
+                  style={{
+                    fontSize: 11,
+                    width: 42,
+                    padding: "1px 4px",
+                    border: "1px solid #c5beae",
+                    borderRadius: 3,
+                  }}
+                />
+              </span>
+            </h2>
+            <SevenSegment
+              value={parseInt(portsHex.slice(sevenSegPort * 2, sevenSegPort * 2 + 2), 16) || 0}
+              port={sevenSegPort}
+            />
+            <p className="ide-tiny mono">
+              <code>OUT {sevenSegPort.toString(16).toUpperCase().padStart(2, "0")}H</code> to drive
+            </p>
           </div>
 
           {symbols.length > 0 && (

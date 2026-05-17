@@ -347,6 +347,32 @@ impl Emulator {
         self.mem.write((addr & 0xFFFF) as u16, (value & 0xFF) as u8);
     }
 
+    /// Read the current value of an IO port (0..255) as hex bytes,
+    /// same shape as `mem(addr, len)`. Used by JS-side devices
+    /// (seven-segment, traffic light, LED matrix) to poll their port
+    /// between steps and render whatever the program just wrote.
+    #[must_use]
+    pub fn ports(&self, addr: u32, len: u32) -> String {
+        let start = (addr & 0xFF) as usize;
+        let mut end = start.saturating_add(len as usize);
+        if end > 0x100 {
+            end = 0x100;
+        }
+        let mut s = String::with_capacity((end - start) * 2);
+        for b in &self.cpu.ports[start..end] {
+            use std::fmt::Write;
+            let _ = write!(&mut s, "{b:02X}");
+        }
+        s
+    }
+
+    /// Write a byte to an IO port — used by JS-side input devices
+    /// (hex keypad, switches) to inject a value the program will
+    /// read with `IN`.
+    pub fn poke_port(&mut self, addr: u32, value: u32) {
+        self.cpu.ports[(addr & 0xFF) as usize] = (value & 0xFF) as u8;
+    }
+
     /// Override PC (rarely needed; the IDE uses this only when the
     /// student manually moves the run cursor).
     pub fn set_pc(&mut self, value: u32) {

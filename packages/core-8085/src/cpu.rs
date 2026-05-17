@@ -106,7 +106,7 @@ pub struct StepRecord {
 }
 
 /// The 8085 CPU state.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Cpu {
     pub a: u8,
     pub b: u8,
@@ -122,6 +122,24 @@ pub struct Cpu {
     pub ie: bool,
     /// Interrupt mask byte (for SIM/RIM).
     pub im: u8,
+    /// 256 IO ports. `IN n` reads `ports[n]`, `OUT n` writes
+    /// `ports[n]`. JS-side peripheral devices (seven-segment, LED
+    /// matrix, hex keypad, etc.) read or poke ports between steps.
+    /// Stored as a Vec so serde doesn't need a big-array helper.
+    pub ports: Vec<u8>,
+}
+
+impl Default for Cpu {
+    fn default() -> Self {
+        Self {
+            a: 0, b: 0, c: 0, d: 0, e: 0, h: 0, l: 0,
+            sp: 0, pc: 0,
+            flags: Flags::default(),
+            ie: false,
+            im: 0,
+            ports: vec![0; 256],
+        }
+    }
 }
 
 impl Cpu {
