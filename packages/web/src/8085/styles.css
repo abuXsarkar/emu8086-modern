@@ -223,8 +223,20 @@ body.dark .ide-btn { background: #1a2538; border-color: #2a3a55; color: inherit;
   background: #ffffff;
   padding: 6px 8px;
   font-size: 13px;
-  margin-left: auto;
 }
+.ide-select:first-of-type { margin-left: auto; }
+
+.ide-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #4b5563;
+  cursor: pointer;
+  user-select: none;
+}
+body.dark .ide-checkbox { color: #cbd5e1; }
+.ide-checkbox input { cursor: pointer; }
 body.dark .ide-select { background: #1a2538; border-color: #2a3a55; color: inherit; }
 
 .ide-editor-wrap { min-height: 0; overflow: hidden; }

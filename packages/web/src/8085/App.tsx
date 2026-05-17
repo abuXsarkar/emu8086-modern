@@ -156,6 +156,16 @@ export function App() {
     try { localStorage.setItem("modern8085.speed", speed); } catch { /* */ }
   }, [speed]);
 
+  /// When set, picking an example from the dropdown also kicks off a
+  /// Run (at the current speed). Saves a click for the common
+  /// "load → run" flow students use to skim outputs.
+  const [autoRun, setAutoRun] = useState<boolean>(() => {
+    try { return localStorage.getItem("modern8085.autorun") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("modern8085.autorun", autoRun ? "1" : "0"); } catch { /* */ }
+  }, [autoRun]);
+
   const emuRef = useRef<Emulator | null>(null);
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
@@ -530,9 +540,16 @@ export function App() {
           updateState(emu.state());
         }
         if (ex.outputAddr) setMemBase(ex.outputAddr);
+        // If auto-run is on, kick the program off after the inputs
+        // settle. We defer another tick so React's source-state
+        // update propagates before doRun() reads it.
+        if (loadOk && autoRun) {
+          lastLoadedSrcRef.current = ex.source; // skip re-load in doRun
+          setTimeout(() => { void doRun(); }, 0);
+        }
       }, 0);
     },
-    [doLoad, updateState, dismissQuickstart],
+    [doLoad, updateState, dismissQuickstart, autoRun, doRun],
   );
 
   // ───── memory inspector formatting ─────────────────────────────
@@ -692,6 +709,14 @@ export function App() {
               <option value="slow">Slow (180ms)</option>
               <option value="crawl">Crawl (800ms)</option>
             </select>
+            <label className="ide-checkbox" title="Auto-Run after picking an Example">
+              <input
+                type="checkbox"
+                checked={autoRun}
+                onChange={(e) => setAutoRun(e.target.checked)}
+              />
+              auto-run
+            </label>
             <select
               className="ide-select"
               onChange={(e) => {
