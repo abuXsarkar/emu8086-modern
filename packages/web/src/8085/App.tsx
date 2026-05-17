@@ -13,6 +13,7 @@ import { LOCALES, useLocaleId, useStrings } from "../i18n";
 import { SevenSegment } from "./devices/SevenSegment";
 import { TrafficLight } from "./devices/TrafficLight";
 import { LedBar } from "./devices/LedBar";
+import { HexKeypad } from "./devices/HexKeypad";
 
 const STORAGE_KEY = "modern8085.source";
 const THEME_KEY = "modern8085.editor-theme";
@@ -129,6 +130,9 @@ export function App() {
   const [trafficPort, setTrafficPort] = useState<number>(0x01);
   /// LED bar listens on port 02H by default.
   const [ledBarPort, setLedBarPort] = useState<number>(0x02);
+  /// Hex keypad writes to port 03H by default. Students read with
+  /// `IN 03H` to get the last pressed key.
+  const [keypadPort, setKeypadPort] = useState<number>(0x03);
 
   const portValueAt = useCallback(
     (port: number) => parseInt(portsHex.slice(port * 2, port * 2 + 2), 16) || 0,
@@ -917,12 +921,24 @@ export function App() {
               <SevenSegment value={portValueAt(sevenSegPort)} port={sevenSegPort} />
               <TrafficLight value={portValueAt(trafficPort)} port={trafficPort} />
               <LedBar value={portValueAt(ledBarPort)} port={ledBarPort} />
+              <HexKeypad
+                port={keypadPort}
+                onPress={(v) => {
+                  const emu = emuRef.current;
+                  if (!emu) return;
+                  emu.poke_port(keypadPort, v);
+                  // Refresh the ports snapshot so any device pointed at the
+                  // same port reflects the new value immediately.
+                  setPortsHex(emu.ports(0, 256));
+                }}
+              />
             </div>
             <details className="devices-config">
               <summary className="ide-tiny">configure ports ▾</summary>
               <PortInput label="7-seg" value={sevenSegPort} onChange={setSevenSegPort} />
               <PortInput label="traffic" value={trafficPort} onChange={setTrafficPort} />
               <PortInput label="LED bar" value={ledBarPort} onChange={setLedBarPort} />
+              <PortInput label="keypad" value={keypadPort} onChange={setKeypadPort} />
             </details>
           </div>
 
