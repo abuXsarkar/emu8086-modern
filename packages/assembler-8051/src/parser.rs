@@ -280,6 +280,18 @@ impl Parser<'_> {
         match self.peek() {
             Some(Token { tok: Tok::Hash, .. }) => {
                 self.i += 1;
+                // `#LABEL` is the canonical 8051 idiom for loading the
+                // address of a code-memory table (`MOV DPTR, #TABLE`).
+                // Treat it as a Label that the encoder resolves at
+                // emit time — resolve_word already handles Label inputs.
+                if let Some(Token {
+                    tok: Tok::Ident(s), ..
+                }) = self.peek()
+                {
+                    let name = s.clone();
+                    self.i += 1;
+                    return Ok(Operand::Label(name));
+                }
                 let n = self.parse_signed_number(line)?;
                 Ok(Operand::Imm(n))
             }
@@ -389,7 +401,11 @@ impl Parser<'_> {
                 }
                 Ok(match upper.as_str() {
                     "A" | "ACC" => Operand::Acc,
-                    "B" => Operand::B,
+                    // `B` is just the SFR at 0xF0. MUL AB / DIV AB ignore
+                    // operands, so emitting Direct here doesn't break them;
+                    // it does let `MOV B, src` and `MOV dst, B` route
+                    // through the generic direct-addressing encoding.
+                    "B" => Operand::Direct(0xF0),
                     "C" | "CY" => Operand::Carry,
                     "DPTR" => Operand::Dptr,
                     "R0" => Operand::Rn(0),
