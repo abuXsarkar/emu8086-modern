@@ -297,7 +297,7 @@ breaking changes to assembly programs or the CPU semantics.
   domain. Hosted IDE is live at https://modern8086.com.
 - **Android pipeline.** Tauri Android target wired into
   `release.yml`. Every tag now produces signed APKs (one per ABI)
-  + a universal AAB. Gated on `vars.ANDROID_BUILD_ENABLED`; with
+  plus a universal AAB. Gated on `vars.ANDROID_BUILD_ENABLED`; with
   `vars.PLAY_STORE_UPLOAD_ENABLED` flipped on the AAB
   auto-uploads to Play Console's Internal track via
   `r0adkll/upload-google-play`. Play Store listing in flight

@@ -131,10 +131,6 @@ impl Parser<'_> {
         }
         t
     }
-    fn cur_line(&self) -> u32 {
-        self.peek().map_or(0, |t| t.line)
-    }
-
     fn parse_line(&mut self, out: &mut Program) -> Result<(), Error> {
         // Label?
         if let (Some(t1), Some(t2)) = (self.toks.get(self.i), self.toks.get(self.i + 1)) {
@@ -550,6 +546,7 @@ fn byte_dot_bit_to_bit(byte: u8, bit: u8) -> u8 {
     }
 }
 
+#[must_use]
 pub fn sfr_addr_for_name(name: &str) -> Option<u8> {
     Some(match name {
         "P0" => 0x80,

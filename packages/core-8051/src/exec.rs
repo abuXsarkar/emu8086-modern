@@ -52,7 +52,7 @@ fn r_addr(cpu: &Cpu, n: u8) -> u8 {
 /// Read a *direct*-addressed byte. Handles SFR aliasing so direct
 /// 0xE0 reads cpu.a, direct 0x82/0x83 read DPL/DPH from the cached
 /// SFR mirror, etc. The mirror is synced before each step.
-fn read_direct(cpu: &Cpu, mem: &Memory, addr: u8) -> u8 {
+fn read_direct(_cpu: &Cpu, mem: &Memory, addr: u8) -> u8 {
     mem.idata_read(addr)
 }
 
@@ -71,7 +71,7 @@ fn write_direct(cpu: &mut Cpu, mem: &mut Memory, addr: u8, value: u8) {
 }
 
 /// Read a bit. Returns true if set.
-fn read_bit(cpu: &Cpu, mem: &Memory, bit: u8) -> bool {
+fn read_bit(_cpu: &Cpu, mem: &Memory, bit: u8) -> bool {
     let (byte_addr, b) = sfr::bit_to_byte(bit);
     (mem.idata_read(byte_addr) >> b) & 1 == 1
 }
@@ -593,14 +593,15 @@ pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
         }
         // ── DIV AB ────────────────────────────────────────────────
         0x84 => {
-            if cpu.b == 0 {
-                cpu.psw.ov = true;
-                // A and B are undefined per the datasheet; leave as-is.
-            } else {
+            if let Some(q) = cpu.a.checked_div(cpu.b) {
                 cpu.psw.ov = false;
-                let (q, r) = (cpu.a / cpu.b, cpu.a % cpu.b);
+                let r = cpu.a % cpu.b;
                 cpu.a = q;
                 cpu.b = r;
+            } else {
+                // Divide-by-zero: A and B undefined per the datasheet;
+                // leave them as-is and just raise OV.
+                cpu.psw.ov = true;
             }
             cpu.psw.cy = false;
             update_parity(cpu);
@@ -802,7 +803,7 @@ pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
         }
         // ── SWAP A ────────────────────────────────────────────────
         0xC4 => {
-            cpu.a = (cpu.a >> 4) | (cpu.a << 4);
+            cpu.a = cpu.a.rotate_left(4);
         }
         // ── XCH A, direct ─────────────────────────────────────────
         0xC5 => {
@@ -984,9 +985,8 @@ pub fn run(cpu: &mut Cpu, mem: &mut Memory, budget: u64, breakpoints: &[u16]) ->
         if breakpoints.contains(&cpu.pc) {
             return StopReason::Breakpoint(cpu.pc);
         }
-        match step(cpu, mem) {
-            Ok(_) => continue,
-            Err(stop) => return stop,
+        if let Err(stop) = step(cpu, mem) {
+            return stop;
         }
     }
     StopReason::BudgetExhausted

@@ -17,7 +17,10 @@
     clippy::similar_names,
     clippy::too_many_lines,
     clippy::unreadable_literal,
-    clippy::default_trait_access
+    clippy::default_trait_access,
+    // StateView mirrors the 8051 PSW directly; bools are the natural
+    // encoding for the IDE's JSON contract.
+    clippy::struct_excessive_bools
 )]
 
 use modern8051_assembler::{assemble as asm_inner, Output};
