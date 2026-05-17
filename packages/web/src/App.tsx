@@ -815,10 +815,10 @@ export function App() {
           </select>
           <a
             className="sibling-chip"
-            href="/8085/"
-            title="Sibling IDE — Intel 8085 (same chassis, different ISA)"
+            href="/labs/"
+            title="The whole family — Intel 8086, 8085, and what's coming next"
           >
-            🧪 8085 →
+            🧪 Labs
           </a>
           <ClassroomPill />
         </div>

@@ -117,8 +117,8 @@ function TopBar() {
       </a>
       <nav className="landing-topbar-nav">
         <a href="/">Open the IDE</a>
-        <a href="/8085/" title="Sibling tool — Intel 8085 IDE">
-          8085 ↗
+        <a href="/labs/" title="The family of lab tools — 8086, 8085, and more">
+          🧪 Labs
         </a>
         <a
           href="https://github.com/abuXsarkar/modern8086"

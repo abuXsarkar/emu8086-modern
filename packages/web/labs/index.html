@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1E3A8A" />
+    <meta name="description" content="Lab tools by modern8086 — interactive emulators and simulators for the computer-architecture curriculum." />
+
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <meta property="og:title" content="Labs by modern8086" />
+    <meta property="og:description" content="A family of interactive lab tools — Intel 8086, Intel 8085, and more — that students can run in a browser tab." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <title>Labs · modern8086</title>
+    <script>
+      (function () {
+        try {
+          var v = localStorage.getItem("modern8085.editor-theme")
+            || localStorage.getItem("modern8086.editor-theme");
+          if (v === "vs-dark") document.body && document.body.classList.add("dark");
+          if (!document.body) {
+            document.addEventListener("DOMContentLoaded", function () {
+              var v2 = localStorage.getItem("modern8085.editor-theme")
+                || localStorage.getItem("modern8086.editor-theme");
+              if (v2 === "vs-dark") document.body.classList.add("dark");
+            });
+          }
+        } catch (e) { /* ignore */ }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/labs/main.tsx"></script>
+  </body>
+</html>
