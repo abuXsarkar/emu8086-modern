@@ -90,9 +90,29 @@ Follow-up work after the initial /8085/ launch:
 - **Changed-register flash** (#111) — registers and flags that
   changed in the last step pulse for 700 ms. Pairs with Slow/Crawl
   for a real watch-the-CPU-think experience.
+- **CHANGELOG catch-up #99–#111** (#112).
+- **`release-8085.yml` workflow** (#113) — `m85-v*` tag pushes
+  produce native CLI binaries for four targets and attach them to
+  a GitHub Release. Independent of the existing 8086 release
+  pipeline (which fires on bare `v*.*.*`).
+- **Auto-run toggle for Examples** (#114) — composes with Slow/Crawl
+  for a self-narrating demo mode.
+- **Click-to-copy on Symbols rows** (#115) — paste label addresses
+  straight into a calculator or the memory inspector base.
+- **m85-v0.1.0 activation docs** (#116) — README maintainer block +
+  desktop-plan refresh now explain the exact tag-push to fire the
+  first release.
+- **`/labs/` 8085 card blurb** (#117) — catalogue mentions
+  time-travel + slow/crawl + register flash + m85 CLI.
+- **Monaco autocomplete** (#118) — mnemonics + registers + directives
+  surface as completion suggestions with the inline docs as detail.
+- **Accurate per-instruction cycle accumulation** (#119) — Run's
+  cycle counter previously charged a flat `budget` cycles per chunk;
+  `exec::run_with_cycles` now sums each StepRecord's actual cycles.
+  Off-by-an-order-of-magnitude error fixed.
 
-Test count across the 8085 stack now: **125** (49 assembler unit +
-20 canonical-assemble + 12 end-to-end run-verify + 35 core +
+Test count across the 8085 stack now: **126** (49 assembler unit +
+20 canonical-assemble + 12 end-to-end run-verify + 36 core +
 9 wasm-api).
 
 ## [1.1.4] — 2026-05-13
