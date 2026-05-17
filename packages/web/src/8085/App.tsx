@@ -16,6 +16,7 @@ import { LedBar } from "./devices/LedBar";
 import { HexKeypad } from "./devices/HexKeypad";
 import { Stepper } from "./devices/Stepper";
 import { Printer } from "./devices/Printer";
+import { Tutorials } from "./tutorials/TutorialPanel";
 
 const STORAGE_KEY = "modern8085.source";
 const THEME_KEY = "modern8085.editor-theme";
@@ -949,6 +950,17 @@ export function App() {
               ))}
             </div>
           </div>
+
+          <Tutorials
+            onLoadCode={(src) => {
+              setSource(src);
+              lastLoadedSrcRef.current = null;
+              lastExampleRef.current = null;
+              setStepCount(0);
+              setDiag(null);
+              dismissQuickstart();
+            }}
+          />
 
           <div className="ide-panel">
             <h2 className="ide-panel-h">Devices</h2>
