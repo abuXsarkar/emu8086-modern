@@ -435,23 +435,21 @@ pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
             cpu.pc = target;
             cycles = 18;
         }
-        // OUT port (M0: surface as a stop so the IDE / autograder can
-        // observe — most lab programs don't use OUT anyway).
+        // OUT port — write A to cpu.ports[port]. JS-side devices poll
+        // the port array between steps to render their output (the
+        // seven-segment LEDs, traffic light, stepper sequence, etc.).
         0xD3 => {
             let port = fetch_byte(cpu, mem);
-            return Err(StopReason::IoWrite {
-                pc: pc_before,
-                port,
-                value: cpu.a,
-            });
+            cpu.ports[port as usize] = cpu.a;
+            cycles = 10;
         }
-        // IN port (M0: surface as stop)
+        // IN port — read cpu.ports[port] into A. JS-side input devices
+        // (hex keypad, switches) write to the port array between
+        // steps; the program reads them here.
         0xDB => {
             let port = fetch_byte(cpu, mem);
-            return Err(StopReason::IoRead {
-                pc: pc_before,
-                port,
-            });
+            cpu.a = cpu.ports[port as usize];
+            cycles = 10;
         }
         // XTHL
         0xE3 => {
@@ -691,6 +689,23 @@ mod tests {
                 opcode: 0xCB
             })
         );
+    }
+
+    #[test]
+    fn out_writes_to_port_and_in_reads_back() {
+        // MVI A, 42H ; OUT 5 ; MVI A, 00H ; IN 5 ; HLT
+        // After execution A should be back to 0x42 (round-trip via port 5).
+        let mut cpu = Cpu::new();
+        let mut mem = Memory::new();
+        mem.load(
+            0x2000,
+            &[0x3E, 0x42, 0xD3, 0x05, 0x3E, 0x00, 0xDB, 0x05, 0x76],
+        );
+        cpu.pc = 0x2000;
+        let stop = run(&mut cpu, &mut mem, 100, &[]);
+        assert_eq!(stop, StopReason::Halted);
+        assert_eq!(cpu.ports[5], 0x42, "OUT should write port 5");
+        assert_eq!(cpu.a, 0x42, "IN should read port 5 back into A");
     }
 
     #[test]

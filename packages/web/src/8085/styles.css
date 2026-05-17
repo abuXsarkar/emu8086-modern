@@ -371,6 +371,30 @@ body.dark .ide-mem-base input { background: #1a2538; border-color: #2a3a55; colo
 .mem-cell { padding: 2px; text-align: center; background: rgba(0,0,0,0.04); border-radius: 3px; }
 body.dark .mem-cell { background: rgba(255,255,255,0.05); }
 
+.sevenseg-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+}
+.sevenseg-label {
+  font-size: 10px;
+  color: #6b7280;
+  letter-spacing: 0.04em;
+}
+body.dark .sevenseg-label { color: #94a3b8; }
+.sevenseg-svg {
+  background: #f5f0e6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 6px;
+}
+body.dark .sevenseg-svg {
+  background: #1a2538;
+  border-color: #2a3a55;
+}
+
 .sym-list { font-size: 11px; }
 .sym-row {
   display: flex;
