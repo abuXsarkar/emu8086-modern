@@ -37,8 +37,42 @@ type LoadResult = {
   symbols: Array<[string, number]>;
 };
 
+/// Decode a `#code=...` share-link fragment if present. The encoding
+/// is base64url so the link survives copy/paste across chat clients
+/// without needing extra escaping. Returns null if no share fragment.
+function decodeShareFragment(): string | null {
+  if (typeof window === "undefined") return null;
+  const hash = window.location.hash.replace(/^#/, "");
+  if (!hash) return null;
+  const params = new URLSearchParams(hash);
+  const encoded = params.get("code");
+  if (!encoded) return null;
+  try {
+    const normalized = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder("utf-8").decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function encodeShareFragment(source: string): string {
+  const bytes = new TextEncoder().encode(source);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  const b64 = btoa(binary);
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 function initialSource(): string {
   if (typeof window === "undefined") return DEFAULT_SOURCE;
+  // A share-link in the URL beats both stored buffer and default —
+  // someone went to the trouble of sending a specific program.
+  const shared = decodeShareFragment();
+  if (shared !== null) return shared;
   try {
     return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_SOURCE;
   } catch {
@@ -225,6 +259,18 @@ export function App() {
     abortRef.current = true;
   }, []);
 
+  const doShare = useCallback(async () => {
+    const url = `${window.location.origin}${window.location.pathname}#code=${encodeShareFragment(source)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setDiag("Share link copied to clipboard.");
+    } catch {
+      // Fallback: just put it in the URL bar so the user can copy it.
+      window.location.hash = `code=${encodeShareFragment(source)}`;
+      setDiag("Share link is now in the URL bar — copy it from there.");
+    }
+  }, [source]);
+
   const doReset = useCallback(() => {
     const emu = emuRef.current;
     if (!emu) return;
@@ -336,6 +382,15 @@ export function App() {
               disabled={coreState.kind !== "ready" || running}
             >
               ⟲ Reset
+            </button>
+            <button
+              type="button"
+              className="ide-btn"
+              onClick={doShare}
+              title="Copy a shareable link to this exact program"
+              disabled={running}
+            >
+              🔗 Share
             </button>
             <select
               className="ide-select"
