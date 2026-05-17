@@ -6,6 +6,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added — `/8085/` sibling tool
+
+A second IDE for the Intel 8085, deployed at
+[modern8086.com/8085](https://modern8086.com/8085) as a sibling under
+the same chassis. Same Monaco shell, design system, PWA scope, and
+deploy pipeline; distinct ISA core since the 8085 is genuinely a
+different architecture (8-bit, separate mnemonic set, no segmentation).
+
+Shipped across PRs #88–#97:
+
+- **Rust core** — register/flag model, 64 KiB linear memory, ALU
+  helpers, full 246-opcode decoder + executor, cycle budget for
+  Web Worker safety. Regression tests against every documented bug
+  in the major competitors (GNUSim8085 #71/#46, sim8085 #18/#44/#45,
+  Phoxis review).
+- **Assembler** — two-pass with full ISA encoding + 7-rule tolerance
+  preprocessor so paste-in from sim8085 / GNUSim8085 / OshonSoft /
+  lab-manual PDFs assembles on first try. 20 canonical lab programs
+  gated by per-program integration tests so the IDE never silently
+  ships a broken example.
+- **WASM API** — `Emulator` class with `load`/`step`/`run(budget)`/
+  `state`/`mem`/`poke` for the IDE; `assemble` one-shot for tooling.
+- **Web IDE** — Monaco editor with 8085 Monarch language + hover docs
+  on every mnemonic (the inline-docs gap sim8085 paywalls), register
+  pane, flags chips, memory inspector with hex/dec/ASCII toggle,
+  examples dropdown with auto-input-load, share-via-URL, chunked
+  execution + Abort button (fixes the GNUSim8085 #21 / sim8085 #67
+  "infinite loop freezes everything" pain point), dark mode, mobile
+  breakpoint.
+- **CLI** — `m85` binary with `version`, `assemble`, and `run`
+  subcommands. `run` exposes `--poke`, `--bp`, `--max-steps`,
+  and `--mem-dump` for autograding pipelines; exit code distinguishes
+  HLT vs other stop reasons.
+- **CI** — workflows build both 8085 wasm + 8086 wasm; full clippy/fmt
+  gating across new crates.
+- **Cross-link** — landing nav + footer link to /8085/, IDE-header
+  chip in the 8086 IDE pointing at the sibling.
+
+Research backing this work is in `docs/plans/8085-port.md` and
+`docs/plans/8085-port-research.md` (4 parallel research agents
+covered competitor landscape, dialect compatibility, canonical
+example programs, and pain-point survey across 30+ sources).
+
 ## [1.1.4] — 2026-05-13
 
 Android staging fix. v1.1.3's Gradle build produced the files in
