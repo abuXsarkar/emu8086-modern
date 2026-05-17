@@ -115,6 +115,51 @@ Test count across the 8085 stack now: **126** (49 assembler unit +
 20 canonical-assemble + 12 end-to-end run-verify + 36 core +
 9 wasm-api).
 
+### Added — `/8085/` parity push (PRs #120–#131)
+
+The work block that took /8085/ from "polished standalone IDE" to
+"feature parity with modern8086":
+
+- **CHANGELOG #112-#119 catch-up** (#120) — interim update.
+- **Scope rename** (#123) — `@modern8085/cli` → `@modern8086/cli-8085`
+  after the `@modern8085` npm org turned out not to be owned by the
+  abuxsarkar account. Same scope as the 8086 binary, `-8085` infix
+  keeps them distinct.
+- **Classroom + i18n in 8085** (#124) — `useClassroomEditor`,
+  `ClassroomPill`, `ClassroomLayer` from the shared
+  `packages/web/src/classroom` module. Locale picker covers all 13
+  existing locales (en, es, hi, bn, gu, kn, ml, mr, or, pa, ta,
+  te, as).
+- **IO ports + seven-segment** (#125) — `IN` / `OUT` no longer
+  halt; they read/write `cpu.ports[n]`. First device renders that
+  port byte as a 7-seg + decimal point.
+- **Traffic light + LED bar** (#126) — plus a bundled count-up
+  example program.
+- **Hex keypad** (#127) — first input device; click writes a value
+  to a port the program can `IN`.
+- **Stepper + Printer + io_log stream** (#128) — `cpu.io_log` lets
+  stream devices capture every OUT byte without losing repeats
+  (critical for the Printer's "Hello!" example where two `l`s in a
+  row otherwise vanish).
+- **Tutorials panel** (#129) — 4 in-app walkthroughs (Hello, Add,
+  Loops, Seven-segment), markdown-subset bodies, "Load this code"
+  buttons, per-lesson progress in localStorage.
+- **Screen + Robot** (#130) — green-on-black tty (LF/CR/BS/FF
+  control bytes) and a 16×16 turtle-graphics canvas with
+  pen-up/pen-down trail. **8/8 device parity with modern8086.**
+- **/8085/about/ landing** (#131) — 8-slide public pitch:
+  hero, for-students checklist, device grid, pedagogy, classroom,
+  share+save, the family, credits.
+
+Plus the maintainer actions taken in the same window:
+
+- **Tag `m85-v0.1.0` pushed**, `release-8085.yml` produced 4 CLI
+  binaries (linux-x86_64, macos-x86_64, macos-aarch64,
+  windows-x86_64) attached to the matching GitHub Release.
+- npm publish of `@modern8086/cli-8085@0.1.0` — pending OTP.
+
+Final 8085 test count: **131** (49 + 22 + 13 + 38 + 9).
+
 ## [1.1.4] — 2026-05-13
 
 Android staging fix. v1.1.3's Gradle build produced the files in
