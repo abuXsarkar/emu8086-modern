@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Mark85 } from "../8085/Mark85";
 
 const THEME_KEY = "modern8085.editor-theme";
 
@@ -21,6 +22,7 @@ export function App() {
     <div className="m85land-root">
       <header className="m85land-header">
         <a href="/8085/" className="m85land-brand">
+          <Mark85 size={26} />
           <span>modern</span>
           <span className="m85land-brand-strong">8085</span>
         </a>
