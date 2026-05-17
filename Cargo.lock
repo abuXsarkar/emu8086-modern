@@ -2182,8 +2182,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "modern8085-core"
+version = "1.1.4"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "modern8086-assembler"
-version = "1.1.0"
+version = "1.1.4"
 dependencies = [
  "modern8086-core",
  "serde",
@@ -2192,7 +2203,7 @@ dependencies = [
 
 [[package]]
 name = "modern8086-cli"
-version = "1.1.0"
+version = "1.1.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -2205,7 +2216,7 @@ dependencies = [
 
 [[package]]
 name = "modern8086-core"
-version = "1.1.0"
+version = "1.1.4"
 dependencies = [
  "proptest",
  "serde",
@@ -2216,7 +2227,7 @@ dependencies = [
 
 [[package]]
 name = "modern8086-desktop"
-version = "1.1.0"
+version = "1.1.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -2229,7 +2240,7 @@ dependencies = [
 
 [[package]]
 name = "modern8086-devices"
-version = "1.1.0"
+version = "1.1.4"
 dependencies = [
  "modern8086-core",
  "serde",
@@ -2237,7 +2248,7 @@ dependencies = [
 
 [[package]]
 name = "modern8086-wasm-api"
-version = "1.1.0"
+version = "1.1.4"
 dependencies = [
  "modern8086-assembler",
  "modern8086-core",
