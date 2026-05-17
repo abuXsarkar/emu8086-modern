@@ -188,6 +188,28 @@ export function App() {
   }, []);
 
   // ───── actions ─────────────────────────────────────────────────
+  const setEditorMarker = useCallback((line: number | null, message: string | null) => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco) return;
+    const model = editor.getModel();
+    if (!model) return;
+    if (line === null || message === null) {
+      monaco.editor.setModelMarkers(model, "asm8085", []);
+      return;
+    }
+    monaco.editor.setModelMarkers(model, "asm8085", [
+      {
+        startLineNumber: line,
+        startColumn: 1,
+        endLineNumber: line,
+        endColumn: model.getLineMaxColumn(line),
+        message,
+        severity: monaco.MarkerSeverity.Error,
+      },
+    ]);
+  }, []);
+
   const doLoad = useCallback((): boolean => {
     const emu = emuRef.current;
     if (!emu) return false;
@@ -197,12 +219,14 @@ export function App() {
     setSymbols(result.symbols ?? []);
     if (!result.ok) {
       setDiag(result.error ?? "assemble failed");
+      setEditorMarker(result.line && result.line > 0 ? result.line : null, result.error ?? "assemble failed");
       return false;
     }
+    setEditorMarker(null, null);
     setMemBase(result.origin);
     updateState(emu.state());
     return true;
-  }, [source, updateState]);
+  }, [source, updateState, setEditorMarker]);
 
   const doStep = useCallback(() => {
     const emu = emuRef.current;
@@ -258,6 +282,25 @@ export function App() {
   const doAbort = useCallback(() => {
     abortRef.current = true;
   }, []);
+
+  const doDownload = useCallback(() => {
+    // Save the editor source as a .a85 file. No server round-trip,
+    // no network — pure browser API.
+    const blob = new Blob([source], { type: "text/x-asm" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    // First non-empty line that looks like a label or comment makes a
+    // decent default file name; fall back to a stable name.
+    const firstLine = source.split("\n").find((l) => l.trim().length > 0);
+    const stem =
+      firstLine?.replace(/^[;\s]*/, "").replace(/[^A-Za-z0-9_-]+/g, "_").slice(0, 32) ||
+      "program";
+    a.download = `${stem}.a85`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDiag(`Saved as ${a.download}.`);
+  }, [source]);
 
   const doShare = useCallback(async () => {
     const url = `${window.location.origin}${window.location.pathname}#code=${encodeShareFragment(source)}`;
@@ -394,6 +437,15 @@ export function App() {
               disabled={running}
             >
               🔗 Share
+            </button>
+            <button
+              type="button"
+              className="ide-btn"
+              onClick={doDownload}
+              title="Save the editor contents as a .a85 file"
+              disabled={running}
+            >
+              ⬇ Save
             </button>
             <select
               className="ide-select"
