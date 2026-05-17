@@ -10,6 +10,7 @@ import { DEFAULT_SOURCE, EXAMPLES, type Example } from "./examples";
 
 const STORAGE_KEY = "modern8085.source";
 const THEME_KEY = "modern8085.editor-theme";
+const SEEN_QUICKSTART_KEY = "modern8085.seen-quickstart";
 
 type CoreState =
   | { kind: "loading" }
@@ -97,6 +98,22 @@ export function App() {
   const [memBase, setMemBase] = useState<number>(0x2050);
   const [memHex, setMemHex] = useState<string>("");
   const [memRadix, setMemRadix] = useState<"hex" | "dec" | "ascii">("hex");
+  const [showQuickstart, setShowQuickstart] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      // Show once per browser/device. Anyone who's been here before
+      // has already touched at least one toolbar button.
+      return !localStorage.getItem(SEEN_QUICKSTART_KEY);
+    } catch {
+      return true;
+    }
+  });
+  const dismissQuickstart = useCallback(() => {
+    setShowQuickstart(false);
+    try {
+      localStorage.setItem(SEEN_QUICKSTART_KEY, "1");
+    } catch { /* */ }
+  }, []);
   const [theme, setTheme] = useState<"vs" | "vs-dark">(() => {
     try {
       return localStorage.getItem(THEME_KEY) === "vs-dark" ? "vs-dark" : "vs";
@@ -369,6 +386,7 @@ export function App() {
       setSource(ex.source);
       lastLoadedSrcRef.current = null;
       setDiag(null);
+      dismissQuickstart();
       // Pre-load inputs into memory after the source is loaded.
       // We have to defer one tick so doLoad runs against the new source.
       setTimeout(() => {
@@ -382,7 +400,7 @@ export function App() {
         if (ex.outputAddr) setMemBase(ex.outputAddr);
       }, 0);
     },
-    [doLoad, updateState],
+    [doLoad, updateState, dismissQuickstart],
   );
 
   // ───── memory inspector formatting ─────────────────────────────
@@ -436,6 +454,22 @@ export function App() {
 
       <main className="ide-main">
         <section className="ide-editor-pane">
+          {showQuickstart && (
+            <div className="ide-quickstart" role="status">
+              <span>
+                <strong>New here?</strong> Open the <em>Examples</em> menu for a textbook lab program,
+                or just press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to run what's loaded.
+              </span>
+              <button
+                type="button"
+                className="ide-quickstart-x"
+                onClick={dismissQuickstart}
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
           <div className="ide-toolbar">
             <button
               type="button"
