@@ -41,14 +41,17 @@ There's a path for every kind of user. Pick the one that fits.
 ### Browser (no install)
 
 ```
-https://modern8086.com
+https://modern8086.com        # 8086 IDE (flagship)
+https://modern8086.com/8085   # 8085 sibling IDE
+https://modern8086.com/labs   # Family catalogue — every tool in one place
 ```
 
-### CLI — `m86`
+### CLI — `m86` (8086) / `m85` (8085)
 
 ```bash
 # Cross-platform via npm (Node 18+)
-npm install -g @modern8086/cli
+npm install -g @modern8086/cli   # 8086 — m86
+npm install -g @modern8085/cli   # 8085 — m85  (pending first release tag)
 
 # macOS / Linux via Homebrew
 brew tap abuxsarkar/modern8086
@@ -68,6 +71,15 @@ cargo install --git https://github.com/abuXsarkar/modern8086 modern8086-cli
 The `m86` CLI assembles, runs, traces, and grades 8086 assembly
 programs headlessly. Drops into GitHub Classroom via the bundled
 composite action.
+
+The `m85` CLI is the sibling for 8085 assembly — same shape, scoped
+for autograding (`version`, `assemble`, `run` with `--poke`, `--bp`,
+`--max-steps`, `--mem-dump`). Until the first release is tagged,
+install from source:
+
+```bash
+cargo install --git https://github.com/abuXsarkar/modern8086 modern8085-cli
+```
 
 ### Desktop app
 
