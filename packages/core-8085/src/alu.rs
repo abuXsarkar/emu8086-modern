@@ -76,6 +76,7 @@ pub fn inr(flags: &mut Flags, a: u8) -> u8 {
 /// Decrement by 1. CY is not affected; S, Z, AC, P are. The AC bit
 /// here is the borrow-from-bit-4, which matches every Intel 8080/8085
 /// data sheet and rules out the DCR-after-80H bug.
+#[allow(clippy::verbose_bit_mask)]
 pub fn dcr(flags: &mut Flags, a: u8) -> u8 {
     let result = a.wrapping_sub(1);
     flags.ac = (a & 0x0F) == 0; // low nibble was 0 → borrow needed
@@ -240,13 +241,22 @@ mod tests {
         let cy = flags.cy;
         let r = sub8(&mut flags, 0x10, 0x00, cy);
         assert_eq!(r, 0x0F);
-        assert!(flags.ac, "low-nibble underflow with borrow-in should set AC");
+        assert!(
+            flags.ac,
+            "low-nibble underflow with borrow-in should set AC"
+        );
     }
 
     /// Regression for sim8085 #45: DAD must touch only CY — never S/Z/AC/P.
     #[test]
     fn dad_touches_only_cy() {
-        let mut flags = Flags { s: true, z: true, ac: true, p: true, cy: false };
+        let mut flags = Flags {
+            s: true,
+            z: true,
+            ac: true,
+            p: true,
+            cy: false,
+        };
         let r = dad(&mut flags, 0x8000, 0x8000);
         assert_eq!(r, 0x0000);
         assert!(flags.cy, "carry-out should be set");
@@ -268,7 +278,10 @@ mod tests {
         // now DAA on 0x9A with current flags
         let r = daa(&mut flags, after_add);
         assert_eq!(r, 0x00);
-        assert!(flags.cy, "DAA must set CY when high-nibble adjust carries out");
+        assert!(
+            flags.cy,
+            "DAA must set CY when high-nibble adjust carries out"
+        );
         assert!(flags.z);
     }
 

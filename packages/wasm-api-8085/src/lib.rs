@@ -23,7 +23,14 @@
     clippy::cast_lossless,
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
-    clippy::module_name_repetitions
+    clippy::module_name_repetitions,
+    clippy::doc_markdown,
+    clippy::needless_pass_by_value,
+    clippy::similar_names,
+    clippy::struct_excessive_bools,
+    clippy::too_many_lines,
+    clippy::unreadable_literal,
+    clippy::default_trait_access
 )]
 
 use modern8085_assembler::{assemble as asm_inner, Output};
@@ -88,8 +95,9 @@ fn error_line(e: &modern8085_assembler::Error) -> u32 {
         Error::Lex { line, .. }
         | Error::Parse { line, .. }
         | Error::Encode { line, .. }
-        | Error::ValueOutOfRange { line, .. } => *line,
-        Error::UndefinedLabel { line, .. } | Error::DuplicateLabel { line, .. } => *line,
+        | Error::ValueOutOfRange { line, .. }
+        | Error::UndefinedLabel { line, .. }
+        | Error::DuplicateLabel { line, .. } => *line,
     }
 }
 
@@ -223,7 +231,7 @@ impl Emulator {
         self.last_stop = None;
         self.halted = false;
         self.cycles = 0;
-        self.source_map = out.source_map.clone();
+        self.source_map.clone_from(&out.source_map);
     }
 
     /// Execute exactly one instruction. Returns the current state as
@@ -400,8 +408,8 @@ mod tests {
         );
         assert!(load.contains("\"ok\":true"));
         // Step twice (MVI + HLT)
-        e.step();
-        e.step();
+        let _ = e.step();
+        let _ = e.step();
         let state = e.state();
         assert!(state.contains("\"a\":170")); // 0xAA = 170
         assert!(state.contains("\"halted\":true"));
@@ -443,7 +451,7 @@ mod tests {
         // load() wipes memory, so poke() before load is gone — that's
         // intentional. Caller should poke *after* load().
         e.poke(0x2050, 0x42);
-        e.run(100, "");
+        let _ = e.run(100, "");
         let state = e.state();
         assert!(state.contains("\"a\":66")); // 0x42 = 66
     }

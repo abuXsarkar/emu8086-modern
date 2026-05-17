@@ -44,7 +44,10 @@ pub fn lex(source: &str) -> Result<Vec<Token>, Error> {
     while let Some(&c) = chars.peek() {
         match c {
             '\n' => {
-                out.push(Token { tok: Tok::Eol, line });
+                out.push(Token {
+                    tok: Tok::Eol,
+                    line,
+                });
                 line += 1;
                 chars.next();
             }
@@ -66,19 +69,31 @@ pub fn lex(source: &str) -> Result<Vec<Token>, Error> {
                 chars.next();
             }
             ',' => {
-                out.push(Token { tok: Tok::Comma, line });
+                out.push(Token {
+                    tok: Tok::Comma,
+                    line,
+                });
                 chars.next();
             }
             ':' => {
-                out.push(Token { tok: Tok::Colon, line });
+                out.push(Token {
+                    tok: Tok::Colon,
+                    line,
+                });
                 chars.next();
             }
             '+' => {
-                out.push(Token { tok: Tok::Plus, line });
+                out.push(Token {
+                    tok: Tok::Plus,
+                    line,
+                });
                 chars.next();
             }
             '-' => {
-                out.push(Token { tok: Tok::Minus, line });
+                out.push(Token {
+                    tok: Tok::Minus,
+                    line,
+                });
                 chars.next();
             }
             '\'' | '"' => {
@@ -118,7 +133,10 @@ pub fn lex(source: &str) -> Result<Vec<Token>, Error> {
                         msg: "unterminated string literal".into(),
                     });
                 }
-                out.push(Token { tok: Tok::Str(s), line });
+                out.push(Token {
+                    tok: Tok::Str(s),
+                    line,
+                });
             }
             c if c.is_ascii_digit() => {
                 // Number literal — collect alphanumerics, parse below.
@@ -134,7 +152,10 @@ pub fn lex(source: &str) -> Result<Vec<Token>, Error> {
                 // Strip optional underscores (rule 19).
                 let stripped: String = buf.chars().filter(|c| *c != '_').collect();
                 let value = parse_numeric(&stripped, line)?;
-                out.push(Token { tok: Tok::Number(value), line });
+                out.push(Token {
+                    tok: Tok::Number(value),
+                    line,
+                });
             }
             c if is_ident_start(c) => {
                 let mut buf = String::new();
@@ -150,7 +171,10 @@ pub fn lex(source: &str) -> Result<Vec<Token>, Error> {
                 // happens to start with A-F and ends in H. We let the
                 // preprocessor handle the FFH case (rewrites to 0FFH);
                 // here we don't try to re-detect that.
-                out.push(Token { tok: Tok::Ident(buf), line });
+                out.push(Token {
+                    tok: Tok::Ident(buf),
+                    line,
+                });
             }
             _ => {
                 return Err(Error::Lex {
@@ -163,7 +187,10 @@ pub fn lex(source: &str) -> Result<Vec<Token>, Error> {
 
     // Always end with an Eol so the parser sees a clean terminator.
     if !matches!(out.last(), Some(Token { tok: Tok::Eol, .. })) {
-        out.push(Token { tok: Tok::Eol, line });
+        out.push(Token {
+            tok: Tok::Eol,
+            line,
+        });
     }
     Ok(out)
 }
@@ -191,7 +218,7 @@ fn parse_numeric(s: &str, line: u32) -> Result<i64, Error> {
         'H' | 'h' => (&s[..s.len() - 1], 16),
         'B' | 'b' => (&s[..s.len() - 1], 2),
         'O' | 'o' | 'Q' | 'q' => (&s[..s.len() - 1], 8),
-        'D' | 'd' if bytes.len() > 1 && bytes[..bytes.len() - 1].iter().all(|b| b.is_ascii_digit()) => {
+        'D' | 'd' if bytes.len() > 1 && bytes[..bytes.len() - 1].iter().all(u8::is_ascii_digit) => {
             (&s[..s.len() - 1], 10)
         }
         _ => (s, 10),
@@ -226,7 +253,13 @@ mod tests {
 
     fn numbers(toks: &[Token]) -> Vec<i64> {
         toks.iter()
-            .filter_map(|t| if let Tok::Number(n) = &t.tok { Some(*n) } else { None })
+            .filter_map(|t| {
+                if let Tok::Number(n) = &t.tok {
+                    Some(*n)
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 
@@ -268,7 +301,10 @@ mod tests {
                 _ => "?",
             })
             .collect();
-        assert_eq!(kinds, vec!["ident", "colon", "ident", "ident", "comma", "ident", "eol"]);
+        assert_eq!(
+            kinds,
+            vec!["ident", "colon", "ident", "ident", "comma", "ident", "eol"]
+        );
     }
 
     #[test]

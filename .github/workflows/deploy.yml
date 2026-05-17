@@ -53,8 +53,12 @@ jobs:
       - name: Install JS deps
         run: pnpm install --frozen-lockfile
 
-      - name: Build wasm-api package
+      - name: Build wasm-api package (8086)
         run: wasm-pack build packages/wasm-api --target web --out-dir pkg --release
+
+      - name: Build wasm-api package (8085)
+        # Powers the /8085/ sibling IDE route added in #92.
+        run: wasm-pack build packages/wasm-api-8085 --target web --out-dir pkg --release
 
       - name: Build web bundle
         # We serve from a custom domain (modern8086.com via the

@@ -62,6 +62,7 @@ impl Flags {
 
     /// Unpack a byte (as written by `PUSH PSW`) back into a `Flags`.
     /// The fixed bits are simply ignored.
+    #[must_use]
     pub fn from_byte(byte: u8) -> Self {
         Self {
             s: (byte & 0x80) != 0,
@@ -257,7 +258,13 @@ mod tests {
 
     #[test]
     fn flags_byte_round_trip() {
-        let f = Flags { s: true, z: false, ac: true, p: true, cy: true };
+        let f = Flags {
+            s: true,
+            z: false,
+            ac: true,
+            p: true,
+            cy: true,
+        };
         let b = f.to_byte();
         let parsed = Flags::from_byte(b);
         assert_eq!(parsed.s, f.s);

@@ -72,7 +72,11 @@ fn build_symbol_table(program: &Program) -> Result<HashMap<String, i64>, Error> 
                 pc += u32::from(*count);
             }
             Stmt::End { .. } => break,
-            Stmt::Instr { mnem, operands, line } => {
+            Stmt::Instr {
+                mnem,
+                operands,
+                line,
+            } => {
                 pc += instruction_size(mnem, operands, *line)?;
             }
         }
@@ -92,22 +96,20 @@ fn emit(program: &Program, symbols: &HashMap<String, i64>) -> Result<Output, Err
     for stmt in program {
         match stmt {
             Stmt::Org { value, line } => {
-                if origin.is_none() {
-                    origin = Some(*value);
-                } else {
+                if let Some(base_origin) = origin {
                     let new = u32::from(*value);
-                    let base = u32::from(origin.unwrap());
+                    let base = u32::from(base_origin);
                     if new < base + bytes.len() as u32 {
                         return Err(Error::Encode {
                             line: *line,
-                            msg: format!(
-                                "ORG {new:#06X} moves backward into already-emitted code"
-                            ),
+                            msg: format!("ORG {new:#06X} moves backward into already-emitted code"),
                         });
                     }
                     let gap = new - (base + bytes.len() as u32);
                     bytes.extend(std::iter::repeat(0u8).take(gap as usize));
                     source_map.extend(std::iter::repeat(*line).take(gap as usize));
+                } else {
+                    origin = Some(*value);
                 }
             }
             Stmt::Label { .. } | Stmt::Equ { .. } => {
@@ -146,7 +148,11 @@ fn emit(program: &Program, symbols: &HashMap<String, i64>) -> Result<Output, Err
                     source_map.push(*line);
                 }
             }
-            Stmt::Instr { mnem, operands, line } => {
+            Stmt::Instr {
+                mnem,
+                operands,
+                line,
+            } => {
                 emit_instr(mnem, operands, *line, symbols, &mut bytes, &mut source_map)?;
             }
         }
@@ -168,14 +174,22 @@ fn emit(program: &Program, symbols: &HashMap<String, i64>) -> Result<Output, Err
 
 fn byte_value(v: i64, line: u32, kind: &'static str) -> Result<u8, Error> {
     if !(-0x80..=0xFF).contains(&v) {
-        return Err(Error::ValueOutOfRange { line, kind, value: v });
+        return Err(Error::ValueOutOfRange {
+            line,
+            kind,
+            value: v,
+        });
     }
     Ok((v & 0xFF) as u8)
 }
 
 fn word_value(v: i64, line: u32, kind: &'static str) -> Result<u16, Error> {
     if !(-0x8000..=0xFFFF).contains(&v) {
-        return Err(Error::ValueOutOfRange { line, kind, value: v });
+        return Err(Error::ValueOutOfRange {
+            line,
+            kind,
+            value: v,
+        });
     }
     Ok((v & 0xFFFF) as u16)
 }
@@ -233,13 +247,13 @@ fn pair_code_psw(op: &Operand) -> Option<u8> {
 fn cond_for_jump(mnem: &str) -> Option<u8> {
     Some(match mnem {
         "JNZ" | "CNZ" | "RNZ" => 0,
-        "JZ"  | "CZ"  | "RZ"  => 1,
+        "JZ" | "CZ" | "RZ" => 1,
         "JNC" | "CNC" | "RNC" => 2,
-        "JC"  | "CC"  | "RC"  => 3,
+        "JC" | "CC" | "RC" => 3,
         "JPO" | "CPO" | "RPO" => 4,
         "JPE" | "CPE" | "RPE" => 5,
-        "JP"  | "CP"  | "RP"  => 6,
-        "JM"  | "CM"  | "RM"  => 7,
+        "JP" | "CP" | "RP" => 6,
+        "JM" | "CM" | "RM" => 7,
         _ => return None,
     })
 }
@@ -296,7 +310,10 @@ fn emit_instr(
                 symbols
                     .get(&key)
                     .copied()
-                    .ok_or_else(|| Error::UndefinedLabel { name: name.clone(), line })
+                    .ok_or_else(|| Error::UndefinedLabel {
+                        name: name.clone(),
+                        line,
+                    })
                     .and_then(|v| word_value(v, line, "address"))
             }
             _ => Err(Error::Encode {
@@ -313,7 +330,10 @@ fn emit_instr(
                 let v = symbols
                     .get(&name.to_ascii_uppercase())
                     .copied()
-                    .ok_or_else(|| Error::UndefinedLabel { name: name.clone(), line })?;
+                    .ok_or_else(|| Error::UndefinedLabel {
+                        name: name.clone(),
+                        line,
+                    })?;
                 byte_value(v, line, "immediate")
             }
             _ => Err(Error::Encode {
@@ -330,7 +350,10 @@ fn emit_instr(
                 let v = symbols
                     .get(&name.to_ascii_uppercase())
                     .copied()
-                    .ok_or_else(|| Error::UndefinedLabel { name: name.clone(), line })?;
+                    .ok_or_else(|| Error::UndefinedLabel {
+                        name: name.clone(),
+                        line,
+                    })?;
                 word_value(v, line, "16-bit immediate")
             }
             _ => Err(Error::Encode {
@@ -379,18 +402,54 @@ fn emit_instr(
         }
 
         // ───── Rotate / single-byte ALU ────────────────────────────
-        "RLC" => { expect_n_operands(0)?; push(bytes, source_map, 0x07); }
-        "RRC" => { expect_n_operands(0)?; push(bytes, source_map, 0x0F); }
-        "RAL" => { expect_n_operands(0)?; push(bytes, source_map, 0x17); }
-        "RAR" => { expect_n_operands(0)?; push(bytes, source_map, 0x1F); }
-        "CMA" => { expect_n_operands(0)?; push(bytes, source_map, 0x2F); }
-        "CMC" => { expect_n_operands(0)?; push(bytes, source_map, 0x3F); }
-        "STC" => { expect_n_operands(0)?; push(bytes, source_map, 0x37); }
-        "DAA" => { expect_n_operands(0)?; push(bytes, source_map, 0x27); }
-        "XCHG" => { expect_n_operands(0)?; push(bytes, source_map, 0xEB); }
-        "XTHL" => { expect_n_operands(0)?; push(bytes, source_map, 0xE3); }
-        "SPHL" => { expect_n_operands(0)?; push(bytes, source_map, 0xF9); }
-        "PCHL" => { expect_n_operands(0)?; push(bytes, source_map, 0xE9); }
+        "RLC" => {
+            expect_n_operands(0)?;
+            push(bytes, source_map, 0x07);
+        }
+        "RRC" => {
+            expect_n_operands(0)?;
+            push(bytes, source_map, 0x0F);
+        }
+        "RAL" => {
+            expect_n_operands(0)?;
+            push(bytes, source_map, 0x17);
+        }
+        "RAR" => {
+            expect_n_operands(0)?;
+            push(bytes, source_map, 0x1F);
+        }
+        "CMA" => {
+            expect_n_operands(0)?;
+            push(bytes, source_map, 0x2F);
+        }
+        "CMC" => {
+            expect_n_operands(0)?;
+            push(bytes, source_map, 0x3F);
+        }
+        "STC" => {
+            expect_n_operands(0)?;
+            push(bytes, source_map, 0x37);
+        }
+        "DAA" => {
+            expect_n_operands(0)?;
+            push(bytes, source_map, 0x27);
+        }
+        "XCHG" => {
+            expect_n_operands(0)?;
+            push(bytes, source_map, 0xEB);
+        }
+        "XTHL" => {
+            expect_n_operands(0)?;
+            push(bytes, source_map, 0xE3);
+        }
+        "SPHL" => {
+            expect_n_operands(0)?;
+            push(bytes, source_map, 0xF9);
+        }
+        "PCHL" => {
+            expect_n_operands(0)?;
+            push(bytes, source_map, 0xE9);
+        }
 
         // ───── MOV r1, r2  (HLT collides with MOV M,M — that
         // collision is the canonical 8085 quirk and we honor it by

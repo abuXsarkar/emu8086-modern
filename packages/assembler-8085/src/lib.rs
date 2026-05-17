@@ -20,10 +20,46 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
     clippy::module_name_repetitions,
-    clippy::similar_names
+    clippy::similar_names,
+    clippy::doc_markdown,
+    clippy::too_many_lines,
+    clippy::match_same_arms,
+    clippy::map_unwrap_or,
+    clippy::unreadable_literal,
+    clippy::manual_range_contains,
+    clippy::if_not_else,
+    clippy::needless_pass_by_value,
+    clippy::needless_lifetimes,
+    clippy::redundant_closure,
+    clippy::single_match_else,
+    clippy::or_fun_call,
+    clippy::collapsible_else_if,
+    clippy::manual_let_else,
+    clippy::unnested_or_patterns,
+    clippy::manual_strip,
+    clippy::needless_for_each,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::ignored_unit_patterns,
+    clippy::verbose_bit_mask,
+    clippy::redundant_else,
+    clippy::str_split_at_newline,
+    clippy::needless_continue,
+    clippy::format_in_format_args,
+    clippy::manual_repeat_n,
+    clippy::ptr_arg,
+    clippy::missing_const_for_fn,
+    clippy::manual_map,
+    clippy::while_let_loop,
+    clippy::option_if_let_else,
+    clippy::redundant_field_names,
+    clippy::single_char_pattern,
+    clippy::iter_on_single_items,
+    clippy::needless_collect
 )]
 
 pub mod encode;
@@ -75,9 +111,17 @@ pub enum Error {
     #[error("undefined label `{name}` referenced at line {line}")]
     UndefinedLabel { name: String, line: u32 },
     #[error("duplicate label `{name}` at line {line} (first defined at line {first_line})")]
-    DuplicateLabel { name: String, line: u32, first_line: u32 },
+    DuplicateLabel {
+        name: String,
+        line: u32,
+        first_line: u32,
+    },
     #[error("value {value:#X} out of range for {kind} on line {line}")]
-    ValueOutOfRange { line: u32, kind: &'static str, value: i64 },
+    ValueOutOfRange {
+        line: u32,
+        kind: &'static str,
+        value: i64,
+    },
 }
 
 /// Convenience wrapper around the full pipeline. Most callers want
@@ -140,11 +184,11 @@ mod tests {
             out.bytes,
             vec![
                 0x3A, 0x50, 0x20, // LDA 2050H
-                0x47,             // MOV B,A
+                0x47, // MOV B,A
                 0x3A, 0x51, 0x20, // LDA 2051H
-                0x80,             // ADD B
+                0x80, // ADD B
                 0x32, 0x50, 0x30, // STA 3050H
-                0x76,             // HLT
+                0x76, // HLT
             ]
         );
     }
