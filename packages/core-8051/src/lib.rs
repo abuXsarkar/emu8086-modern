@@ -25,11 +25,13 @@
 )]
 
 pub mod cpu;
+pub mod exec;
 pub mod mem;
 pub mod sfr;
 
-pub use cpu::{Cpu, Psw, StopReason};
-pub use mem::{Memory, IDATA_SIZE, XDATA_SIZE, CODE_SIZE};
+pub use cpu::{Cpu, Psw, StepRecord, StopReason};
+pub use exec::{run, step};
+pub use mem::{Memory, CODE_SIZE, IDATA_SIZE, XDATA_SIZE};
 pub use sfr::SfrAddr;
 
 /// Bootstrap probe. The web IDE calls this on startup to verify the
