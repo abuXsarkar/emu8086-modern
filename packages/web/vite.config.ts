@@ -44,6 +44,10 @@ export default defineConfig({
         // and the planned siblings (8051, RISC-V, K-map, etc.). A
         // static React app with no wasm dependencies.
         labs: resolve(__dirname, "labs/index.html"),
+        // /8085/docs/ is the long-form reference: quick-start,
+        // dialect notes, full mnemonic table, CLI. Pulls the docs
+        // content from src/8085/asm8085_docs.ts so it stays in sync.
+        eight5Docs: resolve(__dirname, "8085/docs/index.html"),
       },
     },
   },
