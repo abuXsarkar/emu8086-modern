@@ -81,21 +81,19 @@ fn build_symbol_table(program: &Program) -> Result<HashMap<String, i64>, Error> 
     Ok(symbols)
 }
 
-/// Pass 2: emit bytes. Statements that change PC reset the emit cursor
-/// and pad the gap with zero bytes (mirrors most real assemblers).
+/// Pass 2: emit bytes. An `ORG` later in the stream pads forward with
+/// zero bytes (mirrors most real assemblers); moving backward into
+/// already-emitted code is an error.
 fn emit(program: &Program, symbols: &HashMap<String, i64>) -> Result<Output, Error> {
     let mut bytes: Vec<u8> = Vec::new();
     let mut source_map: Vec<u32> = Vec::new();
     let mut origin: Option<u16> = None;
-    // `cursor` is the address the next byte will be written *to*.
-    let mut cursor: u32 = u32::from(DEFAULT_ORG);
 
     for stmt in program {
         match stmt {
             Stmt::Org { value, line } => {
                 if origin.is_none() {
                     origin = Some(*value);
-                    cursor = u32::from(*value);
                 } else {
                     let new = u32::from(*value);
                     let base = u32::from(origin.unwrap());
@@ -107,11 +105,9 @@ fn emit(program: &Program, symbols: &HashMap<String, i64>) -> Result<Output, Err
                             ),
                         });
                     }
-                    // Pad with zeros to the new origin.
                     let gap = new - (base + bytes.len() as u32);
                     bytes.extend(std::iter::repeat(0u8).take(gap as usize));
                     source_map.extend(std::iter::repeat(*line).take(gap as usize));
-                    cursor = new;
                 }
             }
             Stmt::Label { .. } | Stmt::Equ { .. } => {
@@ -125,13 +121,11 @@ fn emit(program: &Program, symbols: &HashMap<String, i64>) -> Result<Output, Err
                             let byte = byte_value(*b, *line, "DB")?;
                             bytes.push(byte);
                             source_map.push(*line);
-                            cursor += 1;
                         }
                         DbValue::Str(s) => {
                             for ch in s.bytes() {
                                 bytes.push(ch);
                                 source_map.push(*line);
-                                cursor += 1;
                             }
                         }
                     }
@@ -144,20 +138,16 @@ fn emit(program: &Program, symbols: &HashMap<String, i64>) -> Result<Output, Err
                     bytes.push((w >> 8) as u8);
                     source_map.push(*line);
                     source_map.push(*line);
-                    cursor += 2;
                 }
             }
             Stmt::Ds { count, line } => {
                 for _ in 0..*count {
                     bytes.push(0);
                     source_map.push(*line);
-                    cursor += 1;
                 }
             }
             Stmt::Instr { mnem, operands, line } => {
                 emit_instr(mnem, operands, *line, symbols, &mut bytes, &mut source_map)?;
-                let size = instruction_size(mnem, operands, *line)?;
-                cursor += size;
             }
         }
     }
