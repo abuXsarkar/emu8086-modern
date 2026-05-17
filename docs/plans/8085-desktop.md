@@ -118,17 +118,18 @@ Note: `devUrl` has the `/8085/` suffix so `pnpm desktop-8085:dev` opens the righ
 
 ## Release workflow
 
-A separate `.github/workflows/release-8085.yml` triggered by tags matching `m85-v*`. Mirror the existing 8086 release matrix:
+`.github/workflows/release-8085.yml` exists as of PR #113 — triggered by tags matching `m85-v*.*.*`. It currently builds only the **CLI** binary for four targets:
 
-| Step | Same as 8086? |
+| Step | Status |
 |---|---|
-| Build wasm-api-8085 (web target) | yes (already done by deploy.yml) |
-| Build Tauri bundles (Win / Mac / Linux) | yes — change paths to `packages/desktop-8085` |
-| Build Android AAB + APK | optional v0.2; defer |
-| Upload to GitHub Release | yes |
-| Publish @modern8085/cli to npm with the binaries embedded | yes — the npm wrapper (#99) already expects this |
+| Build `m85` CLI for linux-x86_64 / macos-x86_64 / macos-aarch64 / windows-x86_64 | ✅ in `release-8085.yml` today |
+| Package + checksum + attach to GitHub Release | ✅ |
+| Build wasm-api-8085 (web target) | served by `deploy.yml` continuously, doesn't need to be on the release tag |
+| Build Tauri bundles (Win / Mac / Linux) | **TODO** — extend the matrix here when `packages/desktop-8085/` exists (see "File layout" above) |
+| Build Android AAB + APK | defer to v0.2 |
+| Publish `@modern8085/cli` to npm with the binaries embedded | the wrapper's postinstall (PR #99) auto-fetches once the Release exists; manual `npm publish` is the maintainer's call |
 
-Tag scheme: `m85-vX.Y.Z` (distinct from `vX.Y.Z` used by 8086).
+Tag scheme: `m85-vX.Y.Z` (distinct from `vX.Y.Z` used by 8086 so the two release pipelines never fight for runners).
 
 ## Android packaging
 
@@ -136,12 +137,17 @@ The 8086 Android pipeline took 4 fix passes (#82–#87) to stabilise; do not sta
 
 ## Order of execution
 
-1. Tag `m85-v0.1.0` from current main with no Tauri builds — just the CLI + web. Confirms the npm wrapper download path works once a release exists.
-2. Scaffold `packages/desktop-8085/` per this doc. Tauri's CLI can generate the bones from a template.
-3. Local `pnpm desktop-8085:dev` smoke test — does the window open, does the IDE load, does wasm initialise?
-4. Wire `release-8085.yml`. Build desktop targets on a tag push.
-5. Document install paths in the README's CLI block (already done for `npm install -g @modern8085/cli` in PR #103).
-6. Defer Android until v0.2.
+1. ~~Wire `release-8085.yml` (CLI-only matrix).~~ ✅ done in PR #113.
+2. **Tag `m85-v0.1.0`** from current main. The release workflow fires automatically and produces the four CLI artifacts. This is the gate that activates the `@modern8085/cli` npm wrapper's download path.
+   ```bash
+   git tag -a m85-v0.1.0 -m "m85 release 0.1.0"
+   git push origin m85-v0.1.0
+   ```
+3. (Optional) `npm publish` from `packages/cli-npm-8085/` once Step 2 lands — installs now have a real binary to fetch.
+4. Scaffold `packages/desktop-8085/` per this doc. Tauri's CLI can generate the bones from a template.
+5. Local `pnpm desktop-8085:dev` smoke test — does the window open, does the IDE load, does wasm initialise?
+6. Extend `release-8085.yml` to also build desktop targets (the matrix shape is in this doc's tauri.conf.json template).
+7. Defer Android until v0.2.
 
 ## Why this is documented but not built right now
 
