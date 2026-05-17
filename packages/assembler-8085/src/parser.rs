@@ -38,13 +38,34 @@ pub enum Operand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Stmt {
     /// `LABEL:` on its own line, or preceding an instruction.
-    Label { name: String, line: u32 },
-    Org { value: u16, line: u32 },
-    Equ { name: String, value: i64, line: u32 },
-    Db { values: Vec<DbValue>, line: u32 },
-    Dw { values: Vec<i64>, line: u32 },
-    Ds { count: u16, line: u32 },
-    End { line: u32 },
+    Label {
+        name: String,
+        line: u32,
+    },
+    Org {
+        value: u16,
+        line: u32,
+    },
+    Equ {
+        name: String,
+        value: i64,
+        line: u32,
+    },
+    Db {
+        values: Vec<DbValue>,
+        line: u32,
+    },
+    Dw {
+        values: Vec<i64>,
+        line: u32,
+    },
+    Ds {
+        count: u16,
+        line: u32,
+    },
+    End {
+        line: u32,
+    },
     Instr {
         mnem: String,
         operands: Vec<Operand>,
@@ -79,7 +100,7 @@ struct Parser<'a> {
     i: usize,
 }
 
-impl<'a> Parser<'a> {
+impl Parser<'_> {
     fn eof(&self) -> bool {
         self.i >= self.toks.len()
     }
@@ -111,7 +132,10 @@ impl<'a> Parser<'a> {
         if let (Some(t1), Some(t2)) = (self.toks.get(self.i), self.toks.get(self.i + 1)) {
             if matches!(&t1.tok, Tok::Ident(_)) && matches!(&t2.tok, Tok::Colon) {
                 if let Tok::Ident(name) = &t1.tok {
-                    out.push(Stmt::Label { name: name.clone(), line: t1.line });
+                    out.push(Stmt::Label {
+                        name: name.clone(),
+                        line: t1.line,
+                    });
                 }
                 self.i += 2;
             }
@@ -126,7 +150,10 @@ impl<'a> Parser<'a> {
         // First token of the body must be an Ident.
         let head_line;
         let head_name = match self.peek() {
-            Some(Token { tok: Tok::Ident(s), line }) => {
+            Some(Token {
+                tok: Tok::Ident(s),
+                line,
+            }) => {
                 head_line = *line;
                 s.clone()
             }
@@ -150,7 +177,10 @@ impl<'a> Parser<'a> {
                     });
                 }
                 self.expect_eol_or_end(head_line)?;
-                out.push(Stmt::Org { value: value as u16, line: head_line });
+                out.push(Stmt::Org {
+                    value: value as u16,
+                    line: head_line,
+                });
             }
             "EQU" => {
                 return Err(Error::Parse {
@@ -160,7 +190,10 @@ impl<'a> Parser<'a> {
             }
             "DB" => {
                 let values = self.parse_db_list(head_line)?;
-                out.push(Stmt::Db { values, line: head_line });
+                out.push(Stmt::Db {
+                    values,
+                    line: head_line,
+                });
             }
             "DW" => {
                 let mut values = Vec::new();
@@ -170,7 +203,10 @@ impl<'a> Parser<'a> {
                     values.push(self.expect_number(head_line)?);
                 }
                 self.expect_eol_or_end(head_line)?;
-                out.push(Stmt::Dw { values, line: head_line });
+                out.push(Stmt::Dw {
+                    values,
+                    line: head_line,
+                });
             }
             "DS" => {
                 let count = self.expect_number(head_line)?;
@@ -181,7 +217,10 @@ impl<'a> Parser<'a> {
                     });
                 }
                 self.expect_eol_or_end(head_line)?;
-                out.push(Stmt::Ds { count: count as u16, line: head_line });
+                out.push(Stmt::Ds {
+                    count: count as u16,
+                    line: head_line,
+                });
             }
             "END" => {
                 self.skip_to_eol_or_end();
@@ -190,12 +229,20 @@ impl<'a> Parser<'a> {
             _ => {
                 // Detect the `NAME EQU value` form: head_name was the
                 // label, next token is `EQU`.
-                if let Some(Token { tok: Tok::Ident(maybe_equ), .. }) = self.peek() {
+                if let Some(Token {
+                    tok: Tok::Ident(maybe_equ),
+                    ..
+                }) = self.peek()
+                {
                     if maybe_equ.eq_ignore_ascii_case("EQU") {
                         self.i += 1;
                         let value = self.expect_number(head_line)?;
                         self.expect_eol_or_end(head_line)?;
-                        out.push(Stmt::Equ { name: head_name, value, line: head_line });
+                        out.push(Stmt::Equ {
+                            name: head_name,
+                            value,
+                            line: head_line,
+                        });
                         return Ok(());
                     }
                 }
@@ -223,18 +270,26 @@ impl<'a> Parser<'a> {
 
     fn parse_operand(&mut self, line: u32) -> Result<Operand, Error> {
         match self.peek() {
-            Some(Token { tok: Tok::Number(n), .. }) => {
+            Some(Token {
+                tok: Tok::Number(n),
+                ..
+            }) => {
                 let n = *n;
                 self.i += 1;
                 Ok(Operand::Imm(n))
             }
-            Some(Token { tok: Tok::Minus, .. }) => {
+            Some(Token {
+                tok: Tok::Minus, ..
+            }) => {
                 // `-NUMBER` allowed for DB / immediate values.
                 self.i += 1;
                 let n = self.expect_number(line)?;
                 Ok(Operand::Imm(-n))
             }
-            Some(Token { tok: Tok::Ident(name), .. }) => {
+            Some(Token {
+                tok: Tok::Ident(name),
+                ..
+            }) => {
                 let upper = name.to_ascii_uppercase();
                 let name_clone = name.clone();
                 self.i += 1;
@@ -259,7 +314,10 @@ impl<'a> Parser<'a> {
                 line: other.line,
                 msg: format!("expected operand, got `{:?}`", other.tok),
             }),
-            None => Err(Error::Parse { line, msg: "unexpected end of input".into() }),
+            None => Err(Error::Parse {
+                line,
+                msg: "unexpected end of input".into(),
+            }),
         }
     }
 
@@ -276,12 +334,17 @@ impl<'a> Parser<'a> {
 
     fn parse_db_item(&mut self, line: u32) -> Result<DbValue, Error> {
         match self.peek() {
-            Some(Token { tok: Tok::Str(s), .. }) => {
+            Some(Token {
+                tok: Tok::Str(s), ..
+            }) => {
                 let s = s.clone();
                 self.i += 1;
                 Ok(DbValue::Str(s))
             }
-            Some(Token { tok: Tok::Number(n), .. }) => {
+            Some(Token {
+                tok: Tok::Number(n),
+                ..
+            }) => {
                 let n = *n;
                 self.i += 1;
                 Ok(DbValue::Byte(n))
@@ -295,12 +358,18 @@ impl<'a> Parser<'a> {
 
     fn expect_number(&mut self, line: u32) -> Result<i64, Error> {
         match self.bump() {
-            Some(Token { tok: Tok::Number(n), .. }) => Ok(*n),
+            Some(Token {
+                tok: Tok::Number(n),
+                ..
+            }) => Ok(*n),
             Some(other) => Err(Error::Parse {
                 line: other.line,
                 msg: format!("expected number, got `{:?}`", other.tok),
             }),
-            None => Err(Error::Parse { line, msg: "expected number, got EOF".into() }),
+            None => Err(Error::Parse {
+                line,
+                msg: "expected number, got EOF".into(),
+            }),
         }
     }
 

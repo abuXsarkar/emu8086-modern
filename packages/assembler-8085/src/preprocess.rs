@@ -43,10 +43,8 @@ pub fn preprocess(source: &str) -> (String, Vec<(u32, String)>) {
             || line.contains('\u{201d}')
         {
             line = line
-                .replace('\u{2018}', "'")
-                .replace('\u{2019}', "'")
-                .replace('\u{201c}', "\"")
-                .replace('\u{201d}', "\"");
+                .replace(['\u{2018}', '\u{2019}'], "'")
+                .replace(['\u{201c}', '\u{201d}'], "\"");
             hints.push((line_no, "smart quotes normalized to ASCII".to_string()));
         }
 
@@ -105,12 +103,10 @@ fn strip_hash_immediate(line: &str) -> Option<String> {
         return None;
     }
     let mut out = String::with_capacity(line.len());
-    let mut chars = line.chars().peekable();
     let mut prev_non_ws: Option<char> = None;
     let mut changed = false;
-    while let Some(c) = chars.next() {
+    for c in line.chars() {
         if c == '#' && matches!(prev_non_ws, Some(',') | Some('(')) {
-            // skip the `#` — equivalent to "drop the immediate prefix"
             changed = true;
             continue;
         }
@@ -169,11 +165,7 @@ fn rewrite_hex_literals(line: &str) -> (String, bool) {
         // must be word-bounded at the start (not preceded by an
         // identifier-character) and must end in 'H' or 'h'.
         if c.is_ascii_alphabetic() && c != 'h' && c != 'H' {
-            let prev = if i == 0 {
-                b' '
-            } else {
-                bytes[i - 1]
-            };
+            let prev = if i == 0 { b' ' } else { bytes[i - 1] };
             let prev_c = prev as char;
             if !prev_c.is_ascii_alphanumeric() && prev_c != '_' && prev_c != '?' && prev_c != '@' {
                 // Look ahead: a run of hex digits ending in H/h, preceded
@@ -188,12 +180,10 @@ fn rewrite_hex_literals(line: &str) -> (String, bool) {
                     // and the next char isn't an identifier char (so
                     // we don't grab the leading letters of a label
                     // like `HLT` or `FALSE`).
-                    && bytes
-                        .get(end + 1)
-                        .map_or(true, |&n| {
-                            let nc = n as char;
-                            !(nc.is_ascii_alphanumeric() || nc == '_' || nc == '?' || nc == '@')
-                        })
+                    && bytes.get(end + 1).is_none_or(|&n| {
+                        let nc = n as char;
+                        !(nc.is_ascii_alphanumeric() || nc == '_' || nc == '?' || nc == '@')
+                    })
                 {
                     out.push('0');
                     out.push_str(std::str::from_utf8(&bytes[i..=end]).unwrap());

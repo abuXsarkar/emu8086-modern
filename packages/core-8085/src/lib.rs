@@ -18,7 +18,19 @@
     clippy::doc_overindented_list_items,
     clippy::similar_names,
     clippy::doc_markdown,
-    clippy::module_name_repetitions
+    clippy::module_name_repetitions,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::needless_continue,
+    clippy::struct_excessive_bools,
+    clippy::match_same_arms,
+    clippy::too_many_lines,
+    clippy::unreadable_literal,
+    clippy::redundant_else,
+    clippy::needless_pass_by_value,
+    clippy::if_not_else,
+    clippy::missing_const_for_fn
 )]
 
 pub mod alu;

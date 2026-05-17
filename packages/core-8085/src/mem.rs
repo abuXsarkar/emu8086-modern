@@ -16,7 +16,9 @@ pub struct Memory {
 impl Memory {
     #[must_use]
     pub fn new() -> Self {
-        Self { bytes: vec![0; MEM_SIZE] }
+        Self {
+            bytes: vec![0; MEM_SIZE],
+        }
     }
 
     #[must_use]

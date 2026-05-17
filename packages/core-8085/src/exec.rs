@@ -80,14 +80,14 @@ fn write_pair_psw(cpu: &mut Cpu, field: u8, value: u16) {
 /// Test a 3-bit condition code against the current flags.
 fn cond_holds(flags: &Flags, code: u8) -> bool {
     match code & 0x7 {
-        0 => !flags.z,                 // NZ
-        1 => flags.z,                  // Z
-        2 => !flags.cy,                // NC
-        3 => flags.cy,                 // C
-        4 => !flags.p,                 // PO (parity odd)
-        5 => flags.p,                  // PE (parity even)
-        6 => !flags.s,                 // P  (positive — sign clear)
-        7 => flags.s,                  // M  (minus  — sign set)
+        0 => !flags.z,  // NZ
+        1 => flags.z,   // Z
+        2 => !flags.cy, // NC
+        3 => flags.cy,  // C
+        4 => !flags.p,  // PO (parity odd)
+        5 => flags.p,   // PE (parity even)
+        6 => !flags.s,  // P  (positive — sign clear)
+        7 => flags.s,   // M  (minus  — sign set)
         _ => unreachable!(),
     }
 }
@@ -383,13 +383,33 @@ pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
             let imm = fetch_byte(cpu, mem);
             cycles = 7;
             match opcode {
-                0xC6 => { let r = alu::add8(&mut cpu.flags, cpu.a, imm, false); cpu.a = r; }
-                0xCE => { let cy = cpu.flags.cy; let r = alu::add8(&mut cpu.flags, cpu.a, imm, cy); cpu.a = r; }
-                0xD6 => { let r = alu::sub8(&mut cpu.flags, cpu.a, imm, false); cpu.a = r; }
-                0xDE => { let cy = cpu.flags.cy; let r = alu::sub8(&mut cpu.flags, cpu.a, imm, cy); cpu.a = r; }
-                0xE6 => { cpu.a = alu::ana(&mut cpu.flags, cpu.a, imm); }
-                0xEE => { cpu.a = alu::xra(&mut cpu.flags, cpu.a, imm); }
-                0xF6 => { cpu.a = alu::ora(&mut cpu.flags, cpu.a, imm); }
+                0xC6 => {
+                    let r = alu::add8(&mut cpu.flags, cpu.a, imm, false);
+                    cpu.a = r;
+                }
+                0xCE => {
+                    let cy = cpu.flags.cy;
+                    let r = alu::add8(&mut cpu.flags, cpu.a, imm, cy);
+                    cpu.a = r;
+                }
+                0xD6 => {
+                    let r = alu::sub8(&mut cpu.flags, cpu.a, imm, false);
+                    cpu.a = r;
+                }
+                0xDE => {
+                    let cy = cpu.flags.cy;
+                    let r = alu::sub8(&mut cpu.flags, cpu.a, imm, cy);
+                    cpu.a = r;
+                }
+                0xE6 => {
+                    cpu.a = alu::ana(&mut cpu.flags, cpu.a, imm);
+                }
+                0xEE => {
+                    cpu.a = alu::xra(&mut cpu.flags, cpu.a, imm);
+                }
+                0xF6 => {
+                    cpu.a = alu::ora(&mut cpu.flags, cpu.a, imm);
+                }
                 0xFE => alu::cmp(&mut cpu.flags, cpu.a, imm),
                 _ => unreachable!(),
             }
@@ -419,12 +439,19 @@ pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
         // observe — most lab programs don't use OUT anyway).
         0xD3 => {
             let port = fetch_byte(cpu, mem);
-            return Err(StopReason::IoWrite { pc: pc_before, port, value: cpu.a });
+            return Err(StopReason::IoWrite {
+                pc: pc_before,
+                port,
+                value: cpu.a,
+            });
         }
         // IN port (M0: surface as stop)
         0xDB => {
             let port = fetch_byte(cpu, mem);
-            return Err(StopReason::IoRead { pc: pc_before, port });
+            return Err(StopReason::IoRead {
+                pc: pc_before,
+                port,
+            });
         }
         // XTHL
         0xE3 => {
@@ -465,7 +492,10 @@ pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
         // these as NOP on most variants — surface as a stop so the IDE
         // can highlight student bugs.
         _ => {
-            return Err(StopReason::InvalidOpcode { pc: pc_before, opcode });
+            return Err(StopReason::InvalidOpcode {
+                pc: pc_before,
+                opcode,
+            });
         }
     }
 
@@ -485,12 +515,7 @@ pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
 /// small budget per chunk, yield to the event loop between chunks, and
 /// surface an "Abort?" button after a couple of chunks have passed
 /// without progress toward HLT.
-pub fn run(
-    cpu: &mut Cpu,
-    mem: &mut Memory,
-    budget: u64,
-    breakpoints: &[u16],
-) -> StopReason {
+pub fn run(cpu: &mut Cpu, mem: &mut Memory, budget: u64, breakpoints: &[u16]) -> StopReason {
     for _ in 0..budget {
         if breakpoints.contains(&cpu.pc) {
             return StopReason::Breakpoint(cpu.pc);
@@ -542,11 +567,11 @@ mod tests {
             0x2000,
             &[
                 0x3A, 0x50, 0x20, // LDA 2050H
-                0x47,             // MOV B, A
+                0x47, // MOV B, A
                 0x3A, 0x51, 0x20, // LDA 2051H
-                0x80,             // ADD B
+                0x80, // ADD B
                 0x32, 0x50, 0x30, // STA 3050H
-                0x76,             // HLT
+                0x76, // HLT
             ],
         );
         cpu.pc = 0x2000;
@@ -598,10 +623,10 @@ mod tests {
         let (cpu, _, _) = run_program(
             0x2000,
             &[
-                0x37,             // STC
-                0x3E, 0xFF,       // MVI A, 0FFH
-                0xCE, 0x00,       // ACI 0
-                0x76,             // HLT
+                0x37, // STC
+                0x3E, 0xFF, // MVI A, 0FFH
+                0xCE, 0x00, // ACI 0
+                0x76, // HLT
             ],
         );
         assert_eq!(cpu.a, 0x00);
@@ -615,7 +640,13 @@ mod tests {
         // Set S/Z/AC/P artificially via CMP A,A, then DAD H of 8000H+8000H.
         let mut cpu = Cpu::new();
         let mut mem = Memory::new();
-        cpu.flags = Flags { s: true, z: true, ac: true, p: true, cy: false };
+        cpu.flags = Flags {
+            s: true,
+            z: true,
+            ac: true,
+            p: true,
+            cy: false,
+        };
         cpu.set_pair(RegPair::HL, 0x8000);
         mem.load(0x2000, &[0x29, 0x76]); // DAD H ; HLT
         cpu.pc = 0x2000;
@@ -640,7 +671,10 @@ mod tests {
         let stop = step(&mut cpu, &mut mem);
         assert_eq!(
             stop,
-            Err(StopReason::InvalidOpcode { pc: 0x2000, opcode: 0xCB })
+            Err(StopReason::InvalidOpcode {
+                pc: 0x2000,
+                opcode: 0xCB
+            })
         );
     }
 
@@ -652,7 +686,7 @@ mod tests {
         let mut cpu = Cpu::new();
         let mut mem = Memory::new();
         mem.load(0x2000, &[0xEF, 0x76]); // RST 5 ; HLT
-        mem.load(0x0028, &[0xC9]);       // RET at the vector
+        mem.load(0x0028, &[0xC9]); // RET at the vector
         cpu.pc = 0x2000;
         cpu.sp = 0xFFFE;
         let stop = run(&mut cpu, &mut mem, 100, &[]);
@@ -669,22 +703,22 @@ mod tests {
             0x2000,
             &[
                 0x21, 0x50, 0x30, // LXI H, 3050H
-                0x0E, 0x08,       // MVI C, 8
-                0x06, 0x00,       // MVI B, 0
-                0x16, 0x01,       // MVI D, 1
-                0x70,             // MOV M, B    ; store 0
-                0x23,             // INX H
-                0x72,             // MOV M, D    ; store 1
-                                  // NEXT:
-                0x78,             // MOV A, B
-                0x82,             // ADD D
-                0x42,             // MOV B, D
-                0x57,             // MOV D, A
-                0x23,             // INX H
-                0x77,             // MOV M, A
-                0x0D,             // DCR C
+                0x0E, 0x08, // MVI C, 8
+                0x06, 0x00, // MVI B, 0
+                0x16, 0x01, // MVI D, 1
+                0x70, // MOV M, B    ; store 0
+                0x23, // INX H
+                0x72, // MOV M, D    ; store 1
+                // NEXT:
+                0x78, // MOV A, B
+                0x82, // ADD D
+                0x42, // MOV B, D
+                0x57, // MOV D, A
+                0x23, // INX H
+                0x77, // MOV M, A
+                0x0D, // DCR C
                 0xC2, 0x0C, 0x20, // JNZ NEXT  (NEXT = 200C)
-                0x76,             // HLT
+                0x76, // HLT
             ],
         );
         cpu.pc = 0x2000;
