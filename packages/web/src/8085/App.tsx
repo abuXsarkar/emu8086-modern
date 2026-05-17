@@ -327,6 +327,43 @@ export function App() {
     decorationsRef.current = editorRef.current?.deltaDecorations(decorationsRef.current, []) ?? [];
   }, []);
 
+  /// Reset + Run in one click. The common "I edited the source,
+  /// what does the new version do from scratch?" loop.
+  const doRestart = useCallback(async () => {
+    doReset();
+    // doReset() wipes the loaded-source ref, so doRun() will reassemble.
+    await doRun();
+  }, [doReset, doRun]);
+
+  // ───── keyboard shortcuts ─────────────────────────────────────
+  // Editor-level (Monaco focused): Ctrl+Enter Run, Ctrl+. Step, Ctrl+S Save.
+  // We attach at the document level so the shortcuts work whether
+  // focus is in the editor or in the side panel.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      // Avoid clashing with browser-native finds, etc. We only handle
+      // a small set of keys we know aren't used elsewhere.
+      if (e.key === "Enter") {
+        e.preventDefault();
+        void doRun();
+      } else if (e.key === ".") {
+        e.preventDefault();
+        doStep();
+      } else if (e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        doDownload();
+      } else if (e.key === "k" || e.key === "K") {
+        // Cmd/Ctrl-K → Share link (common "copy URL" shortcut).
+        e.preventDefault();
+        void doShare();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [doRun, doStep, doDownload, doShare]);
+
   const loadExample = useCallback(
     (ex: Example) => {
       setSource(ex.source);
@@ -404,6 +441,7 @@ export function App() {
               type="button"
               className="ide-btn ide-btn-primary"
               onClick={doRun}
+              title="Ctrl/Cmd+Enter"
               disabled={coreState.kind !== "ready" || running}
             >
               {running ? "Running…" : "▶ Run"}
@@ -417,6 +455,7 @@ export function App() {
               type="button"
               className="ide-btn"
               onClick={doStep}
+              title="Ctrl/Cmd+."
               disabled={coreState.kind !== "ready" || running}
             >
               ⤵ Step
@@ -432,8 +471,17 @@ export function App() {
             <button
               type="button"
               className="ide-btn"
+              onClick={doRestart}
+              title="Reset then Run from scratch"
+              disabled={coreState.kind !== "ready" || running}
+            >
+              ↻ Restart
+            </button>
+            <button
+              type="button"
+              className="ide-btn"
               onClick={doShare}
-              title="Copy a shareable link to this exact program"
+              title="Copy a shareable link (Ctrl/Cmd+K)"
               disabled={running}
             >
               🔗 Share
@@ -442,7 +490,7 @@ export function App() {
               type="button"
               className="ide-btn"
               onClick={doDownload}
-              title="Save the editor contents as a .a85 file"
+              title="Save as .a85 file (Ctrl/Cmd+S)"
               disabled={running}
             >
               ⬇ Save
