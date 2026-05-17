@@ -1,0 +1,21 @@
+[package]
+name = "modern8051-assembler"
+description = "Assembler for Intel 8051 mnemonics with cross-dialect tolerance mode."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+modern8051-core = { path = "../core-8051" }

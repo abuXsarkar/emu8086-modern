@@ -2182,6 +2182,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "modern8051-assembler"
+version = "1.1.4"
+dependencies = [
+ "modern8051-core",
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "modern8051-core"
 version = "1.1.4"
 dependencies = [
@@ -2189,6 +2198,17 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 1.0.69",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "modern8051-wasm-api"
+version = "1.1.4"
+dependencies = [
+ "modern8051-assembler",
+ "modern8051-core",
+ "serde",
+ "serde_json",
  "wasm-bindgen",
 ]
 
