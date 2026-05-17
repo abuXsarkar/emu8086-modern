@@ -127,17 +127,31 @@ pub struct Cpu {
     /// matrix, hex keypad, etc.) read or poke ports between steps.
     /// Stored as a Vec so serde doesn't need a big-array helper.
     pub ports: Vec<u8>,
+    /// Append-only log of every (port, byte) pair written by an OUT
+    /// instruction since the last `drain_io_log()`. Lets stream
+    /// devices (printer, serial console) capture every byte without
+    /// missing repeats — `ports[]` alone would lose successive
+    /// identical writes. JS drains the log between steps.
+    pub io_log: Vec<(u8, u8)>,
 }
 
 impl Default for Cpu {
     fn default() -> Self {
         Self {
-            a: 0, b: 0, c: 0, d: 0, e: 0, h: 0, l: 0,
-            sp: 0, pc: 0,
+            a: 0,
+            b: 0,
+            c: 0,
+            d: 0,
+            e: 0,
+            h: 0,
+            l: 0,
+            sp: 0,
+            pc: 0,
             flags: Flags::default(),
             ie: false,
             im: 0,
             ports: vec![0; 256],
+            io_log: Vec::new(),
         }
     }
 }

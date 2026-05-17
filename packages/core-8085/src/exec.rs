@@ -435,12 +435,22 @@ pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
             cpu.pc = target;
             cycles = 18;
         }
-        // OUT port — write A to cpu.ports[port]. JS-side devices poll
-        // the port array between steps to render their output (the
-        // seven-segment LEDs, traffic light, stepper sequence, etc.).
+        // OUT port — write A to cpu.ports[port] AND append to the io
+        // log so stream devices (printer, serial) capture every byte
+        // even when the program writes the same value repeatedly.
+        // The seven-segment / traffic / LED-bar devices just read
+        // ports[port] and don't need the log.
         0xD3 => {
             let port = fetch_byte(cpu, mem);
             cpu.ports[port as usize] = cpu.a;
+            // Bounded log — drop the oldest if it grows past 64K
+            // (a tight loop spamming OUT in Fast mode would otherwise
+            // eat memory until the next drain). Stream devices only
+            // need the last few hundred entries.
+            if cpu.io_log.len() >= 65_536 {
+                cpu.io_log.remove(0);
+            }
+            cpu.io_log.push((port, cpu.a));
             cycles = 10;
         }
         // IN port — read cpu.ports[port] into A. JS-side input devices
@@ -689,6 +699,33 @@ mod tests {
                 opcode: 0xCB
             })
         );
+    }
+
+    #[test]
+    fn out_appends_to_io_log() {
+        // 3 × OUT with the same byte to the same port should produce
+        // 3 entries in the io_log (the printer device relies on this
+        // to render repeated characters).
+        let mut cpu = Cpu::new();
+        let mut mem = Memory::new();
+        mem.load(
+            0x2000,
+            &[
+                0x3E, 0x41, // MVI A, 'A'
+                0xD3, 0x05, // OUT 05H
+                0xD3, 0x05, // OUT 05H
+                0xD3, 0x05, // OUT 05H
+                0x76, // HLT
+            ],
+        );
+        cpu.pc = 0x2000;
+        let stop = run(&mut cpu, &mut mem, 100, &[]);
+        assert_eq!(stop, StopReason::Halted);
+        assert_eq!(cpu.io_log.len(), 3);
+        for (port, byte) in &cpu.io_log {
+            assert_eq!(*port, 5);
+            assert_eq!(*byte, 0x41);
+        }
     }
 
     #[test]
