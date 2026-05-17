@@ -11,6 +11,7 @@ import { LOCALES, useLocaleId, useStrings } from "../i18n";
 import { ClassroomLayer, ClassroomPill } from "../classroom/ClassroomPanel";
 import { useClassroomEditor } from "../classroom/useClassroomEditor";
 import { Devices8051, type PortEvent } from "./devices/Devices";
+import { Tutorials } from "./tutorials/TutorialPanel";
 
 const STORAGE_KEY = "modern8051.source";
 const THEME_KEY = "modern8051.editor-theme";
@@ -558,6 +559,8 @@ export function App() {
               resetKey={deviceResetKey}
             />
           </div>
+
+          <Tutorials onLoadCode={(src) => { handleStop(); setSource(src); }} />
 
           <div className="ide-panel">
             <div className="ide-panel-h">{strings.registers}</div>
