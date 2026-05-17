@@ -49,6 +49,52 @@ Research backing this work is in `docs/plans/8085-port.md` and
 covered competitor landscape, dialect compatibility, canonical
 example programs, and pain-point survey across 30+ sources).
 
+### Added — `/8085/` polish (PRs #99–#111)
+
+Follow-up work after the initial /8085/ launch:
+
+- **npm wrapper** `@modern8085/cli` (#99) — pre-release skeleton;
+  inert until a tagged m85 release exists, then `npm install -g`
+  fetches the per-platform binary from the GitHub Release.
+- **`/labs/` catalogue** (#100) — family-of-tools landing page
+  listing 8086 + 8085 (live) and the planned siblings (8051, ARM
+  Cortex-M, RISC-V, K-map, cache sim, CPU scheduler, page
+  replacement, subnet calc). Cross-link chips in both IDE headers
+  funnel through here.
+- **Inline error squiggles + ⬇ Save** (#101) — assembler errors mark
+  the failing line in Monaco; Save downloads the buffer as `.a85`
+  with a name slugged from the first non-empty line.
+- **⌨ Keyboard shortcuts + ↻ Restart** (#102) — Ctrl/Cmd + Enter
+  (Run), . (Step), S (Save), K (Share); Restart = Reset + Run in
+  one click.
+- **README install matrix** (#103) — lists /, /8085/, /labs/ +
+  `m85` CLI alongside `m86`.
+- **First-time quick-start strip** (#104) — one-line amber banner
+  that shows on first visit, dismissed by Examples pick or ×.
+- **↶ Back time-travel** (#105) — replay-from-start gives a
+  step-back button that's correct by construction. No competitor
+  shipped 8085 simulator I could find offers this.
+- **End-to-end run-and-verify tests** (#106) — 12 canonical
+  programs assembled + executed + outputs asserted in CI.
+- **? help overlay** (#107) — shortcuts table + 4-step workflow +
+  dialect notes + memory-layout convention, modal triggered by `?`.
+- **`/8085/docs/` reference page** (#108) — long-form quick-start +
+  full mnemonic table + tolerance-fix list + CLI usage. Content
+  shared with the IDE's `asm8085_docs.ts` so they can't drift.
+- **Tauri desktop bundling plan** (#109) — `docs/plans/8085-desktop.md`
+  documents the layout for a future `packages/desktop-8085/` shell
+  without touching the 8086 release pipeline.
+- **Fast / Slow / Crawl Run speeds** (#110) — Slow (180 ms) and
+  Crawl (800 ms) drive a step-by-step path with per-instruction UI
+  refresh, useful for classroom demos. Fixes Launchpad #579326.
+- **Changed-register flash** (#111) — registers and flags that
+  changed in the last step pulse for 700 ms. Pairs with Slow/Crawl
+  for a real watch-the-CPU-think experience.
+
+Test count across the 8085 stack now: **125** (49 assembler unit +
+20 canonical-assemble + 12 end-to-end run-verify + 35 core +
+9 wasm-api).
+
 ## [1.1.4] — 2026-05-13
 
 Android staging fix. v1.1.3's Gradle build produced the files in
