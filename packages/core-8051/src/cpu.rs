@@ -154,8 +154,8 @@ impl Cpu {
     pub fn pull_sfrs(&mut self, mem: &Memory) {
         self.a = mem.idata_read(sfr::ACC.0);
         self.b = mem.idata_read(sfr::B.0);
-        self.dptr = u16::from(mem.idata_read(sfr::DPL.0))
-            | (u16::from(mem.idata_read(sfr::DPH.0)) << 8);
+        self.dptr =
+            u16::from(mem.idata_read(sfr::DPL.0)) | (u16::from(mem.idata_read(sfr::DPH.0)) << 8);
         self.sp = mem.idata_read(sfr::SP.0);
         self.psw = Psw::from_byte(mem.idata_read(sfr::PSW.0));
     }
@@ -184,8 +184,14 @@ mod tests {
     #[test]
     fn psw_round_trip() {
         let p = Psw {
-            cy: true, ac: false, f0: true, rs1: true,
-            rs0: false, ov: true, f1: false, p: true,
+            cy: true,
+            ac: false,
+            f0: true,
+            rs1: true,
+            rs0: false,
+            ov: true,
+            f1: false,
+            p: true,
         };
         assert_eq!(Psw::from_byte(p.to_byte()).to_byte(), p.to_byte());
     }
