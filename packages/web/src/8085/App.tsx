@@ -133,6 +133,7 @@ export function App() {
     }
   });
   const [running, setRunning] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const emuRef = useRef<Emulator | null>(null);
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
@@ -402,6 +403,25 @@ export function App() {
   // focus is in the editor or in the side panel.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // ? → toggle help overlay (no modifier required; matches
+      // common keyboard-shortcut help conventions).
+      if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const target = e.target as HTMLElement | null;
+        const inEditable =
+          target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable);
+        if (!inEditable) {
+          e.preventDefault();
+          setShowHelp((v) => !v);
+          return;
+        }
+      }
+      if (e.key === "Escape" && showHelp) {
+        setShowHelp(false);
+        return;
+      }
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
       // Avoid clashing with browser-native finds, etc. We only handle
@@ -423,7 +443,7 @@ export function App() {
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [doRun, doStep, doDownload, doShare]);
+  }, [doRun, doStep, doDownload, doShare, showHelp]);
 
   const loadExample = useCallback(
     (ex: Example) => {
@@ -487,6 +507,15 @@ export function App() {
           >
             source
           </a>
+          <button
+            type="button"
+            className="ide-theme-toggle"
+            onClick={() => setShowHelp(true)}
+            title="Help (?)"
+            aria-label="Help"
+          >
+            ?
+          </button>
           <button
             type="button"
             className="ide-theme-toggle"
@@ -774,9 +803,76 @@ export function App() {
         <span>
           modern8085 · sibling to{" "}
           <a href="https://modern8086.com">modern8086</a> · MIT · {EXAMPLES.length} bundled examples ·{" "}
-          {Object.keys(OPCODE_DOCS).length} mnemonic docs
+          {Object.keys(OPCODE_DOCS).length} mnemonic docs · press <kbd>?</kbd> for help
         </span>
       </footer>
+
+      {showHelp && (
+        <div
+          className="ide-help-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowHelp(false);
+          }}
+        >
+          <div className="ide-help" role="dialog" aria-modal="true" aria-label="Help">
+            <header className="ide-help-h">
+              <span>modern8085 · keyboard + tips</span>
+              <button
+                type="button"
+                className="ide-help-x"
+                onClick={() => setShowHelp(false)}
+                aria-label="Close help"
+              >
+                ×
+              </button>
+            </header>
+            <section className="ide-help-body">
+              <h3>Keyboard shortcuts</h3>
+              <table className="ide-help-table">
+                <tbody>
+                  <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>Run</td></tr>
+                  <tr><td><kbd>Ctrl</kbd>+<kbd>.</kbd></td><td>Step one instruction</td></tr>
+                  <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Save as .a85 file</td></tr>
+                  <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Copy shareable URL</td></tr>
+                  <tr><td><kbd>?</kbd></td><td>Toggle this help</td></tr>
+                  <tr><td><kbd>Esc</kbd></td><td>Close this help</td></tr>
+                </tbody>
+              </table>
+
+              <h3>First steps</h3>
+              <ol>
+                <li>Pick a program from the <em>Examples ▾</em> menu — it pre-loads any input bytes for you.</li>
+                <li>Click <em>▶ Run</em>, or use <em>⤵ Step</em> to walk one instruction at a time.</li>
+                <li>Hover any mnemonic in the editor for its inline reference.</li>
+                <li>Step too far? Click <em>↶ Back</em> — it replays from the start to the previous step.</li>
+              </ol>
+
+              <h3>Memory inspector</h3>
+              <p>
+                The right pane shows 64 bytes from the base address you type in. Toggle the display between
+                hex / decimal / ASCII without re-running. Default base is the program origin (e.g. <code>2000H</code>);
+                examples that produce output at <code>3050H</code> auto-scroll there after run.
+              </p>
+
+              <h3>Dialect</h3>
+              <p>
+                Canonical Intel 8085 syntax — <code>;</code> comments, hex with the trailing <code>H</code>{" "}
+                (and a leading <code>0</code> when the first digit is A–F: <code>0FFH</code> not <code>FFH</code>).{" "}
+                Paste from sim8085 / GNUSim8085 / OshonSoft / textbook PDFs usually works — the assembler
+                silently auto-fixes the common mistakes and surfaces a note on the side panel when it does.
+              </p>
+
+              <h3>About / source</h3>
+              <p>
+                modern8085 is the 8085 sibling of <a href="https://modern8086.com">modern8086</a>. Both ship
+                from the same monorepo at{" "}
+                <a href="https://github.com/abuXsarkar/modern8086">github.com/abuXsarkar/modern8086</a>. MIT licensed.
+                For the whole family roster see <a href="/labs/">/labs/</a>.
+              </p>
+            </section>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
