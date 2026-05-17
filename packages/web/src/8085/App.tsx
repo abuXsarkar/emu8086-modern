@@ -865,12 +865,28 @@ export function App() {
             <div className="ide-panel">
               <h2 className="ide-panel-h">Symbols</h2>
               <div className="sym-list mono">
-                {symbols.map(([name, addr]) => (
-                  <div key={name} className="sym-row">
-                    <span>{name}</span>
-                    <span>{hex(addr, 4)}H</span>
-                  </div>
-                ))}
+                {symbols.map(([name, addr]) => {
+                  const text = `${hex(addr, 4)}H`;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      className="sym-row sym-row-clickable"
+                      title={`Copy ${text} to clipboard`}
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(text);
+                          setDiag(`Copied ${name} = ${text}`);
+                        } catch {
+                          setDiag(`Couldn't copy — clipboard blocked`);
+                        }
+                      }}
+                    >
+                      <span>{name}</span>
+                      <span>{text}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

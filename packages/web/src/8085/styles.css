@@ -360,7 +360,24 @@ body.dark .ide-mem-base input { background: #1a2538; border-color: #2a3a55; colo
 body.dark .mem-cell { background: rgba(255,255,255,0.05); }
 
 .sym-list { font-size: 11px; }
-.sym-row { display: flex; justify-content: space-between; padding: 2px 0; }
+.sym-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+.sym-row-clickable {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  text-align: left;
+}
+.sym-row-clickable:hover { background: rgba(30, 58, 138, 0.08); }
+body.dark .sym-row-clickable:hover { background: rgba(147, 197, 253, 0.12); }
 
 .hint-list { margin: 0; padding-left: 18px; font-size: 12px; }
 .hint-list li { margin-bottom: 4px; }
