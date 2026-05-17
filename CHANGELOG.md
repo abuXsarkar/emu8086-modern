@@ -53,7 +53,7 @@ example programs, and pain-point survey across 30+ sources).
 
 Follow-up work after the initial /8085/ launch:
 
-- **npm wrapper** `@modern8085/cli` (#99) — pre-release skeleton;
+- **npm wrapper** `@modern8086/cli-8085` (#99) — pre-release skeleton;
   inert until a tagged m85 release exists, then `npm install -g`
   fetches the per-platform binary from the GitHub Release.
 - **`/labs/` catalogue** (#100) — family-of-tools landing page

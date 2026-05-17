@@ -18,7 +18,7 @@ if (!existsSync(binary)) {
       binary +
       "\nThis usually means `npm install` couldn't reach github.com to download\n" +
       "the per-platform release artifact (or no release is published yet). Try:\n" +
-      "  • npm rebuild @modern8085/cli\n" +
+      "  • npm rebuild @modern8086/cli-8085\n" +
       "  • install manually from https://github.com/abuXsarkar/modern8086/releases\n" +
       "  • or build from source: cargo install --path packages/cli-8085",
   );

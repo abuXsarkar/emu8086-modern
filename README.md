@@ -51,7 +51,7 @@ https://modern8086.com/labs   # Family catalogue — every tool in one place
 ```bash
 # Cross-platform via npm (Node 18+)
 npm install -g @modern8086/cli   # 8086 — m86
-npm install -g @modern8085/cli   # 8085 — m85  (pending first release tag)
+npm install -g @modern8086/cli-8085   # 8085 — m85
 
 # macOS / Linux via Homebrew
 brew tap abuxsarkar/modern8086
@@ -74,31 +74,28 @@ composite action.
 
 The `m85` CLI is the sibling for 8085 assembly — same shape, scoped
 for autograding (`version`, `assemble`, `run` with `--poke`, `--bp`,
-`--max-steps`, `--mem-dump`). Until the first release is tagged,
-install from source:
+`--max-steps`, `--mem-dump`). Or from source:
 
 ```bash
 cargo install --git https://github.com/abuXsarkar/modern8086 modern8085-cli
 ```
 
-#### Maintainer: cutting an m85 release
+#### Maintainer: cutting a new m85 release
 
-`release-8085.yml` is wired but dormant. To ship `npm install -g
-@modern8085/cli@X.Y.Z`:
+`release-8085.yml` fires on `m85-v*.*.*` tags. To ship a new
+`@modern8086/cli-8085@X.Y.Z`:
 
 ```bash
 # Cut a tag from main once you're happy with the state of
 # packages/cli-8085 and the npm wrapper at packages/cli-npm-8085.
-git tag -a m85-v0.1.0 -m "m85 release 0.1.0"
-git push origin m85-v0.1.0
+git tag -a m85-v0.1.1 -m "m85 release 0.1.1"
+git push origin m85-v0.1.1
+# After the workflow finishes (~3-5 min, builds 4 platforms):
+cd packages/cli-npm-8085 && npm publish --access public
 ```
 
-The workflow builds the binary for four targets
-(linux-x86_64, macos-x86_64, macos-aarch64, windows-x86_64),
-packages, and creates the GitHub Release. From that point the
-`@modern8085/cli` npm wrapper's postinstall starts fetching the
-correct asset automatically. The tag pattern keeps this independent
-of the 8086 release pipeline (`v*.*.*`).
+The tag pattern keeps this independent of the 8086 release pipeline
+(`v*.*.*`).
 
 ### Desktop app
 
