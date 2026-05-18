@@ -67,9 +67,23 @@ importers:
 
   packages/cli-npm: {}
 
+  packages/cli-npm-8051: {}
+
   packages/cli-npm-8085: {}
 
   packages/desktop:
+    devDependencies:
+      '@tauri-apps/cli':
+        specifier: ^2.1.0
+        version: 2.11.1
+
+  packages/desktop-8051:
+    devDependencies:
+      '@tauri-apps/cli':
+        specifier: ^2.1.0
+        version: 2.11.1
+
+  packages/desktop-8085:
     devDependencies:
       '@tauri-apps/cli':
         specifier: ^2.1.0
