@@ -74,6 +74,17 @@ fn write_direct(cpu: &mut Cpu, mem: &mut Memory, addr: u8, value: u8) {
     if matches!(addr, 0x80 | 0x90 | 0xA0 | 0xB0) {
         cpu.io_log.push((addr, value));
     }
+    // SBUF write — model the "transmission complete" UART flag instantly
+    // and surface the byte on io_log so the Screen device renders it
+    // as serial output. Real hardware would clock the bit out over
+    // ~10 timer-1 reloads; for student labs the "instant TX" approximation
+    // is fine. TI must be cleared by software (no auto-clear) so a
+    // serial ISR fires once per byte.
+    if addr == sfr::SBUF.0 {
+        cpu.io_log.push((sfr::SBUF.0, value));
+        let scon = mem.idata_read(sfr::SCON.0);
+        mem.idata_write(sfr::SCON.0, scon | sfr::SCON_TI);
+    }
 }
 
 /// Read a bit. Returns true if set.
@@ -162,6 +173,42 @@ fn pop(cpu: &mut Cpu, mem: &Memory) -> u8 {
 #[allow(clippy::too_many_lines, clippy::cognitive_complexity)]
 pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
     cpu.sync_sfrs(mem);
+
+    // Before fetching the next opcode, see if an enabled, higher-
+    // priority interrupt is pending. If so, the dispatch consumes 2
+    // machine cycles (matching real hardware) and the next step()
+    // call lands at the ISR vector. We return early with a synthetic
+    // StepRecord whose opcode is 0x12 (LCALL) so the IDE's step
+    // counter and cycle budget see the dispatch as a single step.
+    if let Some((vector, priority)) = pending_interrupt(cpu, mem) {
+        let pc_before_isr = cpu.pc;
+        push(cpu, mem, (cpu.pc & 0xFF) as u8);
+        push(cpu, mem, (cpu.pc >> 8) as u8);
+        cpu.pc = vector;
+        cpu.isr_active[priority as usize] = true;
+        // Hardware auto-clears the timer overflow flag for the vector
+        // we just dispatched to. Serial + external flags must be
+        // cleared in software.
+        match vector {
+            sfr::VEC_TIMER0 => {
+                let v = mem.idata_read(sfr::TCON.0) & !sfr::TCON_TF0;
+                mem.idata_write(sfr::TCON.0, v);
+            }
+            sfr::VEC_TIMER1 => {
+                let v = mem.idata_read(sfr::TCON.0) & !sfr::TCON_TF1;
+                mem.idata_write(sfr::TCON.0, v);
+            }
+            _ => {}
+        }
+        cpu.sync_sfrs(mem);
+        return Ok(StepRecord {
+            pc_before: pc_before_isr,
+            pc_after: vector,
+            opcode: 0x12, // LCALL — for IDE diagnostics
+            cycles: 2,
+        });
+    }
+
     let pc_before = cpu.pc;
     let opcode = fetch_byte(cpu, mem);
     let mut cycles: u8 = 1;
@@ -353,6 +400,13 @@ pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
             let hi = pop(cpu, mem);
             let lo = pop(cpu, mem);
             cpu.pc = (u16::from(hi) << 8) | u16::from(lo);
+            // Clear the highest active priority bit — the ISR that's
+            // returning is the most-recently-entered one.
+            if cpu.isr_active[1] {
+                cpu.isr_active[1] = false;
+            } else if cpu.isr_active[0] {
+                cpu.isr_active[0] = false;
+            }
             cycles = 2;
         }
 
@@ -577,8 +631,12 @@ pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
             let rel = fetch_byte(cpu, mem);
             let target = rel_target(cpu, rel);
             // SJMP $ (jump-to-self, encoded as 80 FE) is the canonical
-            // "stop here" idiom on the 8051 — flag it.
-            if target == pc_before {
+            // "stop here" idiom on the 8051. But when interrupts are
+            // enabled (IE.EA set), real hardware uses SJMP $ as an
+            // idle loop waiting for an ISR — flagging it as a stop
+            // would prevent the ISR from ever running. Only halt
+            // when interrupts are off.
+            if target == pc_before && mem.idata_read(sfr::IE.0) & sfr::IE_EA == 0 {
                 return Err(StopReason::SelfJump(pc_before));
             }
             cpu.pc = target;
@@ -977,12 +1035,145 @@ pub fn step(cpu: &mut Cpu, mem: &mut Memory) -> Result<StepRecord, StopReason> {
     }
 
     cpu.sync_sfrs(mem);
+    // Advance the timers by however many machine cycles this
+    // instruction consumed. Done *after* execution so a write to TR0
+    // / TR1 in this instruction takes effect from the next step.
+    tick_timers(mem, cycles);
     Ok(StepRecord {
         pc_before,
         pc_after: cpu.pc,
         opcode,
         cycles,
     })
+}
+
+/// Advance timers 0 and 1 by `cycles` machine ticks. Sets TF0/TF1
+/// in TCON on overflow. Modes:
+///   0 — 13-bit (TL low 5 bits + TH all 8 bits)
+///   1 — 16-bit (TL + TH cascaded)
+///   2 — 8-bit auto-reload (TL counts, TH is reload value)
+///   3 — split (T0 only; rarely used in labs, modelled as mode 0 here)
+/// External-trigger (GATE) and counter (C/T) modes treat the source
+/// as the machine-cycle clock — we have no pin model.
+fn tick_timers(mem: &mut Memory, cycles: u8) {
+    let tcon = mem.idata_read(sfr::TCON.0);
+    let tmod = mem.idata_read(sfr::TMOD.0);
+
+    if tcon & sfr::TCON_TR0 != 0 {
+        let mode = tmod & 0x03;
+        let (new_lo, new_hi, overflowed) =
+            advance_timer(mem.idata_read(sfr::TL0.0), mem.idata_read(sfr::TH0.0), mode, cycles);
+        mem.idata_write(sfr::TL0.0, new_lo);
+        mem.idata_write(sfr::TH0.0, new_hi);
+        if overflowed {
+            mem.idata_write(sfr::TCON.0, mem.idata_read(sfr::TCON.0) | sfr::TCON_TF0);
+        }
+    }
+    if tcon & sfr::TCON_TR1 != 0 {
+        let mode = (tmod >> 4) & 0x03;
+        let (new_lo, new_hi, overflowed) =
+            advance_timer(mem.idata_read(sfr::TL1.0), mem.idata_read(sfr::TH1.0), mode, cycles);
+        mem.idata_write(sfr::TL1.0, new_lo);
+        mem.idata_write(sfr::TH1.0, new_hi);
+        if overflowed {
+            mem.idata_write(sfr::TCON.0, mem.idata_read(sfr::TCON.0) | sfr::TCON_TF1);
+        }
+    }
+}
+
+/// Advance a single timer's TL/TH pair by `ticks` cycles. Returns
+/// the new (TL, TH, did-it-overflow).
+fn advance_timer(tl: u8, th: u8, mode: u8, ticks: u8) -> (u8, u8, bool) {
+    let mut overflowed = false;
+    match mode {
+        // Mode 1: 16-bit cascade.
+        1 => {
+            let current = u32::from(tl) | (u32::from(th) << 8);
+            let next = current + u32::from(ticks);
+            if next > 0xFFFF {
+                overflowed = true;
+            }
+            let wrapped = (next & 0xFFFF) as u16;
+            ((wrapped & 0xFF) as u8, (wrapped >> 8) as u8, overflowed)
+        }
+        // Mode 2: 8-bit auto-reload — TL counts, TH is reload value.
+        2 => {
+            let next = u16::from(tl) + u16::from(ticks);
+            if next > 0xFF {
+                // Reload TL from TH, accounting for ticks-past-overflow.
+                let extra = (next - 0x100) as u8;
+                (th.wrapping_add(extra), th, true)
+            } else {
+                (next as u8, th, false)
+            }
+        }
+        // Mode 0 (13-bit) and mode 3 (split — rare; treated as mode 0
+        // for T0): TH counts as the high 8 bits, TL counts only its
+        // low 5 bits. Overflow when the full 13-bit value wraps.
+        _ => {
+            let current = u32::from(tl & 0x1F) | (u32::from(th) << 5);
+            let next = current + u32::from(ticks);
+            if next > 0x1FFF {
+                overflowed = true;
+            }
+            let wrapped = next & 0x1FFF;
+            ((wrapped & 0x1F) as u8, (wrapped >> 5) as u8, overflowed)
+        }
+    }
+}
+
+/// Returns `(vector, priority)` for the highest-priority enabled
+/// interrupt whose flag is set, if one can be dispatched right now
+/// (i.e. it's not blocked by an equal/higher ISR already in flight).
+/// Reading order matches real hardware: priority level first, then
+/// the fixed natural order INT0 < TIMER0 < INT1 < TIMER1 < SERIAL.
+fn pending_interrupt(cpu: &Cpu, mem: &Memory) -> Option<(u16, u8)> {
+    let ie = mem.idata_read(sfr::IE.0);
+    if ie & sfr::IE_EA == 0 {
+        return None;
+    }
+    let ip = mem.idata_read(sfr::IP.0);
+    let tcon = mem.idata_read(sfr::TCON.0);
+    let scon = mem.idata_read(sfr::SCON.0);
+
+    // (enable bit, vector, flag-source closure, ip bit).
+    // We don't model external interrupts because the IDE has no pin
+    // surface — programs that want to fire them set TCON_IE0/IE1
+    // by hand. Treat that as a valid source for the dispatch.
+    let sources: [(u8, u16, bool); 5] = [
+        (sfr::IE_EX0, sfr::VEC_INT0, tcon & sfr::TCON_IE0 != 0),
+        (sfr::IE_ET0, sfr::VEC_TIMER0, tcon & sfr::TCON_TF0 != 0),
+        (sfr::IE_EX1, sfr::VEC_INT1, tcon & sfr::TCON_IE1 != 0),
+        (sfr::IE_ET1, sfr::VEC_TIMER1, tcon & sfr::TCON_TF1 != 0),
+        (sfr::IE_ES, sfr::VEC_SERIAL, scon & (sfr::SCON_TI | sfr::SCON_RI) != 0),
+    ];
+
+    // High priority pass first, then low. A high ISR blocks both
+    // levels; a low ISR blocks only low.
+    for target_high in [true, false] {
+        if target_high && cpu.isr_active[1] {
+            continue; // already in a high ISR — nothing preempts.
+        }
+        if !target_high && (cpu.isr_active[0] || cpu.isr_active[1]) {
+            continue;
+        }
+        for (i, (enable, vec, flagged)) in sources.iter().enumerate() {
+            if !flagged || ie & enable == 0 {
+                continue;
+            }
+            let is_high = ip & enable != 0;
+            if is_high != target_high {
+                continue;
+            }
+            let priority = u8::from(is_high);
+            // Flag auto-clear (TF0/TF1 cleared by hardware on ISR
+            // entry; serial RI/TI must be cleared in software) is
+            // done by the caller after dispatch.
+            let _ = i;
+            return Some((*vec, priority));
+        }
+    }
+    None
 }
 
 /// Run until SelfJump, breakpoint, invalid opcode, or budget exhausted.
@@ -1107,5 +1298,109 @@ mod tests {
         mem.load_code(0x0000, &[0x01, 0x00]); // AJMP 0
         let stop = run(&mut cpu, &mut mem, 50, &[]);
         assert_eq!(stop, StopReason::BudgetExhausted);
+    }
+
+    #[test]
+    fn timer0_mode1_overflows_and_sets_tf0() {
+        // Set TR0 + mode 1; preload TH0=0xFF, TL0=0xF0; advance — the
+        // 16 cycles needed for the next 16 ticks should overflow.
+        let mut cpu = Cpu::new();
+        let mut mem = Memory::new();
+        mem.idata_write(sfr::TMOD.0, 0x01); // T0 mode 1
+        mem.idata_write(sfr::TCON.0, sfr::TCON_TR0);
+        mem.idata_write(sfr::TH0.0, 0xFF);
+        mem.idata_write(sfr::TL0.0, 0xF0);
+        // Run a sequence of NOPs (1 cycle each). 16 NOPs = TL overflows
+        // past 0xFFFF, sets TF0.
+        let nops = vec![0x00u8; 32];
+        mem.load_code(0x0030, &nops);
+        cpu.pc = 0x0030;
+        for _ in 0..16 {
+            step(&mut cpu, &mut mem).unwrap();
+        }
+        assert!(mem.idata_read(sfr::TCON.0) & sfr::TCON_TF0 != 0);
+    }
+
+    #[test]
+    fn timer0_interrupt_dispatches_and_reti_returns() {
+        // Program: MAIN at 0x0030 just NOPs and SJMP $; ISR at the
+        // timer0 vector (0x000B) sets a marker byte in IDATA 0x70
+        // then RETI. We pre-arm the interrupt by setting TF0 directly
+        // (avoids needing to actually tick the timer for the test).
+        let mut cpu = Cpu::new();
+        let mut mem = Memory::new();
+        // ISR at 0x000B: MOV 70H, #AAH ; RETI  (75 70 AA 32)
+        mem.load_code(0x000B, &[0x75, 0x70, 0xAA, 0x32]);
+        // Main at 0x0030: NOP ; NOP ; SJMP $   (00 00 80 FE)
+        mem.load_code(0x0030, &[0x00, 0x00, 0x80, 0xFE]);
+        cpu.pc = 0x0030;
+        // Enable timer 0 interrupt + master enable; set TF0 to fire.
+        mem.idata_write(sfr::IE.0, sfr::IE_EA | sfr::IE_ET0);
+        mem.idata_write(sfr::TCON.0, sfr::TCON_TF0);
+        // First step should dispatch (synthetic LCALL → 0x000B), not
+        // execute the NOP at 0x0030.
+        let r = step(&mut cpu, &mut mem).unwrap();
+        assert_eq!(r.pc_after, 0x000B);
+        assert!(cpu.isr_active[0]); // dispatched at low priority
+        // TF0 should have been auto-cleared.
+        assert_eq!(mem.idata_read(sfr::TCON.0) & sfr::TCON_TF0, 0);
+        // Run the ISR (MOV ; RETI). Budget = 4 instructions max.
+        for _ in 0..4 {
+            if let Err(stop) = step(&mut cpu, &mut mem) {
+                panic!("ISR died: {stop:?}");
+            }
+            if !cpu.isr_active[0] {
+                break;
+            }
+        }
+        assert_eq!(mem.idata_read(0x70), 0xAA);
+        assert!(!cpu.isr_active[0]);
+        // PC should be back at the main code (PC=0x0030 was pushed
+        // before dispatch, so RETI restored it).
+        assert_eq!(cpu.pc, 0x0030);
+    }
+
+    #[test]
+    fn sbuf_write_sets_ti_and_logs_byte() {
+        let mut cpu = Cpu::new();
+        let mut mem = Memory::new();
+        // MOV SBUF, #41H ; SJMP $   (75 99 41 80 FE)
+        mem.load_code(0x0000, &[0x75, 0x99, 0x41, 0x80, 0xFE]);
+        let stop = run(&mut cpu, &mut mem, 100, &[]);
+        assert!(matches!(stop, StopReason::SelfJump(_)));
+        assert!(mem.idata_read(sfr::SCON.0) & sfr::SCON_TI != 0);
+        assert!(cpu.io_log.iter().any(|&(p, b)| p == sfr::SBUF.0 && b == 0x41));
+    }
+
+    #[test]
+    fn serial_interrupt_fires_after_sbuf_write() {
+        let mut cpu = Cpu::new();
+        let mut mem = Memory::new();
+        // ISR at 0x0023: MOV 71H, #55H ; CLR SCON.1 (TI) ; RETI
+        //                75 71 55     ;  C2 99             ; 32
+        mem.load_code(0x0023, &[0x75, 0x71, 0x55, 0xC2, 0x99, 0x32]);
+        // Main at 0x0050: MOV SBUF, #41H ; SJMP $
+        // (SJMP $ with EA set is an idle loop — won't trigger
+        // SelfJump halt — so we cap the run by budget instead.)
+        mem.load_code(0x0050, &[0x75, 0x99, 0x41, 0x80, 0xFE]);
+        cpu.pc = 0x0050;
+        mem.idata_write(sfr::IE.0, sfr::IE_EA | sfr::IE_ES);
+        let _ = run(&mut cpu, &mut mem, 200, &[]);
+        assert_eq!(mem.idata_read(0x71), 0x55);
+    }
+
+    #[test]
+    fn isr_blocked_when_ie_ea_is_clear() {
+        let mut cpu = Cpu::new();
+        let mut mem = Memory::new();
+        mem.load_code(0x0030, &[0x00, 0x80, 0xFE]); // NOP ; SJMP $
+        cpu.pc = 0x0030;
+        // Per-source enable on, but master disable.
+        mem.idata_write(sfr::IE.0, sfr::IE_ET0);
+        mem.idata_write(sfr::TCON.0, sfr::TCON_TF0);
+        let r = step(&mut cpu, &mut mem).unwrap();
+        assert_eq!(r.pc_before, 0x0030); // NOP executed, not dispatched
+        assert!(!cpu.isr_active[0]);
+        assert!(mem.idata_read(sfr::TCON.0) & sfr::TCON_TF0 != 0); // still set
     }
 }
