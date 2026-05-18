@@ -1,0 +1,71 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "modern8051",
+  "version": "0.1.0",
+  "identifier": "com.cyberdude.modern8051",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @modern8086/web dev",
+    "beforeBuildCommand": "pnpm --filter @modern8086/web build",
+    "devUrl": "http://localhost:5173/8051/",
+    "frontendDist": "../web/dist/8051"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "modern8051",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "shadow": true,
+        "skipTaskbar": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "publisher": "Abu Sufian Sarkar",
+    "homepage": "https://modern8086.com/8051",
+    "copyright": "© Abu Sufian Sarkar. MIT-licensed.",
+    "license": "MIT",
+    "shortDescription": "Intel 8051 microcontroller emulator and assembly IDE.",
+    "longDescription": "A modern, open-source Intel 8051 microcontroller emulator and assembly IDE for students. Sibling to modern8086 and modern8085 — same chassis, distinct ISA core. Three-space memory (IDATA + XDATA + CODE), 256 opcodes, full PSW with register banks, interrupts + Timer 0/1 + serial port, eight live trainer-kit devices bound to P0–P3, classroom mode, in-app tutorials.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "exceptionDomain": null
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "installMode": "currentUser"
+      },
+      "wix": {
+        "language": "en-US"
+      }
+    }
+  }
+}

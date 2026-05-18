@@ -79,9 +79,122 @@ jobs:
           path: dist/${{ matrix.asset }}
           retention-days: 7
 
+  desktop:
+    name: Desktop bundle (${{ matrix.platform.name }})
+    # Mirrors the 8086 desktop job — packages/desktop-8085 is a Tauri 2
+    # shell that loads the prebuilt /8085/ web bundle. Produces DEB +
+    # AppImage on Linux, DMG + .app.tar.gz on macOS (universal binary),
+    # MSI + NSIS on Windows.
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: linux-x86_64
+            runner: ubuntu-latest
+            args: ""
+          - name: macos-universal
+            runner: macos-latest
+            args: "--target universal-apple-darwin"
+          - name: windows-x86_64
+            runner: windows-latest
+            args: ""
+    runs-on: ${{ matrix.platform.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tauri system deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl wget file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libdbus-1-dev \
+            pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.runner == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: tauri-8085-${{ matrix.platform.name }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9.12.0"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: "v0.13.1"
+
+      - name: Build wasm pkgs (8086 + 8085 — Tauri's web build pulls both)
+        run: |
+          wasm-pack build packages/wasm-api --target web --out-dir pkg --release
+          wasm-pack build packages/wasm-api-8085 --target web --out-dir pkg --release
+          wasm-pack build packages/wasm-api-8051 --target web --out-dir pkg --release
+
+      - name: Tauri build (unsigned)
+        if: vars.SIGNING_ENABLED != 'true'
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: packages/desktop-8085
+          args: ${{ matrix.platform.args }}
+
+      - name: Tauri build (signed)
+        if: vars.SIGNING_ENABLED == 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_SIGN_CERT_P12 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGN_CERT_PASSWORD }}
+        with:
+          projectPath: packages/desktop-8085
+          args: ${{ matrix.platform.args }}
+
+      - name: Collect desktop artifacts
+        shell: bash
+        run: |
+          mkdir -p dist
+          find target -path '*/release/bundle/*' \
+            \( -name '*.deb' -o -name '*.AppImage' \
+               -o -name '*.dmg' -o -name '*.app.tar.gz' \
+               -o -name '*.msi' -o -name '*.exe' \
+               -o -name '*.nsis.zip' \) \
+            -exec cp {} dist/ \; 2>/dev/null || true
+          ls -la dist/ || true
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-8085-${{ matrix.platform.name }}
+          path: dist/*
+          if-no-files-found: warn
+          retention-days: 7
+
   release:
     name: Publish GitHub Release
-    needs: [build]
+    needs: [build, desktop]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -92,7 +205,13 @@ jobs:
       - name: Flatten + checksum
         run: |
           mkdir -p out
-          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} out/ \;
+          find artifacts -type f \
+            \( -name '*.tar.gz' -o -name '*.zip' \
+               -o -name '*.deb' -o -name '*.AppImage' \
+               -o -name '*.dmg' -o -name '*.app.tar.gz' \
+               -o -name '*.msi' -o -name '*.exe' \
+               -o -name '*.nsis.zip' \) \
+            -exec cp {} out/ \;
           cd out
           sha256sum * > checksums.txt
           cat checksums.txt

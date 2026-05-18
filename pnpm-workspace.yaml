@@ -11,3 +11,4 @@ packages:
   - "packages/cli-npm-8085"
   - "packages/desktop-8085"
   - "packages/cli-npm-8051"
+  - "packages/desktop-8051"

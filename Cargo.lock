@@ -2214,6 +2214,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "modern8051-desktop"
+version = "1.1.4"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "tauri-plugin-updater",
+ "tauri-plugin-window-state",
+]
+
+[[package]]
 name = "modern8051-wasm-api"
 version = "1.1.4"
 dependencies = [
