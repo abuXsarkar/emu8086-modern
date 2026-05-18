@@ -292,6 +292,19 @@ impl Parser<'_> {
                     self.i += 1;
                     return Ok(Operand::Label(name));
                 }
+                // `#'X'` — single-character literal. Standard 8051
+                // syntax for ASCII values; saves students from looking
+                // up code points.
+                if let Some(Token {
+                    tok: Tok::Str(s), ..
+                }) = self.peek()
+                {
+                    if s.chars().count() == 1 {
+                        let ch = s.chars().next().unwrap();
+                        self.i += 1;
+                        return Ok(Operand::Imm(i64::from(ch as u32)));
+                    }
+                }
                 let n = self.parse_signed_number(line)?;
                 Ok(Operand::Imm(n))
             }
@@ -422,6 +435,13 @@ impl Parser<'_> {
                     "P0" | "P1" | "P2" | "P3" | "PSW" | "SP" | "DPL" | "DPH" | "TMOD" | "TCON"
                     | "TL0" | "TL1" | "TH0" | "TH1" | "SCON" | "SBUF" | "IE" | "IP" | "PCON" => {
                         Operand::Direct(sfr_addr_for_name(&upper).unwrap() as i64)
+                    }
+                    // Pre-defined bit names within bit-addressable SFRs.
+                    // Resolved here so `SETB TR0`, `JB TI, label`, etc.
+                    // assemble without forcing students to write the
+                    // bit address as a literal or `TCON.4`.
+                    _ if bit_addr_for_name(&upper).is_some() => {
+                        Operand::Bit(bit_addr_for_name(&upper).unwrap() as i64)
                     }
                     _ => Operand::Label(name_clone),
                 })
@@ -560,6 +580,32 @@ fn byte_dot_bit_to_bit(byte: u8, bit: u8) -> u8 {
         // won't accidentally match a real bit.
         byte.wrapping_add(bit)
     }
+}
+
+/// Pre-defined bit symbols for the bit-addressable SFRs (TCON, SCON,
+/// IE, IP, PSW). Returned values are bit addresses (0x80..0xFF), not
+/// byte addresses; bit-context instructions consume them directly.
+#[must_use]
+pub fn bit_addr_for_name(name: &str) -> Option<u8> {
+    Some(match name {
+        // TCON @ 88H
+        "IT0" => 0x88, "IE0" => 0x89, "IT1" => 0x8A, "IE1" => 0x8B,
+        "TR0" => 0x8C, "TF0" => 0x8D, "TR1" => 0x8E, "TF1" => 0x8F,
+        // SCON @ 98H
+        "RI" => 0x98, "TI" => 0x99, "RB8" => 0x9A, "TB8" => 0x9B,
+        "REN" => 0x9C, "SM2" => 0x9D, "SM1" => 0x9E, "SM0" => 0x9F,
+        // IE @ A8H
+        "EX0" => 0xA8, "ET0" => 0xA9, "EX1" => 0xAA, "ET1" => 0xAB,
+        "ES" => 0xAC, "EA" => 0xAF,
+        // IP @ B8H
+        "PX0" => 0xB8, "PT0" => 0xB9, "PX1" => 0xBA, "PT1" => 0xBB,
+        "PS" => 0xBC,
+        // PSW @ D0H — "P" intentionally omitted (clashes with ports);
+        // students who want it write PSW.0 explicitly.
+        "OV" => 0xD2, "RS0" => 0xD3, "RS1" => 0xD4,
+        "AC" => 0xD6, "CY" => 0xD7,
+        _ => return None,
+    })
 }
 
 #[must_use]

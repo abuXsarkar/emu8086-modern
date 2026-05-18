@@ -371,6 +371,51 @@ LOOP:   MOV   A, B
   },
 
   {
+    name: "Timer 0 overflow + ISR",
+    description:
+      "Sets up Timer 0 in 16-bit mode, enables its interrupt, runs an idle loop. The ISR at 000BH increments a counter in IDATA 70H — watch it climb in the memory inspector.",
+    source: `; Timer 0 → ISR increments IDATA[70H] forever.
+ORG 0
+        LJMP  MAIN          ; jump past the vector slot
+
+ORG 000BH                   ; timer 0 ISR vector
+        LJMP  ISR
+
+ORG 0030H
+MAIN:   MOV   TMOD, #01H    ; timer 0, mode 1 (16-bit)
+        MOV   TH0, #0F0H    ; preload — overflows after 0x1000 cycles
+        MOV   TL0, #00H
+        MOV   IE,  #82H     ; EA + ET0
+        SETB  TR0           ; start timer 0
+        MOV   70H, #0       ; counter starts at 0
+IDLE:   SJMP  IDLE          ; idle here; ISR drives the counter
+
+ISR:    INC   70H
+        MOV   TH0, #0F0H    ; reload (mode 1 isn't auto-reload)
+        MOV   TL0, #00H
+        RETI
+`,
+    outputSpace: "idata",
+    outputAddr: 0x70,
+  },
+
+  {
+    name: "Serial TX — print 'HI'",
+    description:
+      "Writes two bytes to SBUF; the Screen device renders them as serial output. Polls TI between writes (TI is set automatically on SBUF write in this sim; cleared by software).",
+    source: `; Serial TX: write 'H','I' to SBUF, poll TI between writes.
+ORG 0
+        MOV   SBUF, #'H'
+WAIT1:  JNB   SCON.1, WAIT1 ; wait for TI
+        CLR   SCON.1        ; clear TI for next byte
+        MOV   SBUF, #'I'
+WAIT2:  JNB   SCON.1, WAIT2
+        CLR   SCON.1
+        SJMP  $
+`,
+  },
+
+  {
     name: "Delay loop (~ N machine cycles)",
     description:
       "Three nested DJNZ loops — the textbook 8051 delay primitive. Doesn't write anywhere; watch the cycle counter climb.",

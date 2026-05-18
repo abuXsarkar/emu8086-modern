@@ -38,6 +38,40 @@ pub const PSW: SfrAddr = SfrAddr(0xD0);
 pub const ACC: SfrAddr = SfrAddr(0xE0);
 pub const B: SfrAddr = SfrAddr(0xF0);
 
+// ── Bit positions within multi-flag SFRs ─────────────────────────
+//
+// IE (0xA8) — interrupt enables. Bit 7 is the master enable (EA);
+// the per-source bits gate individual interrupts.
+pub const IE_EX0: u8 = 0x01; // ext int 0
+pub const IE_ET0: u8 = 0x02; // timer 0 overflow
+pub const IE_EX1: u8 = 0x04; // ext int 1
+pub const IE_ET1: u8 = 0x08; // timer 1 overflow
+pub const IE_ES: u8 = 0x10; // serial port (TI or RI)
+pub const IE_EA: u8 = 0x80; // master enable
+
+// TCON (0x88) — timer / external interrupt control. We respect TR0/TR1
+// for timer run, and TF0/TF1 are set by the executor on overflow.
+pub const TCON_IT0: u8 = 0x01;
+pub const TCON_IE0: u8 = 0x02;
+pub const TCON_IT1: u8 = 0x04;
+pub const TCON_IE1: u8 = 0x08;
+pub const TCON_TR0: u8 = 0x10;
+pub const TCON_TF0: u8 = 0x20;
+pub const TCON_TR1: u8 = 0x40;
+pub const TCON_TF1: u8 = 0x80;
+
+// SCON (0x98) — serial port control. TI/RI are the transmit/receive
+// "byte complete" flags the program polls or interrupts on.
+pub const SCON_RI: u8 = 0x01;
+pub const SCON_TI: u8 = 0x02;
+
+// Interrupt vectors (CODE address jumped to when an interrupt fires).
+pub const VEC_INT0: u16 = 0x0003;
+pub const VEC_TIMER0: u16 = 0x000B;
+pub const VEC_INT1: u16 = 0x0013;
+pub const VEC_TIMER1: u16 = 0x001B;
+pub const VEC_SERIAL: u16 = 0x0023;
+
 /// Bit-addressable bit → (byte address, bit index within the byte).
 /// 8051 maps bit addresses 0x00..0x7F into bytes 0x20..0x2F (regular
 /// IDATA), and 0x80..0xFF into the bit-addressable subset of the SFR

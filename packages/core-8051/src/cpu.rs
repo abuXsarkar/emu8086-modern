@@ -108,6 +108,11 @@ pub struct Cpu {
     /// 256 IO port-style activity log entries — same shape as the
     /// 8085's so the web IDE's device polling code is reusable.
     pub io_log: Vec<(u8, u8)>,
+    /// Active interrupt-service-routine nesting. The 8051 has two
+    /// priority levels (high and low). A high-priority ISR can
+    /// preempt a low-priority one; nothing preempts a high. RETI
+    /// clears the topmost set flag. `[low, high]`.
+    pub isr_active: [bool; 2],
 }
 
 impl Cpu {
@@ -121,6 +126,7 @@ impl Cpu {
             pc: 0,
             psw: Psw::default(),
             io_log: Vec::new(),
+            isr_active: [false, false],
         }
     }
 
